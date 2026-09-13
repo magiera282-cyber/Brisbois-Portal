@@ -84,7 +84,7 @@
                     <textarea id="pin-text-input" rows="3" placeholder="z.B. Unterboden feucht im Eingangsbereich..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">📷 Foto zum Mangel hinzufügen (optional)</label>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">📷 Foto zum Mangel hinzufügen (wird automatisch komprimiert)</label>
                     <input type="file" id="pin-foto-input" accept="image/*" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
                 </div>
             </div>
@@ -182,7 +182,7 @@
         </div>
     </div>
 
-    <!-- MODAL: NEUES PROJEKT MANUELL ERSTELLEN (MIT MEHREREN MATERIALIEN) -->
+    <!-- MODAL: NEUES PROJEKT MANUELL ERSTELLEN -->
     <div id="neues-projekt-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center border-b pb-3">
@@ -211,7 +211,6 @@
                     <textarea id="manuell-projekt-anweisung" rows="2" placeholder="z.B. 400 qm Parkett vollflächig verkleben..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
                 </div>
 
-                <!-- MEHRERE MATERIALIEN DYNAMISCH HINZUFÜGEN -->
                 <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                     <div class="flex justify-between items-center">
                         <h4 class="text-xs font-bold text-slate-800 uppercase">📦 Benötigte Materialien / Packliste</h4>
@@ -219,9 +218,7 @@
                             + Weiteres Material
                         </button>
                     </div>
-                    <div id="manuell-material-container" class="space-y-2 max-h-48 overflow-y-auto p-1">
-                        <!-- Wird per JS befüllt -->
-                    </div>
+                    <div id="manuell-material-container" class="space-y-2 max-h-48 overflow-y-auto p-1"></div>
                 </div>
 
                 <div class="flex gap-2 pt-2">
@@ -1116,6 +1113,7 @@
             };
         }
 
+        // BILD KOMPRIMIERUNG FÜR HANDY-FOTOS & GRUNDRISSE
         function bildKomprimierenUndKonvertieren(file, callback) {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -1124,8 +1122,8 @@
                 img.src = event.target.result;
                 img.onload = function () {
                     const canvas = document.createElement('canvas');
-                    let MAX_WIDTH = 1000;
-                    let MAX_HEIGHT = 1000;
+                    let MAX_WIDTH = 1200;
+                    let MAX_HEIGHT = 1200;
                     let width = img.width;
                     let height = img.height;
 
@@ -1146,8 +1144,8 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    let quality = 0.5;
-                    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    // Komprimierung auf 0.6 (ausreichend scharf, aber winzige Dateigröße)
+                    let dataUrl = canvas.toDataURL('image/jpeg', 0.6);
                     callback(dataUrl);
                 };
             };
@@ -2709,32 +2707,43 @@
         }
 
         function verarbeiteGrundriss(datei) {
-            dateiEinlesenOderKonvertieren(datei, function(ergebnisUrl) {
-                const p = globalDaten.projekte[aktuellesProjekt];
-                if (!p.plaene) p.plaene = [];
-                p.plaene.push(ergebnisUrl);
-                p.aktiverPlanIndex = p.plaene.length - 1;
-                planZoomFaktor = 1;
-                aktualisierePlanTransform();
-                
-                if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
-                const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-                globalDaten.benachrichtigungen.unshift({
-                    von: `🚨 ${eingeloggterMitarbeiter} (Baustellen-Plan)`,
-                    empfaenger: "Chef/Techniker/Zugewiesen",
-                    text: `Neuer Grundriss-Plan (Bild oder PDF) auf Baustelle "${aktuellesProjekt}" hochgeladen.`,
-                    datum: datum,
-                    gelesenVon: [eingeloggterMitarbeiter],
-                    geloeschtVon: [],
-                    projekt: aktuellesProjekt
+            if (datei.type === 'application/pdf' || datei.name.toLowerCase().endsWith('.pdf')) {
+                dateiEinlesenOderKonvertieren(datei, function(ergebnisUrl) {
+                    speichereGrundrissPlan(ergebnisUrl);
                 });
+            } else {
+                // Automatische Komprimierung auch für Grundriss-Bilder vom Handy
+                bildKomprimierenUndKonvertieren(datei, function(ergebnisUrl) {
+                    speichereGrundrissPlan(ergebnisUrl);
+                });
+            }
+        }
 
-                projektSpeichern(aktuellesProjekt);
-                globalGlobalSpeichern();
-                plaeneLeisteAktualisieren();
-                planAnzeigen();
-                benachrichtigungenAnzeigen();
+        function speichereGrundrissPlan(ergebnisUrl) {
+            const p = globalDaten.projekte[aktuellesProjekt];
+            if (!p.plaene) p.plaene = [];
+            p.plaene.push(ergebnisUrl);
+            p.aktiverPlanIndex = p.plaene.length - 1;
+            planZoomFaktor = 1;
+            aktualisierePlanTransform();
+            
+            if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
+            const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            globalDaten.benachrichtigungen.unshift({
+                von: `🚨 ${eingeloggterMitarbeiter} (Baustellen-Plan)`,
+                empfaenger: "Chef/Techniker/Zugewiesen",
+                text: `Neuer Grundriss-Plan auf Baustelle "${aktuellesProjekt}" hochgeladen.`,
+                datum: datum,
+                gelesenVon: [eingeloggterMitarbeiter],
+                geloeschtVon: [],
+                projekt: aktuellesProjekt
             });
+
+            projektSpeichern(aktuellesProjekt);
+            globalGlobalSpeichern();
+            plaeneLeisteAktualisieren();
+            planAnzeigen();
+            benachrichtigungenAnzeigen();
         }
 
         window.wechselnTab = function(tabName) {
