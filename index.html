@@ -1912,7 +1912,7 @@
             }
 
             gefilterteListe.forEach(({ item, originalIndex, istGelesen }) => {
-                const isChefMsg = item.von.includes('Chef') || item.von.includes('Jeff') || item.von.includes('Patrick');
+                const isChefMsg = item.von.includes('Chef') || item.von.includes('Jeff');
                 const rahmenFarbe = istGelesen 
                     ? "border-slate-300 bg-slate-100 opacity-75" 
                     : (isChefMsg ? "border-amber-500 bg-amber-50/50 shadow-md font-medium" : "border-blue-300 bg-slate-50 shadow-md font-medium");
