@@ -71,6 +71,40 @@
         </div>
     </div>
 
+    <!-- MODAL: PLAN GROSSANSICHT / VOLLBILD (LICHTBOX) -->
+    <div id="plan-vollbild-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col hidden">
+        <div class="bg-slate-900 text-white px-4 py-3 flex justify-between items-center border-b border-slate-800 shadow-lg">
+            <div class="flex items-center gap-3">
+                <span class="text-lg">📐</span>
+                <h3 class="font-bold text-sm md:text-base" id="vollbild-titel">Grundriss-Plan Großansicht</h3>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="vollbildZoomIn()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Vergrößern">+</button>
+                <button type="button" onclick="vollbildZoomReset()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition" title="Zurücksetzen">⌂</button>
+                <button type="button" onclick="vollbildZoomOut()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Verkleinern">-</button>
+                <button type="button" onclick="vollbildSchliessen()" class="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg text-sm transition ml-2">✕ Schließen</button>
+            </div>
+        </div>
+
+        <div id="vollbild-scroll-container" 
+             class="flex-1 overflow-auto relative cursor-grab active:cursor-grabbing flex items-center justify-center p-4 bg-slate-950"
+             onmousedown="startVollbildPan(event)"
+             onmousemove="vollbildPanBewegen(event)"
+             onmouseup="stopVollbildPan()"
+             onmouseleave="stopVollbildPan()"
+             onclick="vollbildGrundrissKlickVerarbeiten(event)">
+            
+            <div id="vollbild-transform-wrapper" class="relative inline-block transition-transform duration-100 origin-center" style="transform: scale(1);">
+                <img id="vollbild-plan-bild" class="hidden block max-w-none select-none shadow-2xl rounded-lg" alt="Grundriss Vollbild">
+                <div id="vollbild-pdf-viewer" class="hidden relative inline-block select-none w-[900px] h-[700px] bg-white border shadow-2xl rounded-lg"></div>
+                <div id="vollbild-pin-container" class="absolute inset-0 pointer-events-none z-20"></div>
+            </div>
+        </div>
+        <div class="bg-slate-900 text-slate-400 text-xs px-4 py-2 text-center border-t border-slate-800">
+            Tipp: Nutze oben die Zoom-Buttons oder ziehe den Plan mit der Maus / dem Finger. Klicke auf eine Stelle, um Pins zu setzen oder anzusehen.
+        </div>
+    </div>
+
     <!-- MODAL: PIN ERSTELLEN -->
     <div id="pin-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
@@ -522,7 +556,7 @@
                     </div>
                 </div>
 
-                <!-- GRUNDRISS-PLÄNE BEREICH MIT ZOOM & SCROLL -->
+                <!-- GRUNDRISS-PLÄNE BEREICH -->
                 <div class="border-t pt-4 space-y-3">
                     <div class="flex justify-between items-center flex-wrap gap-2">
                         <h3 class="font-semibold text-lg text-slate-700">📐 Baustellen-Pläne & Mangel-Pins</h3>
@@ -539,40 +573,25 @@
 
                     <div id="plaene-auswahl-leiste" class="flex flex-wrap gap-2"></div>
 
-                    <div class="relative bg-slate-200 h-[450px] rounded-xl border-2 border-slate-400 overflow-hidden shadow-inner flex flex-col">
-                        <div class="absolute top-3 right-3 z-30 flex items-center bg-slate-900/80 backdrop-blur-sm rounded-lg p-1 shadow-lg gap-1">
-                            <button type="button" onclick="planZoomIn()" class="text-white hover:bg-slate-700 px-2.5 py-1 rounded text-sm font-bold" title="Vergrößern">+</button>
-                            <button type="button" onclick="planZoomReset()" class="text-white hover:bg-slate-700 px-2 py-1 rounded text-xs font-semibold" title="Zurücksetzen">⌂</button>
-                            <button type="button" onclick="planZoomOut()" class="text-white hover:bg-slate-700 px-2.5 py-1 rounded text-sm font-bold" title="Verkleinern">-</button>
+                    <div class="relative bg-slate-200 h-[380px] rounded-xl border-2 border-slate-400 overflow-hidden shadow-inner flex flex-col cursor-pointer group" onclick="vollbildOeffnen()">
+                        <div class="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition z-10 flex items-center justify-center pointer-events-none">
+                            <span class="bg-slate-900/80 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg opacity-90 group-hover:scale-105 transition">🔍 Antippen für Großansicht & Pins</span>
                         </div>
 
-                        <div id="plan-scroll-container" 
-                             class="w-full h-full overflow-auto relative cursor-grab active:cursor-grabbing flex items-center justify-center p-4"
-                             ondragover="event.preventDefault(); this.classList.add('bg-blue-50');" 
-                             ondragleave="this.classList.remove('bg-blue-50');"
-                             ondrop="planEinlesenDrop(event)"
-                             onmousedown="startPan(event)"
-                             onmousemove="panBewegen(event)"
-                             onmouseup="stopPan()"
-                             onmouseleave="stopPan()"
-                             onclick="grundrissKlickVerarbeiten(event)">
-                            
-                            <div id="plan-placeholder" class="text-center p-6 pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-slate-200" onclick="document.getElementById('plan-file-input-hidden').click()">
+                        <div class="w-full h-full relative flex items-center justify-center p-4">
+                            <div id="plan-placeholder" class="text-center p-6 absolute inset-0 flex flex-col items-center justify-center bg-slate-200">
                                 <span class="text-3xl">📥</span>
                                 <p class="text-slate-700 font-bold mt-2">Grundriss-Plan (Bild oder PDF) antippen oder per Drag & Drop einfügen</p>
-                                <p class="text-xs text-slate-500 mt-1">Du kannst mehrere Pläne (z.B. EG, OG als Bild oder PDF) hochladen</p>
+                                <p class="text-xs text-slate-500 mt-1">Du kannst mehrere Pläne (z.B. EG, OG) hochladen</p>
                             </div>
 
-                            <div id="plan-transform-wrapper" class="relative inline-block transition-transform duration-100 origin-top-left" style="transform: scale(1);">
-                                <img id="plan-bild" class="hidden block max-w-none select-none" alt="Baustellen-Grundriss">
-                                <div id="pdf-viewer-container" class="hidden relative inline-block select-none w-[800px] h-[600px] bg-white border shadow"></div>
-                                <div id="pin-container" class="absolute inset-0 pointer-events-none z-20"></div>
+                            <div class="relative inline-block">
+                                <img id="plan-bild" class="hidden block max-h-[340px] object-contain select-none rounded" alt="Baustellen-Grundriss">
+                                <div id="pdf-viewer-container" class="hidden relative inline-block select-none w-[600px] h-[340px] bg-white border shadow"></div>
                             </div>
-
-                            <input type="file" id="plan-file-input-hidden" accept="image/*,.pdf,application/pdf" onchange="planEinlesenAuswahl(event)" class="hidden">
                         </div>
                     </div>
-                    <p class="text-[11px] text-slate-400 mt-1">Tipp: Nutze oben die <strong>+ / - Buttons zum Zoomen</strong> oder verschiebe den Plan mit der Maus/dem Finger.</p>
+                    <p class="text-[11px] text-slate-400 mt-1">Tipp: Tippe einfach auf den Plan, um ihn im <strong>Vollbild-Modus</strong> zu öffnen, heranzuzoomen und Pins zu setzen.</p>
                 </div>
 
                 <div class="border-t pt-4 space-y-4">
@@ -983,8 +1002,8 @@
         let map = null;
         let mapMarkerLayer = [];
 
-        let planZoomFaktor = 1;
-        let isPanning = false;
+        let vollbildZoomFaktor = 1;
+        let isVollbildPanning = false;
         let startX, startY, scrollLeft, scrollTop;
 
         setInterval(() => {
@@ -997,7 +1016,6 @@
             if(dEl) dEl.innerText = datumString;
         }, 1000);
 
-        // LIVE WETTER LADEN (Open-Meteo API für Bettembourg)
         async function wetterLaden() {
             try {
                 const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=49.518&longitude=6.102&current=temperature_2m,weathercode');
@@ -1105,7 +1123,6 @@
             }
         }
 
-        // UNIVERSELLE BILD- & CANVAS-KONVERTIERUNG (Garantiert fehlerfrei für alle iPhones)
         function bildVerarbeitenUndKomprimieren(file, callback) {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -1114,8 +1131,8 @@
                 img.src = event.target.result;
                 img.onload = function() {
                     const canvas = document.createElement('canvas');
-                    let MAX_WIDTH = 1000;
-                    let MAX_HEIGHT = 1000;
+                    let MAX_WIDTH = 1200;
+                    let MAX_HEIGHT = 1200;
                     let width = img.width;
                     let height = img.height;
 
@@ -1136,12 +1153,10 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // Konvertiert jedes Bild (auch HEIC vom iPhone) sauber in ein sauberes JPEG
-                    let dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                    let dataUrl = canvas.toDataURL('image/jpeg', 0.7);
                     callback(dataUrl);
                 };
                 img.onerror = function() {
-                    // Fallback falls der Browser das Bild direkt als DataURL übernimmt
                     callback(event.target.result);
                 };
             };
@@ -1275,7 +1290,6 @@
             wechselnTab('startseite');
         }
 
-        // ZEITERFASSUNG & RESTURLAUB LOGIK
         window.arbeitszeitStarten = function() {
             const heute = new Date().toISOString().split('T')[0];
             const jetztZeit = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -2216,64 +2230,13 @@
             document.getElementById('anweisung-text').innerText = p.anweisung;
             document.getElementById('projekt-status-dropdown').value = p.status;
 
-            planZoomFaktor = 1;
-            aktualisierePlanTransform();
-
             projektListeAktualisieren();
             plaeneLeisteAktualisieren();
-            planAnzeigen();
+            planVorschauAnzeigen();
             packlisteAktualisieren();
             projektTeamAnzeigen();
             schnellZuweisungDropdownBefuellen();
             startseiteAktualisieren();
-        }
-
-        window.planZoomIn = function() {
-            planZoomFaktor = Math.min(planZoomFaktor + 0.25, 3.5);
-            aktualisierePlanTransform();
-        }
-
-        window.planZoomOut = function() {
-            planZoomFaktor = Math.max(planZoomFaktor - 0.25, 0.75);
-            aktualisierePlanTransform();
-        }
-
-        window.planZoomReset = function() {
-            planZoomFaktor = 1;
-            aktualisierePlanTransform();
-        }
-
-        function aktualisierePlanTransform() {
-            const wrapper = document.getElementById('plan-transform-wrapper');
-            if(wrapper) {
-                wrapper.style.transform = `scale(${planZoomFaktor})`;
-            }
-        }
-
-        window.startPan = function(e) {
-            if(e.target.closest('#pin-container') || e.target.closest('button')) return;
-            isPanning = true;
-            const container = document.getElementById('plan-scroll-container');
-            startX = e.pageX - container.offsetLeft;
-            startY = e.pageY - container.offsetTop;
-            scrollLeft = container.scrollLeft;
-            scrollTop = container.scrollTop;
-        }
-
-        window.panBewegen = function(e) {
-            if(!isPanning) return;
-            e.preventDefault();
-            const container = document.getElementById('plan-scroll-container');
-            const x = e.pageX - container.offsetLeft;
-            const y = e.pageY - container.offsetTop;
-            const walkX = (x - startX);
-            const walkY = (y - startY);
-            container.scrollLeft = scrollLeft - walkX;
-            container.scrollTop = scrollTop - walkY;
-        }
-
-        window.stopPan = function() {
-            isPanning = false;
         }
 
         function plaeneLeisteAktualisieren() {
@@ -2300,25 +2263,17 @@
         window.aktivenPlanWechseln = function(idx) {
             const p = globalDaten.projekte[aktuellesProjekt];
             p.aktiverPlanIndex = idx;
-            planZoomFaktor = 1;
-            aktualisierePlanTransform();
             projektSpeichern(aktuellesProjekt);
-            planAnzeigen();
+            planVorschauAnzeigen();
             plaeneLeisteAktualisieren();
         }
 
-        function planAnzeigen() {
+        function planVorschauAnzeigen() {
             const bildEl = document.getElementById('plan-bild');
             const pdfViewer = document.getElementById('pdf-viewer-container');
             const placeholder = document.getElementById('plan-placeholder');
 
-            if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
-                if(bildEl) bildEl.classList.add('hidden');
-                if(pdfViewer) pdfViewer.classList.add('hidden');
-                if(placeholder) placeholder.style.display = 'block';
-                return;
-            }
-
+            if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             const p = globalDaten.projekte[aktuellesProjekt];
 
             if (p.plaene && p.plaene.length > 0) {
@@ -2328,10 +2283,7 @@
                 if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
                     bildEl.classList.add('hidden');
                     pdfViewer.classList.remove('hidden');
-                    pdfViewer.innerHTML = `
-                        <iframe src="${aktiverPlan}" class="w-full h-full min-h-[500px] border-0 pointer-events-none"></iframe>
-                        <div class="absolute inset-0 z-10 cursor-crosshair" title="Klicken zum Pin setzen"></div>
-                    `;
+                    pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
                 } else {
                     pdfViewer.classList.add('hidden');
                     bildEl.src = aktiverPlan;
@@ -2343,7 +2295,88 @@
                 pdfViewer.classList.add('hidden');
                 placeholder.style.display = 'block';
             }
-            pinsAnzeigen();
+        }
+
+        // VOLLBILD / GROSSANSICHT MODAL STEUERUNG
+        window.vollbildOeffnen = function() {
+            if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
+            const p = globalDaten.projekte[aktuellesProjekt];
+            if (!p.plaene || p.plaene.length === 0) {
+                alert("Bitte lade erst einen Grundriss-Plan hoch!");
+                return;
+            }
+
+            document.getElementById('vollbild-titel').innerText = `📐 Großansicht: ${aktuellesProjekt} (Plan ${(p.aktiverPlanIndex || 0) + 1})`;
+            vollbildZoomFaktor = 1;
+            aktualisiereVollbildTransform();
+
+            const bildEl = document.getElementById('vollbild-plan-bild');
+            const pdfViewer = document.getElementById('vollbild-pdf-viewer');
+            const aktiverPlan = p.plaene[p.aktiverPlanIndex || 0];
+
+            if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
+                bildEl.classList.add('hidden');
+                pdfViewer.classList.remove('hidden');
+                pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
+            } else {
+                pdfViewer.classList.add('hidden');
+                bildEl.src = aktiverPlan;
+                bildEl.classList.remove('hidden');
+            }
+
+            document.getElementById('plan-vollbild-modal').classList.remove('hidden');
+            vollbildPinsAnzeigen();
+        }
+
+        window.vollbildSchliessen = function() {
+            document.getElementById('plan-vollbild-modal').classList.add('hidden');
+            planVorschauAnzeigen();
+        }
+
+        window.vollbildZoomIn = function() {
+            vollbildZoomFaktor = Math.min(vollbildZoomFaktor + 0.3, 4);
+            aktualisiereVollbildTransform();
+        }
+
+        window.vollbildZoomOut = function() {
+            vollbildZoomFaktor = Math.max(vollbildZoomFaktor - 0.3, 0.7);
+            aktualisiereVollbildTransform();
+        }
+
+        window.vollbildZoomReset = function() {
+            vollbildZoomFaktor = 1;
+            aktualisiereVollbildTransform();
+        }
+
+        function aktualisiereVollbildTransform() {
+            const wrapper = document.getElementById('vollbild-transform-wrapper');
+            if(wrapper) {
+                wrapper.style.transform = `scale(${vollbildZoomFaktor})`;
+            }
+        }
+
+        window.startVollbildPan = function(e) {
+            if(e.target.closest('#vollbild-pin-container') || e.target.closest('button')) return;
+            isVollbildPanning = true;
+            const container = document.getElementById('vollbild-scroll-container');
+            startX = e.pageX - container.offsetLeft;
+            startY = e.pageY - container.offsetTop;
+            scrollLeft = container.scrollLeft;
+            scrollTop = container.scrollTop;
+        }
+
+        window.vollbildPanBewegen = function(e) {
+            if(!isVollbildPanning) return;
+            e.preventDefault();
+            const container = document.getElementById('vollbild-scroll-container');
+            const x = e.pageX - container.offsetLeft;
+            const y = e.pageY - container.offsetTop;
+            container.scrollLeft = scrollLeft - (x - startX);
+            container.scrollTop = scrollTop - (y - startY);
+        }
+
+        window.stopVollbildPan = function() {
+            isVollbildPanning = false;
         }
 
         window.statusAendern = function(neuerStatus) {
@@ -2357,30 +2390,26 @@
             const btn = document.getElementById('pin-modus-btn');
             if (pinModusAktiv) {
                 btn.className = "text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm animate-pulse";
-                btn.innerText = "📌 Pin setzen (Aktiv)";
+                btn.innerText = "📌 Pin setzen (Aktiv im Vollbild)";
+                vollbildOeffnen();
             } else {
                 btn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
                 btn.innerText = "📌 Pin setzen (Aus)";
             }
         }
 
-        window.grundrissKlickVerarbeiten = function(event) {
+        window.vollbildGrundrissKlickVerarbeiten = function(event) {
             if (!pinModusAktiv) return;
             const p = globalDaten.projekte[aktuellesProjekt];
-            if (!p || !p.plaene || p.plaene.length === 0) {
-                alert("Bitte lade erst mindestens einen Grundriss-Plan hoch, bevor du Pins setzt!");
-                return;
-            }
+            if (!p || !p.plaene || p.plaene.length === 0) return;
 
-            const wrapper = document.getElementById('plan-transform-wrapper');
+            const wrapper = document.getElementById('vollbild-transform-wrapper');
             const rect = wrapper.getBoundingClientRect();
             
             const klickX = event.clientX - rect.left;
             const klickY = event.clientY - rect.top;
 
-            if (klickX < 0 || klickY < 0 || klickX > rect.width || klickY > rect.height) {
-                return;
-            }
+            if (klickX < 0 || klickY < 0 || klickX > rect.width || klickY > rect.height) return;
 
             temporärePinX = (klickX / rect.width) * 100;
             temporärePinY = (klickY / rect.height) * 100;
@@ -2431,7 +2460,7 @@
                 projektSpeichern(aktuellesProjekt);
                 globalGlobalSpeichern();
                 document.getElementById('pin-modal').classList.add('hidden');
-                pinsAnzeigen();
+                vollbildPinsAnzeigen();
                 benachrichtigungenAnzeigen();
 
                 pinModusAktiv = false;
@@ -2449,8 +2478,8 @@
             }
         }
 
-        function pinsAnzeigen() {
-            const container = document.getElementById('pin-container');
+        function vollbildPinsAnzeigen() {
+            const container = document.getElementById('vollbild-pin-container');
             if (!container || !aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             container.innerHTML = '';
 
@@ -2463,7 +2492,7 @@
                 if (pinPlanIdx !== aktiverPlanIdx) return;
 
                 const pinEl = document.createElement('div');
-                pinEl.className = "absolute -ml-3 -mt-6 bg-red-600 text-white font-black text-xs w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 border-white cursor-pointer hover:scale-110 transition pointer-events-auto";
+                pinEl.className = "absolute -ml-4 -mt-8 bg-red-600 text-white font-black text-sm w-8 h-8 rounded-full flex items-center justify-center shadow-2xl border-2 border-white cursor-pointer hover:scale-125 transition pointer-events-auto";
                 pinEl.style.left = pin.x + '%';
                 pinEl.style.top = pin.y + '%';
                 pinEl.innerHTML = `📌`;
@@ -2516,7 +2545,7 @@
                     p.pins.splice(ausgewaehlterPinIndex, 1);
                     projektSpeichern(aktuellesProjekt);
                     document.getElementById('pin-details-modal').classList.add('hidden');
-                    pinsAnzeigen();
+                    vollbildPinsAnzeigen();
                 }
             }
         }
@@ -2727,8 +2756,6 @@
             if (!p.plaene) p.plaene = [];
             p.plaene.push(ergebnisUrl);
             p.aktiverPlanIndex = p.plaene.length - 1;
-            planZoomFaktor = 1;
-            aktualisierePlanTransform();
             
             if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
             const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -2745,8 +2772,9 @@
             projektSpeichern(aktuellesProjekt);
             globalGlobalSpeichern();
             plaeneLeisteAktualisieren();
-            planAnzeigen();
+            planVorschauAnzeigen();
             benachrichtigungenAnzeigen();
+            vollbildOeffnen();
         }
 
         window.wechselnTab = function(tabName) {
