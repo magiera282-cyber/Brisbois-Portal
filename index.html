@@ -573,12 +573,13 @@
 
                     <div id="plaene-auswahl-leiste" class="flex flex-wrap gap-2"></div>
 
+                    <!-- Klickbarer Container -->
                     <div class="relative bg-slate-200 h-[380px] rounded-xl border-2 border-slate-400 overflow-hidden shadow-inner flex flex-col cursor-pointer group" onclick="vollbildOeffnen()">
                         <div class="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition z-10 flex items-center justify-center pointer-events-none">
                             <span class="bg-slate-900/80 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg opacity-90 group-hover:scale-105 transition">🔍 Antippen für Großansicht & Pins</span>
                         </div>
 
-                        <div class="w-full h-full relative flex items-center justify-center p-4">
+                        <div class="w-full h-full relative flex items-center justify-center p-4 pointer-events-none">
                             <div id="plan-placeholder" class="text-center p-6 absolute inset-0 flex flex-col items-center justify-center bg-slate-200">
                                 <span class="text-3xl">📥</span>
                                 <p class="text-slate-700 font-bold mt-2">Grundriss-Plan (Bild oder PDF) antippen oder per Drag & Drop einfügen</p>
@@ -586,7 +587,7 @@
                             </div>
 
                             <div class="relative inline-block">
-                                <img id="plan-bild" class="hidden block max-h-[340px] object-contain select-none rounded" alt="Baustellen-Grundriss">
+                                <img id="plan-bild" class="hidden block max-h-[340px] object-contain select-none rounded" alt="Grundriss-Grundriss">
                                 <div id="pdf-viewer-container" class="hidden relative inline-block select-none w-[600px] h-[340px] bg-white border shadow"></div>
                             </div>
                         </div>
