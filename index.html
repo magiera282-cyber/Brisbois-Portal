@@ -460,7 +460,7 @@
             <div id="projekt-liste-spalte" class="bg-white p-4 rounded-xl shadow-sm lg:col-span-1 border border-slate-200 space-y-4">
                 <div class="flex justify-between items-center border-b pb-2">
                     <h2 class="text-lg font-semibold text-slate-700" id="projekt-listen-titel">Aktive & Nächste Projekte</h2>
-                    <div class="flex gap-1 chef-only">
+                    <div class="flex gap-1">
                         <button onclick="neuesProjektModalOeffnen()" class="text-xs bg-emerald-600 text-white px-2 py-1 rounded font-bold hover:bg-emerald-700 transition" title="Manuell anlegen">
                             + Neu
                         </button>
@@ -578,7 +578,7 @@
                 <div class="border-t pt-4 space-y-4">
                     <div class="flex justify-between items-center">
                         <h3 class="font-semibold text-lg text-slate-700">📦 Projekt-Packliste & Uzin-Material</h3>
-                        <button onclick="uzinAuswahlOeffnen()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition shadow-sm chef-only">
+                        <button onclick="uzinAuswahlOeffnen()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition shadow-sm">
                             ➕ Uzin-Material hinzufügen
                         </button>
                     </div>
@@ -2441,7 +2441,7 @@
             };
 
             if (fotoInput.files && fotoInput.files[0]) {
-                bildVerarbeitenAndKomprimieren(fotoInput.files[0], function(komprimierteUrl) {
+                bildVerarbeitenUndKomprimieren(fotoInput.files[0], function(komprimierteUrl) {
                     speicherePinMitFoto(komprimierteUrl);
                 });
             } else {
@@ -2656,7 +2656,7 @@
                 const saeckeSpachtel = Math.ceil((qmZahl * 4.5) / 25);
                 const kanisterGrundierung = Math.ceil(qmZahl / 150);
 
-                bildVerarbeitenAndKomprimieren(datei, function(komprimierteUrl) {
+                bildVerarbeitenUndKomprimieren(datei, function(komprimierteUrl) {
                     globalDaten.projekte[projektName] = {
                         adresse: "Luxemburg (aus KI-Scan)",
                         status: "Anstehend",
@@ -2716,7 +2716,7 @@
                     speichereGrundrissPlan(ergebnisUrl);
                 });
             } else {
-                bildVerarbeitenAndKomprimieren(datei, function(ergebnisUrl) {
+                bildVerarbeitenUndKomprimieren(datei, function(ergebnisUrl) {
                     speichereGrundrissPlan(ergebnisUrl);
                 });
             }
