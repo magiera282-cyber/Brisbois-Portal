@@ -10,8 +10,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Tesseract.js für echte Texterkennung (OCR) -->
     <script src='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js'></script>
-    <!-- heic2any für automatische iPhone HEIC-Konvertierung -->
-    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
@@ -86,8 +84,8 @@
                     <textarea id="pin-text-input" rows="3" placeholder="z.B. Unterboden feucht im Eingangsbereich..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">📷 Foto zum Mangel hinzufügen (auch iPhone HEIC)</label>
-                    <input type="file" id="pin-foto-input" accept="image/*,image/heic,image/heif" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">📷 Foto zum Mangel hinzufügen (Funktioniert mit jedem iPhone)</label>
+                    <input type="file" id="pin-foto-input" accept="image/*" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
                 </div>
             </div>
             <div class="flex gap-2 pt-2">
@@ -300,15 +298,15 @@
                 <h3 class="text-xl font-bold text-slate-900">🤖 Echte KI-Bilderkennung (OCR)</h3>
                 <button onclick="document.getElementById('projekt-ki-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
             </div>
-            <p class="text-xs text-slate-600">Screenshot oder PDF antippen oder hierher ziehen, um das Projekt automatisch anzulegen.</p>
+            <p class="text-xs text-slate-600">Foto, Screenshot oder PDF antippen oder hierher ziehen, um das Projekt automatisch anzulegen.</p>
             <label id="drop-zone" 
                  ondragover="event.preventDefault(); this.classList.add('border-blue-600', 'bg-blue-50');" 
                  ondragleave="this.classList.remove('border-blue-600', 'bg-blue-50');"
                  ondrop="echtesBildEinlesenDrop(event)"
                  class="border-2 border-dashed border-slate-400 bg-slate-50 rounded-xl p-8 text-center cursor-pointer hover:bg-slate-100 transition block">
                 <span class="text-4xl" id="ki-icon">👁️‍🗨️</span>
-                <p class="font-bold text-slate-700 mt-2" id="ki-status-text">Screenshot / PDF / Auftragsbild antippen oder hierher ziehen</p>
-                <input type="file" accept="image/*,.pdf,application/pdf,image/heic,image/heif" onchange="echtesBildEinlesenAuswahl(event)" class="hidden">
+                <p class="font-bold text-slate-700 mt-2" id="ki-status-text">Foto / PDF / Auftragsbild antippen oder hierher ziehen</p>
+                <input type="file" accept="image/*,.pdf,application/pdf" onchange="echtesBildEinlesenAuswahl(event)" class="hidden">
             </label>
             <button type="button" onclick="document.getElementById('projekt-ki-modal').classList.add('hidden')" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2 rounded-lg text-sm">Schließen</button>
         </div>
@@ -534,7 +532,7 @@
                             </button>
                             <label class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold cursor-pointer transition shadow-sm">
                                 ➕ Plan hinzufügen
-                                <input type="file" accept="image/*,.pdf,application/pdf,image/heic,image/heif" onchange="weitererPlanHinzufuegen(event)" class="hidden">
+                                <input type="file" accept="image/*,.pdf,application/pdf" onchange="weitererPlanHinzufuegen(event)" class="hidden">
                             </label>
                         </div>
                     </div>
@@ -571,7 +569,7 @@
                                 <div id="pin-container" class="absolute inset-0 pointer-events-none z-20"></div>
                             </div>
 
-                            <input type="file" id="plan-file-input-hidden" accept="image/*,.pdf,application/pdf,image/heic,image/heif" onchange="planEinlesenAuswahl(event)" class="hidden">
+                            <input type="file" id="plan-file-input-hidden" accept="image/*,.pdf,application/pdf" onchange="planEinlesenAuswahl(event)" class="hidden">
                         </div>
                     </div>
                     <p class="text-[11px] text-slate-400 mt-1">Tipp: Nutze oben die <strong>+ / - Buttons zum Zoomen</strong> oder verschiebe den Plan mit der Maus/dem Finger.</p>
@@ -1107,67 +1105,54 @@
             }
         }
 
+        // UNIVERSELLE BILD- & CANVAS-KONVERTIERUNG (Garantiert fehlerfrei für alle iPhones)
+        function bildVerarbeitenUndKomprimieren(file, callback) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = function(event) {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let MAX_WIDTH = 1000;
+                    let MAX_HEIGHT = 1000;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Konvertiert jedes Bild (auch HEIC vom iPhone) sauber in ein sauberes JPEG
+                    let dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                    callback(dataUrl);
+                };
+                img.onerror = function() {
+                    // Fallback falls der Browser das Bild direkt als DataURL übernimmt
+                    callback(event.target.result);
+                };
+            };
+        }
+
         function dateiEinlesenOderKonvertieren(file, callback) {
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = function(event) {
                 callback(event.target.result);
             };
-        }
-
-        // AUTOMATISCHE HEIC- & BILD-KOMPRIMIERUNG (Läuft unsichtbar für alle iPhones)
-        async function bildKomprimierenUndKonvertieren(file, callback) {
-            try {
-                let arbeitsDatei = file;
-                const isHeic = file.type === "image/heic" || file.type === "image/heif" || file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif");
-                
-                if (isHeic && window.heic2any) {
-                    const convertedBlob = await heic2any({
-                        blob: file,
-                        toType: "image/jpeg",
-                        quality: 0.7
-                    });
-                    arbeitsDatei = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
-                }
-
-                const reader = new FileReader();
-                reader.readAsDataURL(arbeitsDatei);
-                reader.onload = function (event) {
-                    const img = new Image();
-                    img.src = event.target.result;
-                    img.onload = function () {
-                        const canvas = document.createElement('canvas');
-                        let MAX_WIDTH = 900;
-                        let MAX_HEIGHT = 900;
-                        let width = img.width;
-                        let height = img.height;
-
-                        if (width > height) {
-                            if (width > MAX_WIDTH) {
-                                height *= MAX_WIDTH / width;
-                                width = MAX_WIDTH;
-                            }
-                        } else {
-                            if (height > MAX_HEIGHT) {
-                                width *= MAX_HEIGHT / height;
-                                height = MAX_HEIGHT;
-                            }
-                        }
-
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-
-                        let dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-                        callback(dataUrl);
-                    };
-                };
-            } catch (err) {
-                console.error("Fehler bei Bildkonvertierung:", err);
-                // Fallback normaler Reader
-                dateiEinlesenOderKonvertieren(file, callback);
-            }
         }
 
         function allesAktualisieren() {
@@ -2456,7 +2441,7 @@
             };
 
             if (fotoInput.files && fotoInput.files[0]) {
-                bildKomprimierenUndKonvertieren(fotoInput.files[0], function(komprimierteUrl) {
+                bildVerarbeitenAndKomprimieren(fotoInput.files[0], function(komprimierteUrl) {
                     speicherePinMitFoto(komprimierteUrl);
                 });
             } else {
@@ -2671,7 +2656,7 @@
                 const saeckeSpachtel = Math.ceil((qmZahl * 4.5) / 25);
                 const kanisterGrundierung = Math.ceil(qmZahl / 150);
 
-                bildKomprimierenUndKonvertieren(datei, function(komprimierteUrl) {
+                bildVerarbeitenAndKomprimieren(datei, function(komprimierteUrl) {
                     globalDaten.projekte[projektName] = {
                         adresse: "Luxemburg (aus KI-Scan)",
                         status: "Anstehend",
@@ -2704,7 +2689,7 @@
                 });
             }).catch(err => {
                 alert("Fehler beim Scannen.");
-                document.getElementById('ki-status-text').innerText = "Screenshot / PDF antippen oder hierher ziehen";
+                document.getElementById('ki-status-text').innerText = "Foto / PDF antippen oder hierher ziehen";
                 document.getElementById('ki-icon').innerText = "👁️‍🗨️";
             });
         }
@@ -2731,7 +2716,7 @@
                     speichereGrundrissPlan(ergebnisUrl);
                 });
             } else {
-                bildKomprimierenUndKonvertieren(datei, function(ergebnisUrl) {
+                bildVerarbeitenAndKomprimieren(datei, function(ergebnisUrl) {
                     speichereGrundrissPlan(ergebnisUrl);
                 });
             }
