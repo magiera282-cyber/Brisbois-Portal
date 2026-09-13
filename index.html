@@ -1,0 +1,2776 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>brisbois; bembé - Internes Baustellen-Portal (Cloud)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet.js für die echte interaktive Karte -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Tesseract.js für echte Texterkennung (OCR) -->
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js'></script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans">
+
+    <!-- LOGIN-OVERLAY -->
+    <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 md:p-8 space-y-6 border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div class="text-center space-y-2">
+                <div class="inline-block bg-amber-600 text-white font-black text-2xl px-4 py-2 rounded-lg shadow">
+                    b;b
+                </div>
+                <h2 class="text-2xl font-bold text-slate-900">brisbois; bembé</h2>
+                <p class="text-slate-500 text-sm">Portal-Login (Komplettes Team)</p>
+            </div>
+
+            <!-- 1-KLICK SCHNELL-LOGIN -->
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                <p class="text-xs font-bold text-slate-500 uppercase text-center">⚡ 1-Klick Schnell-Test:</p>
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    <button type="button" onclick="schnellLoginDirekt('Jeff Brisbois', 'Chef')" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                        👑 Jeff (Chef)
+                    </button>
+                    <button type="button" onclick="schnellLoginDirekt('Christian Leppin', 'Techniker')" class="bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                        🛠️ Christian (Tech)
+                    </button>
+                    <button type="button" onclick="schnellLoginDirekt('Tania Thill', 'Sekretariat')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                        📋 Tania (Sekr.)
+                    </button>
+                    <button type="button" onclick="schnellLoginDirekt('Waldemar Magiera', 'Verleger')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                        👷 Waldemar
+                    </button>
+                    <button type="button" onclick="schnellLoginDirekt('Wolfgang Seimetz', 'Verleger')" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                        👷 Wolfgang
+                    </button>
+                </div>
+            </div>
+
+            <div class="relative flex py-1 items-center">
+                <div class="flex-grow border-t border-slate-200"></div>
+                <span class="flex-shrink mx-4 text-slate-400 text-xs uppercase">oder Mitarbeiter wählen</span>
+                <div class="flex-grow border-t border-slate-200"></div>
+            </div>
+
+            <form onsubmit="anmeldenMitTeam(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mitarbeiter / Chef auswählen</label>
+                    <select id="login-name-select" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-semibold">
+                        <!-- Wird dynamisch befüllt -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Passwort</label>
+                    <input type="password" id="login-passwort" placeholder="Initial: start123" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                    <p class="text-[11px] text-slate-400 mt-1">Start-Passwort: <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-600 font-mono">start123</code></p>
+                </div>
+                <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-lg transition text-sm shadow">
+                    🔓 Anmelden
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: PIN ERSTELLEN -->
+    <div id="pin-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-900">📌 Mangel- oder Notiz-Pin setzen</h3>
+                <button onclick="document.getElementById('pin-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Beschreibung / Mangel</label>
+                    <textarea id="pin-text-input" rows="3" placeholder="z.B. Unterboden feucht im Eingangsbereich..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">📷 Foto zum Mangel hinzufügen (optional)</label>
+                    <input type="file" id="pin-foto-input" accept="image/*" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                </div>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="pinSpeichernBestätigen()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow">💾 Pin setzen & Benachrichtigen</button>
+                <button type="button" onclick="document.getElementById('pin-modal').classList.add('hidden')" class="bg-slate-200 px-4 py-2.5 rounded-lg text-sm">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: PIN DETAILS ANZEIGEN & LESEBESTÄTIGUNG -->
+    <div id="pin-details-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-900" id="modal-pin-titel">📌 Pin Details</h3>
+                <button onclick="document.getElementById('pin-details-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            <div class="space-y-3">
+                <p class="text-xs text-slate-500" id="modal-pin-meta"></p>
+                <p class="text-sm font-medium text-slate-800 bg-slate-50 p-3 rounded-lg border" id="modal-pin-text"></p>
+                
+                <div id="modal-pin-foto-container" class="hidden space-y-1">
+                    <h4 class="text-xs font-bold text-slate-700 uppercase">📷 Angehängtes Foto:</h4>
+                    <img id="modal-pin-foto" src="" class="w-full max-h-64 object-cover rounded-xl border shadow-sm" alt="Mangel Foto">
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl space-y-1">
+                    <h4 class="text-xs font-bold text-blue-900 uppercase">👁️ Lesebestätigung (Wer hat es gesehen?):</h4>
+                    <div id="modal-lesebestaetigung-liste" class="text-xs text-blue-800 flex flex-wrap gap-1 mt-1"></div>
+                </div>
+            </div>
+            <div class="flex justify-between items-center pt-2 border-t">
+                <button type="button" onclick="pinLoeschenBestätigen()" class="bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold px-4 py-2 rounded-lg transition">🗑️ Pin löschen</button>
+                <button type="button" onclick="document.getElementById('pin-details-modal').classList.add('hidden')" class="bg-slate-200 px-4 py-2 rounded-lg text-sm">Schließen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: EINZELNE BENACHRICHTIGUNG ALS SEPERATES FENSTER -->
+    <div id="benachrichtigung-detail-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-900" id="modal-benachrichtigung-titel">🔔 Benachrichtigung Details</h3>
+                <button onclick="document.getElementById('benachrichtigung-detail-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center text-xs text-slate-500">
+                    <span id="modal-benachrichtigung-von" class="font-bold text-slate-700"></span>
+                    <span id="modal-benachrichtigung-datum"></span>
+                </div>
+                <p class="text-sm font-medium text-slate-800 bg-slate-50 p-4 rounded-xl border" id="modal-benachrichtigung-text"></p>
+                <div id="modal-benachrichtigung-projekt-info" class="text-xs text-blue-800 bg-blue-50 p-3 rounded-lg border border-blue-200 hidden"></div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2 pt-2 border-t">
+                <button type="button" id="modal-btn-zu-projekt" onclick="benachrichtigungZuProjektWechseln()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow hidden">
+                    🚀 Zum Projekt / zur Baustelle
+                </button>
+                <button type="button" onclick="benachrichtigungAusListeEntfernen()" class="flex-1 bg-red-100 hover:bg-red-200 text-red-800 font-semibold py-2.5 rounded-lg text-sm transition">
+                    🗑️ Aus Benachrichtigungsliste löschen
+                </button>
+                <button type="button" onclick="document.getElementById('benachrichtigung-detail-modal').classList.add('hidden')" class="bg-slate-200 px-4 py-2.5 rounded-lg text-sm font-semibold">
+                    Schließen
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: UZIN PRODUKT-AUSWAHL FÜR PACKLISTE -->
+    <div id="uzin-auswahl-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-900">🧱 Uzin-Produkt für Packliste auswählen</h3>
+                <button onclick="document.getElementById('uzin-auswahl-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            
+            <p class="text-xs text-slate-500">Wähle ein Produkt aus oder füge neue Artikel zum Katalog hinzu:</p>
+
+            <div id="uzin-produkte-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto p-1 flex-1 max-h-[45vh]"></div>
+
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                <p class="text-xs font-bold text-slate-700 uppercase">➕ Artikel zum Uzin-Katalog hinzufügen:</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <input type="text" id="neues-uzin-bez" placeholder="Produktbezeichnung..." class="px-3 py-1.5 border rounded text-xs">
+                    <input type="text" id="neues-uzin-kat" placeholder="Kategorie (z.B. Kleber)..." class="px-3 py-1.5 border rounded text-xs">
+                    <input type="text" id="neues-uzin-ort" placeholder="Lagerort (z.B. Regal C1)..." class="px-3 py-1.5 border rounded text-xs">
+                </div>
+                <button type="button" onclick="neuesProduktInKatalogAufnehmen()" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-2 rounded-lg transition shadow-sm">
+                    💾 Zum Katalog hinzufügen
+                </button>
+            </div>
+
+            <div class="border-t pt-2 flex justify-end">
+                <button type="button" onclick="document.getElementById('uzin-auswahl-modal').classList.add('hidden')" class="bg-slate-200 px-4 py-2 rounded-lg text-sm">Schließen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: NEUES PROJEKT MANUELL ERSTELLEN (MIT MEHREREN MATERIALIEN) -->
+    <div id="neues-projekt-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-900">📁 Neues Projekt & Materialien anlegen</h3>
+                <button onclick="document.getElementById('neues-projekt-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            <form onsubmit="neuesProjektManuellSpeichern(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Projektbezeichnung / Name</label>
+                    <input type="text" id="manuell-projekt-titel" placeholder="z.B. Neubau Residenz Mersch" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Baustellen-Adresse</label>
+                    <input type="text" id="manuell-projekt-adresse" placeholder="z.B. 12 Rue de la Gare, Mersch" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Status</label>
+                    <select id="manuell-projekt-status" class="w-full px-3 py-2 border rounded-lg text-sm bg-white font-semibold">
+                        <option value="In Arbeit">🟢 Aktiv / In Arbeit</option>
+                        <option value="Anstehend" selected>⏳ Nächste Baustelle (Anstehend)</option>
+                        <option value="Fertig">🏁 Fertiggestellt</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Anweisung / Arbeitsdetails für das Team</label>
+                    <textarea id="manuell-projekt-anweisung" rows="2" placeholder="z.B. 400 qm Parkett vollflächig verkleben..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
+                </div>
+
+                <!-- MEHRERE MATERIALIEN DYNAMISCH HINZUFÜGEN -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-xs font-bold text-slate-800 uppercase">📦 Benötigte Materialien / Packliste</h4>
+                        <button type="button" onclick="materialZeileHinzufuegen()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-2.5 py-1 rounded transition">
+                            + Weiteres Material
+                        </button>
+                    </div>
+                    <div id="manuell-material-container" class="space-y-2 max-h-48 overflow-y-auto p-1">
+                        <!-- Wird per JS befüllt -->
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow">💾 Baustelle & Materialien speichern</button>
+                    <button type="button" onclick="document.getElementById('neues-projekt-modal').classList.add('hidden')" class="bg-slate-200 px-4 py-2.5 rounded-lg text-sm">Abbrechen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: PROJEKT BEARBEITEN -->
+    <div id="projekt-bearbeiten-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-900">✏️ Baustelle / Projekt bearbeiten</h3>
+                <button onclick="document.getElementById('projekt-bearbeiten-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            <form onsubmit="projektBearbeitenSpeichern(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Projektbezeichnung</label>
+                    <input type="text" id="edit-projekt-titel" disabled class="w-full px-3 py-2 border rounded-lg text-sm bg-slate-100 text-slate-600 font-semibold cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Baustellen-Adresse</label>
+                    <input type="text" id="edit-projekt-adresse" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Status</label>
+                    <select id="edit-projekt-status" class="w-full px-3 py-2 border rounded-lg text-sm bg-white font-semibold">
+                        <option value="In Arbeit">🟢 Aktiv / In Arbeit</option>
+                        <option value="Anstehend">⏳ Nächste Baustelle (Anstehend)</option>
+                        <option value="Fertig">🏁 Fertiggestellt</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Anweisung / Arbeitsdetails</label>
+                    <textarea id="edit-projekt-anweisung" rows="3" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow">💾 Änderungen speichern</button>
+                    <button type="button" onclick="document.getElementById('projekt-bearbeiten-modal').classList.add('hidden')" class="bg-slate-200 px-4 py-2.5 rounded-lg text-sm">Abbrechen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL FÜR NACHRICHT SENDEN -->
+    <div id="nachricht-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-900">💬 Neue Nachricht verfassen</h3>
+                <button onclick="document.getElementById('nachricht-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Empfänger wählen</label>
+                    <select id="nachricht-empfaenger" class="w-full px-3 py-2 border rounded-lg text-sm bg-white font-semibold">
+                        <option value="Alle">🌐 An alle (Team & Chefs)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Deine Nachricht / Anweisung</label>
+                    <textarea id="nachricht-text-input" rows="4" placeholder="Schreibe hier deine Nachricht..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
+                </div>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="nachrichtAbsenden()" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow">Absenden</button>
+                <button type="button" onclick="document.getElementById('nachricht-modal').classList.add('hidden')" class="bg-slate-200 px-4 py-2.5 rounded-lg text-sm">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FÜR KI-BILDBESCHREIBUNG (OCR) -->
+    <div id="projekt-ki-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-6 border border-slate-200">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-xl font-bold text-slate-900">🤖 Echte KI-Bilderkennung (OCR)</h3>
+                <button onclick="document.getElementById('projekt-ki-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            <p class="text-xs text-slate-600">Screenshot oder PDF antippen oder hierher ziehen, um das Projekt automatisch anzulegen.</p>
+            <label id="drop-zone" 
+                 ondragover="event.preventDefault(); this.classList.add('border-blue-600', 'bg-blue-50');" 
+                 ondragleave="this.classList.remove('border-blue-600', 'bg-blue-50');"
+                 ondrop="echtesBildEinlesenDrop(event)"
+                 class="border-2 border-dashed border-slate-400 bg-slate-50 rounded-xl p-8 text-center cursor-pointer hover:bg-slate-100 transition block">
+                <span class="text-4xl" id="ki-icon">👁️‍🗨️</span>
+                <p class="font-bold text-slate-700 mt-2" id="ki-status-text">Screenshot / PDF / Auftragsbild antippen oder hierher ziehen</p>
+                <input type="file" accept="image/*,.pdf,application/pdf" onchange="echtesBildEinlesenAuswahl(event)" class="hidden">
+            </label>
+            <button type="button" onclick="document.getElementById('projekt-ki-modal').classList.add('hidden')" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2 rounded-lg text-sm">Schließen</button>
+        </div>
+    </div>
+
+    <!-- HAUPT-APP -->
+    <div id="app-container" class="hidden">
+        <header class="bg-slate-900 text-white p-4 md:px-6 shadow-md flex justify-between items-center border-b-2 border-amber-600">
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-600 text-white font-black text-xl px-3 py-1.5 rounded shadow">b;b</div>
+                <div>
+                    <h1 class="text-lg md:text-xl font-bold tracking-wider uppercase text-white">brisbois<span class="text-amber-500">;</span> bembé</h1>
+                    <p class="text-xs text-slate-400 font-medium tracking-widest uppercase">Artisans de sols (Cloud)</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="user-badge" class="text-xs bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full font-medium text-slate-300"></span>
+                <button onclick="abmelden()" class="text-xs bg-red-600/80 hover:bg-red-700 text-white px-3 py-1.5 rounded-full font-semibold transition">
+                    Abmelden
+                </button>
+            </div>
+        </header>
+
+        <!-- NAVIGATION -->
+        <nav id="haupt-navigation" class="bg-white border-b border-slate-200 px-4 py-2 flex gap-2 md:gap-4 text-sm font-semibold shadow-sm overflow-x-auto">
+            <button onclick="wechselnTab('startseite')" id="btn-startseite" class="tab-btn text-blue-600 border-b-2 border-blue-600 pb-1 whitespace-nowrap">🏠 Startseite</button>
+            <button onclick="wechselnTab('auftraege')" id="btn-auftraege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📁 Projekt & Baustelle</button>
+            <button onclick="wechselnTab('benachrichtigungen')" id="btn-benachrichtigungen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap flex items-center gap-1">
+                <span>🔔 Benachrichtigungen</span>
+                <span id="badge-count" class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full hidden">1</span>
+            </button>
+            <button onclick="wechselnTab('profil')" id="btn-profil" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⚙️ Mein Profil</button>
+            <button onclick="wechselnTab('mitarbeiter-liste')" id="btn-mitarbeiter-liste" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📞 Telefonliste</button>
+            <button onclick="wechselnTab('mitarbeiter')" id="btn-mitarbeiter" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap chef-only">👥 Mitarbeiter & Zuweisung</button>
+            <button onclick="wechselnTab('kollegen')" id="btn-kollegen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap admin-view-only">🗺️ Live-Karte</button>
+            <button onclick="wechselnTab('belege')" id="btn-belege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⛽ Belege & Kasse</button>
+            <button onclick="wechselnTab('urlaub')" id="btn-urlaub" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⏱️ Zeiterfassung & Urlaub</button>
+        </nav>
+
+        <!-- TAB 0: STARTSEITE -->
+        <main id="tab-startseite" class="tab-content max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+            <div class="relative rounded-3xl overflow-hidden shadow-2xl bg-slate-900 border border-slate-700 text-white p-6 md:p-12 bg-cover bg-center" style="background-image: linear-gradient(to bottom right, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.8)), url('https://images.unsplash.com/photo-1541888946425-d0fbb18f0653?w=1600&auto=format&fit=crop&q=80');">
+                <div class="absolute inset-0 bg-blue-950/30 backdrop-blur-[2px]"></div>
+                
+                <div class="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+                    <div class="lg:col-span-2 space-y-4">
+                        <div class="inline-flex items-center gap-2 bg-amber-500/20 border border-amber-400/40 text-amber-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                            ✨ Willkommen zurück im Portal
+                        </div>
+                        <h2 class="text-3xl md:text-5xl font-extrabold tracking-tight text-white" id="start-begruessung">Guten Tag!</h2>
+                        <p class="text-slate-300 text-sm md:text-base max-w-xl">
+                            Hier ist deine persönliche Übersicht für den heutigen Arbeitstag in Luxemburg. Alles Wichtige auf einen Blick.
+                        </p>
+                        
+                        <div class="flex flex-wrap gap-4 pt-2">
+                            <div class="bg-slate-900/70 border border-slate-700/80 px-5 py-3 rounded-2xl backdrop-blur-md flex items-center gap-3">
+                                <span class="text-2xl">⏰</span>
+                                <div>
+                                    <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Aktuelle Uhrzeit</div>
+                                    <div class="text-lg font-mono font-black text-amber-400" id="live-uhrzeit">--:--:--</div>
+                                </div>
+                            </div>
+                            <div class="bg-slate-900/70 border border-slate-700/80 px-5 py-3 rounded-2xl backdrop-blur-md flex items-center gap-3">
+                                <span class="text-2xl">📅</span>
+                                <div>
+                                    <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Heutiges Datum</div>
+                                    <div class="text-sm font-bold text-white" id="live-datum">--.------ 2026</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white/10 border border-white/20 p-6 rounded-3xl backdrop-blur-md shadow-lg space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-blue-300 uppercase tracking-widest">📍 Wetter Bettembourg</span>
+                            <span class="text-2xl" id="wetter-icon">⛅</span>
+                        </div>
+                        <div class="flex items-baseline gap-3">
+                            <span class="text-4xl md:text-5xl font-black text-white" id="wetter-temp">--°C</span>
+                            <span class="text-sm text-slate-200 font-medium" id="wetter-zustand">Lade Wetter...</span>
+                        </div>
+                        <p class="text-xs text-slate-300 border-t border-white/10 pt-3">
+                            Ideale Bedingungen für Baustellen- und Verlegearbeiten in Luxemburg.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-4 flex flex-col justify-between hover:shadow-md transition">
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-400 uppercase">Aktuelle Baustelle</span>
+                            <span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-bold">Zugewiesen</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-900" id="start-aktuelle-baustelle">Wohnkomplex Kirchberg</h3>
+                        <p class="text-xs text-slate-500" id="start-baustelle-adresse">15 Avenue J.F. Kennedy, Luxemburg</p>
+                    </div>
+                    <button onclick="wechselnTab('auftraege')" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-xl text-xs transition shadow">
+                        🔍 Zur Baustellen-Ansicht & Plänen →
+                    </button>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-4 flex flex-col justify-between hover:shadow-md transition">
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-400 uppercase">Urlaubskonto</span>
+                            <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">Geprüft</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <div class="text-2xl font-black text-slate-900" id="start-resturlaub">14 Tage</div>
+                                <div class="text-[11px] text-slate-500">Resturlaub 2026</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-bold text-amber-600" id="start-naechster-urlaub">14.10. – 21.10.</div>
+                                <div class="text-[11px] text-slate-500" id="start-tage-bis-urlaub">In 32 Tagen</div>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="wechselnTab('urlaub')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl text-xs transition shadow">
+                        ⏱️ Zeiterfassung & Urlaub verwalten →
+                    </button>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-4 flex flex-col justify-between hover:shadow-md transition">
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-400 uppercase">Angemeldet als</span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        </div>
+                        <div class="flex items-center gap-3 pt-1">
+                            <div class="w-12 h-12 rounded-2xl bg-amber-600 text-white font-black text-lg flex items-center justify-center shadow" id="start-user-initial">
+                                PM
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-slate-900 text-base" id="start-user-name">Patrick Magiera</h4>
+                                <p class="text-xs text-slate-500 font-medium" id="start-user-rolle">Verleger</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="wechselnTab('profil')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-xs transition">
+                        ⚙️ Mein Profil & Passwort ändern
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- TAB 1: PROJEKTE -->
+        <main id="tab-auftraege" class="tab-content max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 hidden">
+            <div id="projekt-liste-spalte" class="bg-white p-4 rounded-xl shadow-sm lg:col-span-1 border border-slate-200 space-y-4">
+                <div class="flex justify-between items-center border-b pb-2">
+                    <h2 class="text-lg font-semibold text-slate-700" id="projekt-listen-titel">Aktive & Nächste Projekte</h2>
+                    <div class="flex gap-1 chef-only">
+                        <button onclick="neuesProjektModalOeffnen()" class="text-xs bg-emerald-600 text-white px-2 py-1 rounded font-bold hover:bg-emerald-700 transition" title="Manuell anlegen">
+                            + Neu
+                        </button>
+                        <button onclick="document.getElementById('projekt-ki-modal').classList.remove('hidden')" class="text-xs bg-blue-600 text-white px-2.5 py-1 rounded font-bold hover:bg-blue-700 transition" title="KI Scan">
+                            🤖 KI Scan
+                        </button>
+                    </div>
+                </div>
+                <div id="projekt-liste" class="space-y-3"></div>
+            </div>
+
+            <div id="projekt-details-spalte" class="bg-white p-4 md:p-6 rounded-xl shadow-sm lg:col-span-2 space-y-6 border border-slate-200">
+                <div>
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h2 id="projekt-titel" class="text-2xl font-bold text-slate-900">Wohnkomplex Kirchberg</h2>
+                                <button onclick="projektBearbeitenOeffnen()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2.5 py-1 rounded-lg font-bold transition chef-only">
+                                    ✏️ Bearbeiten
+                                </button>
+                                <button onclick="projektLoeschenBestätigen()" class="text-xs bg-red-100 hover:bg-red-200 text-red-800 px-2.5 py-1 rounded-lg font-bold transition chef-only">
+                                    🗑️ Löschen
+                                </button>
+                            </div>
+                            <p id="projekt-adresse" class="text-slate-500 text-sm mt-1">Adresse: 15 Avenue J.F. Kennedy, Luxemburg-Kirchberg</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <select id="projekt-status-dropdown" onchange="statusAendern(this.value)" class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1.5 rounded-full font-bold border border-emerald-300">
+                                <option value="In Arbeit">🟢 Aktiv / In Arbeit</option>
+                                <option value="Anstehend">⏳ Nächste Baustelle (Anstehend)</option>
+                                <option value="Fertig">🏁 Fertiggestellt</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="chef-anweisung-banner" class="mt-4 p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-sm flex items-start gap-2">
+                        <span class="text-lg">⚠️</span>
+                        <div>
+                            <span class="font-bold">Anweisung vom Chef:</span> <span id="anweisung-text">Materialanlieferung erfolgt am Dienstag direkt über den Hintereingang.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DIREKT IM PROJEKT: ZUGETEILTE MITARBEITER & MEHRFACH-ZUWEISUNG -->
+                <div class="border-t pt-4 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-sm text-slate-800 uppercase">👷 Zugeteiltes Baustellen-Team</h3>
+                        <span class="text-xs bg-blue-100 text-blue-800 font-bold px-2.5 py-0.5 rounded">Live-Status</span>
+                    </div>
+                    
+                    <div id="projekt-team-liste" class="flex flex-wrap gap-2"></div>
+
+                    <div id="chef-projekt-zuweisung-bereich" class="pt-2 border-t flex gap-2 items-center chef-only">
+                        <select id="projekt-schnell-zuweisen-select" class="flex-1 px-3 py-1.5 border rounded text-xs bg-white font-semibold">
+                        </select>
+                        <button type="button" onclick="mitarbeiterZuAktuellemProjektHinzufuegen()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-1.5 rounded text-xs transition">
+                            ➕ Zuordnen
+                        </button>
+                    </div>
+                </div>
+
+                <!-- GRUNDRISS-PLÄNE BEREICH MIT ZOOM & SCROLL -->
+                <div class="border-t pt-4 space-y-3">
+                    <div class="flex justify-between items-center flex-wrap gap-2">
+                        <h3 class="font-semibold text-lg text-slate-700">📐 Baustellen-Pläne & Mangel-Pins</h3>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button type="button" id="pin-modus-btn" onclick="pinModusUmschalten()" class="text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm">
+                                📌 Pin setzen (Aus)
+                            </button>
+                            <label class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold cursor-pointer transition shadow-sm">
+                                ➕ Plan hinzufügen
+                                <input type="file" accept="image/*,.pdf,application/pdf" onchange="weitererPlanHinzufuegen(event)" class="hidden">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="plaene-auswahl-leiste" class="flex flex-wrap gap-2"></div>
+
+                    <div class="relative bg-slate-200 h-[450px] rounded-xl border-2 border-slate-400 overflow-hidden shadow-inner flex flex-col">
+                        <div class="absolute top-3 right-3 z-30 flex items-center bg-slate-900/80 backdrop-blur-sm rounded-lg p-1 shadow-lg gap-1">
+                            <button type="button" onclick="planZoomIn()" class="text-white hover:bg-slate-700 px-2.5 py-1 rounded text-sm font-bold" title="Vergrößern">+</button>
+                            <button type="button" onclick="planZoomReset()" class="text-white hover:bg-slate-700 px-2 py-1 rounded text-xs font-semibold" title="Zurücksetzen">⌂</button>
+                            <button type="button" onclick="planZoomOut()" class="text-white hover:bg-slate-700 px-2.5 py-1 rounded text-sm font-bold" title="Verkleinern">-</button>
+                        </div>
+
+                        <div id="plan-scroll-container" 
+                             class="w-full h-full overflow-auto relative cursor-grab active:cursor-grabbing flex items-center justify-center p-4"
+                             ondragover="event.preventDefault(); this.classList.add('bg-blue-50');" 
+                             ondragleave="this.classList.remove('bg-blue-50');"
+                             ondrop="planEinlesenDrop(event)"
+                             onmousedown="startPan(event)"
+                             onmousemove="panBewegen(event)"
+                             onmouseup="stopPan()"
+                             onmouseleave="stopPan()"
+                             onclick="grundrissKlickVerarbeiten(event)">
+                            
+                            <div id="plan-placeholder" class="text-center p-6 pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-slate-200" onclick="document.getElementById('plan-file-input-hidden').click()">
+                                <span class="text-3xl">📥</span>
+                                <p class="text-slate-700 font-bold mt-2">Grundriss-Plan (Bild oder PDF) antippen oder per Drag & Drop einfügen</p>
+                                <p class="text-xs text-slate-500 mt-1">Du kannst mehrere Pläne (z.B. EG, OG als Bild oder PDF) hochladen</p>
+                            </div>
+
+                            <div id="plan-transform-wrapper" class="relative inline-block transition-transform duration-100 origin-top-left" style="transform: scale(1);">
+                                <img id="plan-bild" class="hidden block max-w-none select-none" alt="Baustellen-Grundriss">
+                                <div id="pdf-viewer-container" class="hidden relative inline-block select-none w-[800px] h-[600px] bg-white border shadow"></div>
+                                <div id="pin-container" class="absolute inset-0 pointer-events-none z-20"></div>
+                            </div>
+
+                            <input type="file" id="plan-file-input-hidden" accept="image/*,.pdf,application/pdf" onchange="planEinlesenAuswahl(event)" class="hidden">
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">Tipp: Nutze oben die <strong>+ / - Buttons zum Zoomen</strong> oder verschiebe den Plan mit der Maus/dem Finger.</p>
+                </div>
+
+                <div class="border-t pt-4 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-semibold text-lg text-slate-700">📦 Projekt-Packliste & Uzin-Material</h3>
+                        <button onclick="uzinAuswahlOeffnen()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition shadow-sm chef-only">
+                            ➕ Uzin-Material hinzufügen
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm" id="packlisten-tabelle">
+                            <thead class="bg-slate-100 text-slate-700">
+                                <tr>
+                                    <th class="p-3 rounded-l">Hersteller / Produkt</th>
+                                    <th class="p-3">Kategorie</th>
+                                    <th class="p-3">Soll-Menge</th>
+                                    <th class="p-3">Lagerort</th>
+                                    <th class="p-3 rounded-r text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- BENACHRICHTIGUNGEN & ANWEISUNGEN -->
+        <main id="tab-benachrichtigungen" class="tab-content max-w-4xl mx-auto p-4 md:p-6 hidden space-y-6">
+            <div class="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200 space-y-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900">🔔 Anweisungen & Team-Nachrichten</h2>
+                        <p class="text-xs text-slate-500 mt-1">Klicke auf eine Nachricht, um sie als separates Fenster zu öffnen.</p>
+                    </div>
+                    <div class="flex gap-2 items-center flex-wrap">
+                        <button onclick="alleBenachrichtigungenAlsGelesenMarkieren()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-2 rounded-lg text-xs transition shadow-sm">
+                            ✔ Alle als gelesen markieren
+                        </button>
+                        <button onclick="alleBenachrichtigungenLoeschen()" class="bg-red-100 hover:bg-red-200 text-red-800 font-semibold px-3 py-2 rounded-lg text-xs transition shadow-sm">
+                            🗑️ Alle löschen
+                        </button>
+                        <button onclick="nachrichtModalOeffnen()" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition shadow-sm">
+                            💬 Nachricht verfassen...
+                        </button>
+                    </div>
+                </div>
+                <div id="benachrichtigungen-liste" class="space-y-4"></div>
+            </div>
+        </main>
+
+        <!-- MEINE DATEN & PASSWORT -->
+        <main id="tab-profil" class="tab-content max-w-3xl mx-auto p-4 md:p-6 hidden">
+            <div class="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200 space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">⚙️ Meine Kontodaten & Passwort</h2>
+                    <p class="text-xs text-slate-500 mt-1">Handynummer, E-Mail und Passwort ändern.</p>
+                </div>
+                <form onsubmit="eigenesProfilSpeichern(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Dein Name</label>
+                        <input type="text" id="profil-name" disabled class="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-600 font-semibold cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Telefonnummer / Handynummer</label>
+                        <input type="text" id="profil-telefon" placeholder="z.B. +352 691..." class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">E-Mail-Adresse</label>
+                        <input type="email" id="profil-email" placeholder="name@brisbois-bembe.lu" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Neues Passwort (optional)</label>
+                        <input type="password" id="profil-passwort" placeholder="Mindestens 4 Zeichen (leer lassen zum Beibehalten)" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition text-sm shadow">
+                        💾 Daten in der Cloud aktualisieren
+                    </button>
+                </form>
+            </div>
+        </main>
+
+        <!-- TELEFONLISTE -->
+        <main id="tab-mitarbeiter-liste" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+                <div class="flex justify-between items-center border-b pb-4">
+                    <h2 class="text-xl font-bold text-slate-900">📞 Verleger- & Telefonliste</h2>
+                    <span class="text-xs bg-blue-100 text-blue-800 font-bold px-3 py-1 rounded">Live synchronisiert</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm" id="telefonlisten-tabelle">
+                        <thead class="bg-slate-100 text-slate-700">
+                            <tr>
+                                <th class="p-3 rounded-l">Name / Verleger</th>
+                                <th class="p-3">Telefonnummer</th>
+                                <th class="p-3 rounded-r text-right">Direktanruf</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- MITARBEITER-ZUWEISUNG -->
+        <main id="tab-mitarbeiter" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                <h2 class="text-xl font-bold text-slate-900">👥 Neuen Mitarbeiter anlegen</h2>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" id="neuer-ma-name" placeholder="Vor- und Nachname..." class="flex-1 px-4 py-2 border rounded-lg text-sm font-semibold">
+                    <input type="text" id="neuer-ma-tel" placeholder="Telefonnummer (optional)..." class="px-4 py-2 border rounded-lg text-sm">
+                    <button type="button" onclick="neuenMitarbeiterHinzufuegen()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2 rounded-lg text-sm transition shadow-sm">
+                        ➕ Mitarbeiter anlegen (start123)
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+                <h2 class="text-xl font-bold text-slate-900">👥 Mitarbeiter-Zentrale & Mehrfach-Projekt-Zuweisung</h2>
+                <p class="text-xs text-slate-500">Wähle für jeden Mitarbeiter die Baustellen aus, denen er zugeteilt sein soll (Mehrfachauswahl möglich).</p>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm" id="mitarbeiter-zuweisung-tabelle">
+                        <thead class="bg-slate-100 text-slate-700">
+                            <tr><th class="p-3 rounded-l">Name</th><th class="p-3">Rolle</th><th class="p-3 rounded-r">Baustellen-Zuweisungen (Mehrfachauswahl)</th></tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- LIVE-KARTE -->
+        <main id="tab-kollegen" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                <h2 class="text-xl font-bold text-slate-900">🗺️ Live-Baustellen & zugeteilte Verleger</h2>
+                <div id="map" class="w-full h-[550px] rounded-xl shadow-inner border-2 border-slate-300 z-10"></div>
+            </div>
+        </main>
+
+        <!-- BELEGE -->
+        <main id="tab-belege" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-slate-900">⛽ Belege & Kasse</h2>
+                </div>
+                <table class="w-full text-left text-sm" id="belege-tabelle">
+                    <thead class="bg-slate-100 text-slate-700">
+                        <tr><th class="p-3">Datum</th><th class="p-3">Mitarbeiter</th><th class="p-3">Zweck</th><th class="p-3">Betrag</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="p-3">09.09.2026</td><td class="p-3">Christophe Becker</td><td class="p-3">Tankstelle</td><td class="p-3 font-bold">85,40 €</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+        <!-- ZEITERFASSUNG & URLAUB -->
+        <main id="tab-urlaub" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden space-y-6">
+            <div id="mitarbeiter-zeiterfassung-bereich" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- ARBEITSZEIT-STOPPUHR BEREICH -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                        <div class="flex justify-between items-center border-b pb-3">
+                            <h3 class="font-bold text-slate-900 text-base">⏱️ Tägliche Zeiterfassung</h3>
+                            <span id="zeiterfassung-status-badge" class="bg-slate-200 text-slate-700 text-xs px-2.5 py-1 rounded-full font-bold">Bereit</span>
+                        </div>
+                        
+                        <div class="text-center py-4 bg-slate-50 rounded-xl border">
+                            <div class="text-xs text-slate-500 uppercase font-bold">Heutige Netto-Arbeitszeit</div>
+                            <div class="text-4xl font-black text-slate-900 mt-1 font-mono" id="heutige-stunden-anzeige">00:00 Std</div>
+                            <div class="text-xs text-slate-400 mt-1" id="zeiterfassung-zeiten-info">Start: --:-- | Pause: 0 Min</div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <button type="button" onclick="arbeitszeitStarten()" id="btn-start-zeit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-xs transition shadow">
+                                ▶ Starten
+                            </button>
+                            <button type="button" onclick="pauseUmschalten()" id="btn-pause-zeit" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-lg text-xs transition shadow" disabled>
+                                ☕ Pause
+                            </button>
+                            <button type="button" onclick="feierabendMachen()" id="btn-feierabend" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg text-xs transition shadow" disabled>
+                                🏁 Feierabend
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- URLAUB-REST BEARBEITEN BEREICH -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4 flex flex-col justify-between">
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center border-b pb-3">
+                                <h3 class="font-bold text-slate-900 text-base">🌴 Urlaubskonto & Resturlaub</h3>
+                                <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded">Individuell</span>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <div class="flex-1">
+                                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Verbleibender Resturlaub (Tage)</label>
+                                    <input type="number" id="input-resturlaub" min="0" max="50" step="0.5" class="w-full px-3 py-2 border rounded-lg text-lg font-black text-emerald-600 focus:ring-2 focus:ring-blue-600 focus:outline-none bg-slate-50">
+                                </div>
+                                <div class="pt-5">
+                                    <button type="button" onclick="resturlaubSpeichern()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition shadow">
+                                        💾 Speichern
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-[11px] text-slate-400">Trage hier ein, wie viel Urlaub Dir für dieses Jahr noch zusteht.</p>
+                        </div>
+                        <button onclick="urlaubsantragStellen()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-lg text-xs transition">
+                            🌴 Neuen Urlaubsantrag einreichen
+                        </button>
+                    </div>
+                </div>
+
+                <!-- GESPEICHERTE ZEITEN HISTORIE -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                    <h3 class="font-bold text-slate-900 text-base">📋 Meine erfassten Arbeitszeiten (Historie)</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm" id="zeiterfassung-historie-tabelle">
+                            <thead class="bg-slate-100 text-slate-700">
+                                <tr>
+                                    <th class="p-3 rounded-l">Datum</th>
+                                    <th class="p-3">Startzeit</th>
+                                    <th class="p-3">Pause</th>
+                                    <th class="p-3">Feierabend</th>
+                                    <th class="p-3 rounded-r text-right">Netto-Stunden</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="chef-urlaubs-bereich" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6 hidden">
+                <div class="border-b pb-4">
+                    <h2 class="text-xl font-bold text-slate-900">👑 Chef-Zentrale: Urlaubs-Freigaben & Team-Stunden</h2>
+                </div>
+                <div class="space-y-3">
+                    <h3 class="font-semibold text-sm text-slate-700 uppercase">📊 Erfasste Stunden im Team (September)</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="chef-stunden-grid"></div>
+                </div>
+                <div class="space-y-3 pt-4 border-t">
+                    <h3 class="font-semibold text-sm text-slate-700 uppercase">🌴 Offene Urlaubsanträge</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm" id="urlaubs-tabelle">
+                            <thead class="bg-slate-100 text-slate-700">
+                                <tr>
+                                    <th class="p-3 rounded-l">Mitarbeiter</th>
+                                    <th class="p-3">Zeitraum</th>
+                                    <th class="p-3">Grund</th>
+                                    <th class="p-3 rounded-r text-center">Entscheidung</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <tr>
+                                    <td class="p-3 font-semibold text-slate-900">Christophe Becker</td>
+                                    <td class="p-3">14.10.2026 – 21.10.2026</td>
+                                    <td class="p-3 text-slate-600">Herbsturlaub Familie</td>
+                                    <td class="p-3 text-center space-x-2">
+                                        <button onclick="urlaubEntscheidung(this, 'genehmigt')" class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded text-xs font-bold">✔ Genehmigen</button>
+                                        <button onclick="urlaubEntscheidung(this, 'abgelehnt')" class="bg-red-100 text-red-800 px-3 py-1 rounded text-xs font-bold">✖ Ablehnen</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Firebase SDK & Cloud Logik -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC4X4AzkoqdjBuv5ux5wGLcXTPdrqvm3iU",
+            authDomain: "brisbois-bembe.firebaseapp.com",
+            projectId: "brisbois-bembe",
+            storageBucket: "brisbois-bembe.firebasestorage.app",
+            messagingSenderId: "372368865645",
+            appId: "1:372368865645:web:553d127d5af6c140b2c264",
+            measurementId: "G-YBJ7SB95CE"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app, "(default)");
+
+        const basisMitarbeiter = [
+            { name: "Jeff Brisbois", tel: "", email: "jeff@brisbois-bembe.lu", rolle: "Chef" },
+            { name: "Patrick Magiera", tel: "00 49 176 363 370 77", email: "patrick@brisbois-bembe.lu", rolle: "Chef / Admin" },
+            { name: "Michel Didier", tel: "691 344 737", email: "michel@brisbois-bembe.lu", rolle: "2. Chef" },
+            { name: "Tania Thill", tel: "691 710 722", email: "tania@brisbois-bembe.lu", rolle: "Sekretariat" },
+            { name: "Dagmar Stejskalova", tel: "691 254 705", email: "dagmar@brisbois-bembe.lu", rolle: "Sekretariat" },
+            { name: "Marie-Christine Mathieu", tel: "691 337 448", email: "marie@brisbois-bembe.lu", rolle: "Sekretariat" },
+            { name: "Christian Leppin", tel: "621 384 675", email: "christian@brisbois-bembe.lu", rolle: "Techniker" },
+            { name: "Sylvain Zuliani", tel: "00 33 666 962 981", email: "sylvain@brisbois-bembe.lu", rolle: "Lagerist" },
+            { name: "Claude Gaita", tel: "00 33 785 603 292", email: "claude@brisbois-bembe.lu", rolle: "Lagerist" },
+            { name: "Waldemar Magiera", tel: "", email: "", rolle: "Verleger" },
+            { name: "Wolfgang Seimetz", tel: "00 49 170 55 03 294", email: "", rolle: "Verleger" },
+            { name: "Christophe Becker", tel: "00 33 771 224 461", rolle: "Verleger" },
+            { name: "Christophe Biagioli", tel: "691 600 373", rolle: "Verleger" },
+            { name: "Stéphane Bouillon", tel: "00 32 475 85 05 83", rolle: "Verleger" },
+            { name: "Pedro Da Cruz Fortes", tel: "621 142 978", rolle: "Verleger" },
+            { name: "Pavel Dimitrov", tel: "691 571 154", rolle: "Verleger" },
+            { name: "Ednei Dos Santos", tel: "691 666 158", rolle: "Verleger" },
+            { name: "Gérard Franck", tel: "691 663 360", rolle: "Verleger" },
+            { name: "Paul Fritz", tel: "00 33 785 603 292", rolle: "Verleger" },
+            { name: "Kévin Ghuel", tel: "691 834 374", rolle: "Verleger" },
+            { name: "Marco Goncalves", tel: "621 647 267", rolle: "Verleger" },
+            { name: "Johannes Harth", tel: "00 49 170 32 50 216", rolle: "Verleger" },
+            { name: "Max Heiderscheid", tel: "621 142 001", rolle: "Verleger" },
+            { name: "Sacha Heiderscheid", tel: "621 291 500", rolle: "Verleger" },
+            { name: "Laurent Izzi", tel: "621 600 372", rolle: "Verleger" },
+            { name: "Aleksandar Jovanovic", tel: "621 288 056", rolle: "Verleger" },
+            { name: "Raphael Klein", tel: "00 33 630 090 864", rolle: "Verleger" },
+            { name: "Dora Morais", tel: "621 212 544", rolle: "Verleger" },
+            { name: "Tristan Novali", tel: "691 723 704", rolle: "Verleger" },
+            { name: "Biagio Panarello", tel: "00 33 643 072 465", rolle: "Verleger" },
+            { name: "Wjatscheslaw Panfilow", tel: "00 49 17670020259", rolle: "Verleger" },
+            { name: "Hervé Poline", tel: "00 33 770 366 77 28", rolle: "Verleger" },
+            { name: "Nicolas Sanitate", tel: "691 220 274", rolle: "Verleger" },
+            { name: "Christophe Sartor", tel: "621 150 995", rolle: "Verleger" },
+            { name: "Jacky Schneider", tel: "691 600 370", rolle: "Verleger" },
+            { name: "Nicolas Sourlier", tel: "00 33 6 50 81 97 37", rolle: "Verleger" },
+            { name: "Jorge Teixeira", tel: "00 33 615 434 992", rolle: "Verleger" },
+            { name: "Paolo Zangari", tel: "691 102 671", rolle: "Verleger" },
+            { name: "Nino Zenzola", tel: "691 100 044", rolle: "Verleger" }
+        ];
+
+        const basisProjekte = {
+            "Wohnkomplex Kirchberg": {
+                adresse: "15 Avenue J.F. Kennedy, Luxemburg-Kirchberg",
+                status: "In Arbeit",
+                anweisung: "850 qm Fischgrät-Parkett verlegen. Materialbereitstellung auf der Etage beachten.",
+                plaene: [],
+                aktiverPlanIndex: 0,
+                pins: [],
+                material: [{ bez: "Uzin MK 250 Parkettklebstoff (16 kg)", kat: "Verklebung", menge: "60 Eimer", ort: "Regal C1", status: "✔ Kommissioniert" }]
+            },
+            "Bürogebäude Cloche d'Or": {
+                adresse: "4 Rue Edward Steichen, Luxemburg-Gasperich",
+                status: "In Arbeit",
+                anweisung: "1.200 qm Doppelboden & Teppichfliesen. Zufahrt über Tiefgarage Ladezone 2.",
+                plaene: [],
+                aktiverPlanIndex: 0,
+                pins: [],
+                material: [{ bez: "Uzin KE 2000 S Dispersionsklebstoff (14 kg)", kat: "Verklebung", menge: "45 Eimer", ort: "Regal C2", status: "⏳ Offen" }]
+            },
+            "Residenz Belair": {
+                adresse: "28 Avenue du X Septembre, Luxemburg-Belair",
+                status: "Anstehend",
+                anweisung: "320 qm Massivholz-Landhausdielen. Vorbereitung und Grundierung am Vortag.",
+                plaene: [],
+                aktiverPlanIndex: 0,
+                pins: [],
+                material: [{ bez: "Uzin PE 360 Grundierung (10 L)", kat: "Vorbereitung", menge: "10 Kanister", ort: "Regal B2", status: "⏳ Offen" }]
+            },
+            "Schule Mamer": {
+                adresse: "21 Route de Arlon, Mamer",
+                status: "Anstehend",
+                anweisung: "640 qm Linoleum und Sportboden. Arbeiten während der Schulferien.",
+                plaene: [],
+                aktiverPlanIndex: 0,
+                pins: [],
+                material: [{ bez: "Uzin NC 170 Egalin (25 kg)", kat: "Vorbereitung", menge: "80 Säcke", ort: "Regal A4", status: "⏳ Offen" }]
+            },
+            "Kulturzentrum Dudelange": {
+                adresse: "1 Place de l'Hôtel de Ville, Dudelange",
+                status: "Fertig",
+                anweisung: "450 qm Eichenparkett schleifen und versiegeln. Abgenommen und übergeben.",
+                plaene: [],
+                aktiverPlanIndex: 0,
+                pins: [],
+                material: [{ bez: "Uzin NC 570 Spachtelmasse (25 kg)", kat: "Vorbereitung", menge: "40 Säcke", ort: "Regal A4", status: "✔ Kommissioniert" }]
+            }
+        };
+
+        let globalDaten = {
+            mitarbeiterListe: basisMitarbeiter,
+            passwoerter: {},
+            mitarbeiterProfil: {},
+            uzinKatalog: [
+                { bez: "Uzin NC 570 Spachtelmasse (25 kg)", kat: "Vorbereitung", ort: "Regal A4", standardMenge: "50 Säcke", bild: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&auto=format&fit=crop&q=80" },
+                { bez: "Uzin NC 170 Egalin (25 kg)", kat: "Vorbereitung", ort: "Regal A4", standardMenge: "30 Säcke", bild: "https://images.unsplash.com/photo-1584824486509-112e4181ff6b?w=400&auto=format&fit=crop&q=80" },
+                { bez: "Uzin PE 360 Grundierung (10 L)", kat: "Vorbereitung", ort: "Regal B2", standardMenge: "3 Kanister", bild: "https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=400&auto=format&fit=crop&q=80" },
+                { bez: "Uzin PE 260 Dispersionsgrundierung (5 L)", kat: "Vorbereitung", ort: "Regal B3", standardMenge: "2 Kanister", bild: "https://images.unsplash.com/photo-1584824486509-112e4181ff6b?w=400&auto=format&fit=crop&q=80" },
+                { bez: "Uzin MK 250 Parkettklebstoff (16 kg)", kat: "Verklebung", ort: "Regal C1", standardMenge: "10 Eimer", bild: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&auto=format&fit=crop&q=80" },
+                { bez: "Uzin KE 2000 S Dispersionsklebstoff (14 kg)", kat: "Verklebung", ort: "Regal C2", standardMenge: "5 Eimer", bild: "https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=400&auto=format&fit=crop&q=80" }
+            ],
+            benachrichtigungen: [
+                { von: "Jeff Brisbois (Chef)", empfaenger: "Alle", text: "Wichtige Anweisung: Materialanlieferung für alle Luxemburger Baustellen am Dienstag ab 07:00 Uhr beachten!", datum: "Heute, 08:30 Uhr", gelesenVon: [], geloeschtVon: [], projekt: "Wohnkomplex Kirchberg" }
+            ],
+            projekte: basisProjekte,
+            zuweisungen: {},
+            zeiterfassung: {},
+            resturlaub: {}
+        };
+
+        let eingeloggterMitarbeiter = "";
+        let eingeloggteRolle = "";
+        let aktuellesProjekt = "";
+        let pinModusAktiv = false;
+        let temporärePinX = 0;
+        let temporärePinY = 0;
+        let ausgewaehlterPinIndex = null;
+        let ausgewaehlteNachrichtIndex = null;
+        let map = null;
+        let mapMarkerLayer = [];
+
+        let planZoomFaktor = 1;
+        let isPanning = false;
+        let startX, startY, scrollLeft, scrollTop;
+
+        setInterval(() => {
+            const jetzt = new Date();
+            const uhrString = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const datumString = jetzt.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+            const uEl = document.getElementById('live-uhrzeit');
+            const dEl = document.getElementById('live-datum');
+            if(uEl) uEl.innerText = uhrString;
+            if(dEl) dEl.innerText = datumString;
+        }, 1000);
+
+        // LIVE WETTER LADEN (Open-Meteo API für Bettembourg)
+        async function wetterLaden() {
+            try {
+                const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=49.518&longitude=6.102&current=temperature_2m,weathercode');
+                const data = await response.json();
+                if(data && data.current) {
+                    const temp = Math.round(data.current.temperature_2m);
+                    const code = data.current.weathercode;
+                    
+                    const tempEl = document.getElementById('wetter-temp');
+                    const zustandEl = document.getElementById('wetter-zustand');
+                    const iconEl = document.getElementById('wetter-icon');
+                    
+                    if(tempEl) tempEl.innerText = temp + '°C';
+                    
+                    let text = "Teilweise bewölkt";
+                    let emoji = "⛅";
+                    if(code === 0) { text = "Klar & sonnig"; emoji = "☀️"; }
+                    else if(code >= 1 && code <= 3) { text = "Teilweise bewölkt"; emoji = "⛅"; }
+                    else if(code >= 45 && code <= 48) { text = "Neblig"; emoji = "🌫️"; }
+                    else if(code >= 51 && code <= 67) { text = "Regen / Schauer"; emoji = "🌧️"; }
+                    else if(code >= 71 && code <= 77) { text = "Schneefall"; emoji = "❄️"; }
+                    else if(code >= 95) { text = "Gewitter"; emoji = "⚡"; }
+                    
+                    if(zustandEl) zustandEl.innerText = text;
+                    if(iconEl) iconEl.innerText = emoji;
+                }
+            } catch(e) {
+                console.log("Wetter konnte nicht geladen werden:", e);
+            }
+        }
+
+        onSnapshot(doc(db, "portal", "global"), (docSnap) => {
+            if (docSnap.exists()) {
+                const cloudDaten = docSnap.data();
+                if (cloudDaten.mitarbeiterListe) globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
+                globalDaten.passwoerter = cloudDaten.passwoerter || {};
+                globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || {};
+                globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
+                globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
+                globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
+                globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
+                globalDaten.resturlaub = cloudDaten.resturlaub || {};
+                allesAktualisieren();
+            } else {
+                globalGlobalSpeichern();
+            }
+        });
+
+        onSnapshot(collection(db, "projekte"), (snapshot) => {
+            if (!snapshot.empty) {
+                const neueProjekte = {};
+                snapshot.forEach((docSnap) => {
+                    neueProjekte[docSnap.id] = docSnap.data();
+                });
+                globalDaten.projekte = neueProjekte;
+                if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
+                    const isChefOrTechOrSekr = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+                    if (isChefOrTechOrSekr) {
+                        aktuellesProjekt = Object.keys(globalDaten.projekte)[0] || "";
+                    } else {
+                        const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+                        aktuellesProjekt = zugewieseneProjekte.length > 0 ? zugewieseneProjekte[0] : "";
+                    }
+                }
+                allesAktualisieren();
+            } else {
+                Object.keys(basisProjekte).forEach(projName => {
+                    setDoc(doc(db, "projekte", projName), basisProjekte[projName]);
+                });
+            }
+        });
+
+        async function globalGlobalSpeichern() {
+            try {
+                await setDoc(doc(db, "portal", "global"), {
+                    mitarbeiterListe: globalDaten.mitarbeiterListe,
+                    passwoerter: globalDaten.passwoerter,
+                    mitarbeiterProfil: globalDaten.mitarbeiterProfil,
+                    benachrichtigungen: globalDaten.benachrichtigungen,
+                    uzinKatalog: globalDaten.uzinKatalog,
+                    zuweisungen: globalDaten.zuweisungen,
+                    zeiterfassung: globalDaten.zeiterfassung,
+                    resturlaub: globalDaten.resturlaub
+                });
+            } catch(e) {
+                console.error("Fehler beim Speichern global:", e);
+            }
+        }
+
+        async function projektSpeichern(titel) {
+            try {
+                const projDaten = globalDaten.projekte[titel];
+                await setDoc(doc(db, "projekte", titel), projDaten);
+            } catch(e) {
+                console.error("Fehler beim Speichern des Projekts:", e);
+                alert("⚠️ Speichern des Projekts blockiert! Detail: " + e.message);
+            }
+        }
+
+        async function projektAusCloudLoeschen(titel) {
+            try {
+                await deleteDoc(doc(db, "projekte", titel));
+            } catch(e) {
+                console.error("Fehler beim Löschen des Projekts:", e);
+            }
+        }
+
+        function dateiEinlesenOderKonvertieren(file, callback) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = function(event) {
+                callback(event.target.result);
+            };
+        }
+
+        function bildKomprimierenUndKonvertieren(file, callback) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = function (event) {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = function () {
+                    const canvas = document.createElement('canvas');
+                    let MAX_WIDTH = 1000;
+                    let MAX_HEIGHT = 1000;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    let quality = 0.5;
+                    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    callback(dataUrl);
+                };
+            };
+        }
+
+        function allesAktualisieren() {
+            loginDropdownBefuellen();
+            projektListeAktualisieren();
+            mitarbeiterZuweisungsTabelleAktualisieren();
+            telefonlistenTabelleFüllen();
+            benachrichtigungenAnzeigen();
+            empfaengerDropdownBefuellen();
+            projektTeamAnzeigen();
+            schnellZuweisungDropdownBefuellen();
+            startseiteAktualisieren();
+            zeiterfassungAnzeigen();
+            if (aktuellesProjekt && globalDaten.projekte[aktuellesProjekt]) projektLaden(aktuellesProjekt);
+            if (map) karteAktualisieren();
+        }
+
+        function loginDropdownBefuellen() {
+            const select = document.getElementById('login-name-select');
+            if(!select) return;
+            const aktuellerWert = select.value;
+            select.innerHTML = '';
+
+            const chefs = globalDaten.mitarbeiterListe.filter(m => m.rolle && (m.rolle.includes('Chef') || m.rolle.includes('Admin') || m.rolle.includes('Sekretariat') || m.rolle.includes('Techniker') || m.rolle.includes('Lagerist')) || m.name === 'Jeff Brisbois' || m.name === 'Patrick Magiera' || m.name === 'Michel Didier' || m.name === 'Tania Thill' || m.name === 'Dagmar Stejskalova' || m.name === 'Marie-Christine Mathieu' || m.name === 'Christian Leppin' || m.name === 'Sylvain Zuliani' || m.name === 'Claude Gaita');
+            const verleger = globalDaten.mitarbeiterListe.filter(m => !chefs.includes(m));
+
+            let chefHtml = `<optgroup label="👑 Chefs, Verwaltung, Technik & Lager">`;
+            chefs.forEach(c => { chefHtml += `<option value="${c.name}">${c.name} (${c.rolle || 'Chef/Admin'})</option>`; });
+            chefHtml += `</optgroup>`;
+
+            let verlegerHtml = `<optgroup label="👷 Verleger">`;
+            verleger.forEach(v => { verlegerHtml += `<option value="${v.name}">${v.name}</option>`; });
+            verlegerHtml += `</optgroup>`;
+
+            select.innerHTML = chefHtml + verlegerHtml;
+            if(aktuellerWert) select.value = aktuellerWert;
+        }
+
+        window.schnellLoginDirekt = function(name, rolle) {
+            eingeloggterMitarbeiter = name;
+            eingeloggteRolle = rolle;
+            oeffneAppNachLogin();
+        }
+
+        window.anmeldenMitTeam = function(event) {
+            event.preventDefault();
+            const name = document.getElementById('login-name-select').value;
+            const eingegebenesPasswort = document.getElementById('login-passwort').value;
+
+            const gespeichertesPasswort = globalDaten.passwoerter[name] || "start123";
+
+            if (eingegebenesPasswort !== gespeichertesPasswort) {
+                alert("Falsches Passwort! Standard-Passwort für den ersten Login ist: start123");
+                return;
+            }
+
+            eingeloggterMitarbeiter = name;
+            const maObjekt = globalDaten.mitarbeiterListe.find(m => m.name === name);
+            eingeloggteRolle = maObjekt ? maObjekt.rolle : "Verleger";
+            
+            oeffneAppNachLogin();
+        }
+
+        function oeffneAppNachLogin() {
+            document.getElementById('user-badge').innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
+            
+            const chefElemente = document.querySelectorAll('.chef-only');
+            const adminViewElements = document.querySelectorAll('.admin-view-only');
+            const chefUrlaubsBereich = document.getElementById('chef-urlaubs-bereich');
+            const mitarbeiterZeiterfassungBereich = document.getElementById('mitarbeiter-zeiterfassung-bereich');
+
+            const isChefOrTech = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin';
+            const isSekretariat = eingeloggteRolle.includes('Sekretariat');
+
+            const projektListenTitel = document.getElementById('projekt-listen-titel');
+
+            if (isChefOrTech || isSekretariat) {
+                chefElemente.forEach(el => {
+                    if(!el.classList.contains('chef-only') || isChefOrTech) el.classList.remove('hidden');
+                });
+                adminViewElements.forEach(el => el.classList.remove('hidden'));
+                if(projektListenTitel) projektListenTitel.innerText = "Aktive & Nächste Projekte";
+
+                if(isChefOrTech) {
+                    if(chefUrlaubsBereich) chefUrlaubsBereich.classList.remove('hidden');
+                    if(mitarbeiterZeiterfassungBereich) mitarbeiterZeiterfassungBereich.classList.add('hidden');
+                } else {
+                    if(chefUrlaubsBereich) chefUrlaubsBereich.classList.add('hidden');
+                    if(mitarbeiterZeiterfassungBereich) mitarbeiterZeiterfassungBereich.classList.remove('hidden');
+                }
+
+                projektListeAktualisieren();
+                mitarbeiterZuweisungsTabelleAktualisieren();
+                if(isChefOrTech) chefStundenAnzeigen();
+                const ersteBaustelle = Object.keys(globalDaten.projekte)[0];
+                if (ersteBaustelle) projektLaden(ersteBaustelle);
+            } else {
+                chefElemente.forEach(el => el.classList.add('hidden'));
+                adminViewElements.forEach(el => el.classList.add('hidden'));
+                if(projektListenTitel) projektListenTitel.innerText = "Meine Baustellen";
+
+                if(chefUrlaubsBereich) chefUrlaubsBereich.classList.add('hidden');
+                if(mitarbeiterZeiterfassungBereich) mitarbeiterZeiterfassungBereich.classList.remove('hidden');
+
+                projektListeAktualisieren();
+                const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+                const ersteBaustelle = zugewieseneProjekte.length > 0 ? zugewieseneProjekte[0] : "";
+                if (ersteBaustelle) {
+                    projektLaden(ersteBaustelle);
+                } else {
+                    aktuellesProjekt = "";
+                }
+            }
+
+            wetterLaden();
+            startseiteAktualisieren();
+            zeiterfassungAnzeigen();
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+            wechselnTab('startseite');
+        }
+
+        // ZEITERFASSUNG & RESTURLAUB LOGIK
+        window.arbeitszeitStarten = function() {
+            const heute = new Date().toISOString().split('T')[0];
+            const jetztZeit = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            
+            if(!globalDaten.zeiterfassung[eingeloggterMitarbeiter]) {
+                globalDaten.zeiterfassung[eingeloggterMitarbeiter] = {};
+            }
+
+            globalDaten.zeiterfassung[eingeloggterMitarbeiter][heute] = {
+                datum: heute,
+                start: jetztZeit,
+                pauseMinuten: 0,
+                feierabend: null,
+                nettoStunden: "00:00",
+                status: "Aktiv"
+            };
+
+            globalGlobalSpeichern();
+            zeiterfassungAnzeigen();
+        }
+
+        window.pauseUmschalten = function() {
+            const heute = new Date().toISOString().split('T')[0];
+            const eintrag = globalDaten.zeiterfassung[eingeloggterMitarbeiter]?.[heute];
+            if(!eintrag) return;
+
+            if(eintrag.status === "Aktiv") {
+                eintrag.status = "Pause";
+                eintrag.pauseStartMs = Date.now();
+            } else if(eintrag.status === "Pause") {
+                eintrag.status = "Aktiv";
+                const pauseDauerMin = Math.round((Date.now() - eintrag.pauseStartMs) / 60000);
+                eintrag.pauseMinuten = (eintrag.pauseMinuten || 0) + pauseDauerMin;
+                delete eintrag.pauseStartMs;
+            }
+
+            globalGlobalSpeichern();
+            zeiterfassungAnzeigen();
+        }
+
+        window.feierabendMachen = function() {
+            const heute = new Date().toISOString().split('T')[0];
+            const eintrag = globalDaten.zeiterfassung[eingeloggterMitarbeiter]?.[heute];
+            if(!eintrag) return;
+
+            const jetztZeit = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            eintrag.feierabend = jetztZeit;
+            eintrag.status = "Fertig";
+
+            const [startH, startM] = eintrag.start.split(':').map(Number);
+            const [endH, endM] = jetztZeit.split(':').map(Number);
+            
+            let gesamtMinuten = (endH * 60 + endM) - (startH * 60 + startM) - (eintrag.pauseMinuten || 0);
+            if(gesamtMinuten < 0) gesamtMinuten = 0;
+
+            const stunden = Math.floor(gesamtMinuten / 60);
+            const minuten = gesamtMinuten % 60;
+            eintrag.nettoStunden = `${String(stunden).padStart(2, '0')}:${String(minuten).padStart(2, '0')} Std`;
+
+            globalGlobalSpeichern();
+            zeiterfassungAnzeigen();
+            alert(`Feierabend gespeichert! Netto-Arbeitszeit heute: ${eintrag.nettoStunden}`);
+        }
+
+        window.resturlaubSpeichern = function() {
+            const inputVal = document.getElementById('input-resturlaub').value;
+            const restTage = parseFloat(inputVal);
+
+            if(isNaN(restTage) || restTage < 0) {
+                alert("Bitte gib einen gültigen Wert für den Resturlaub ein!");
+                return;
+            }
+
+            if(!globalDaten.resturlaub) globalDaten.resturlaub = {};
+            globalDaten.resturlaub[eingeloggterMitarbeiter] = restTage;
+
+            globalGlobalSpeichern();
+            alert(`Resturlaub erfolgreich auf ${restTage} Tage aktualisiert!`);
+            startseiteAktualisieren();
+        }
+
+        function zeiterfassungAnzeigen() {
+            if(!eingeloggterMitarbeiter) return;
+            const heute = new Date().toISOString().split('T')[0];
+            
+            if(!globalDaten.resturlaub) globalDaten.resturlaub = {};
+            const aktuellerResturlaub = globalDaten.resturlaub[eingeloggterMitarbeiter] !== undefined ? globalDaten.resturlaub[eingeloggterMitarbeiter] : 14;
+            const restInput = document.getElementById('input-resturlaub');
+            if(restInput) restInput.value = aktuellerResturlaub;
+
+            const startBtn = document.getElementById('btn-start-zeit');
+            const pauseBtn = document.getElementById('btn-pause-zeit');
+            const feierabendBtn = document.getElementById('btn-feierabend');
+            const statusBadge = document.getElementById('zeiterfassung-status-badge');
+            const anzeigeHeutig = document.getElementById('heutige-stunden-anzeige');
+            const zeitenInfo = document.getElementById('zeiterfassung-zeiten-info');
+
+            const eintrag = globalDaten.zeiterfassung[eingeloggterMitarbeiter]?.[heute];
+
+            if(!eintrag) {
+                if(startBtn) { startBtn.disabled = false; startBtn.innerText = "▶ Starten"; }
+                if(pauseBtn) pauseBtn.disabled = true;
+                if(feierabendBtn) feierabendBtn.disabled = true;
+                if(statusBadge) { statusBadge.innerText = "Bereit"; statusBadge.className = "bg-slate-200 text-slate-700 text-xs px-2.5 py-1 rounded-full font-bold"; }
+                if(anzeigeHeutig) anzeigeHeutig.innerText = "00:00 Std";
+                if(zeitenInfo) zeitenInfo.innerText = "Noch nicht gestartet heute";
+            } else {
+                if(eintrag.status === "Aktiv") {
+                    if(startBtn) startBtn.disabled = true;
+                    if(pauseBtn) { pauseBtn.disabled = false; pauseBtn.innerText = "☕ Pause"; }
+                    if(feierabendBtn) feierabendBtn.disabled = false;
+                    if(statusBadge) { statusBadge.innerText = "🟢 Aktiv am Arbeiten"; statusBadge.className = "bg-emerald-100 text-emerald-800 text-xs px-2.5 py-1 rounded-full font-bold"; }
+                    if(zeitenInfo) zeitenInfo.innerText = `Start: ${eintrag.start} | Pause: ${eintrag.pauseMinuten || 0} Min`;
+                    if(anzeigeHeutig) anzeigeHeutig.innerText = "Läuft...";
+                } else if(eintrag.status === "Pause") {
+                    if(startBtn) startBtn.disabled = true;
+                    if(pauseBtn) { pauseBtn.disabled = false; pauseBtn.innerText = "▶ Weiterarbeiten"; }
+                    if(feierabendBtn) feierabendBtn.disabled = false;
+                    if(statusBadge) { statusBadge.innerText = "☕ In Pause"; statusBadge.className = "bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold animate-pulse"; }
+                    if(zeitenInfo) zeitenInfo.innerText = `Start: ${eintrag.start} | Aktuell in Pause`;
+                    if(anzeigeHeutig) anzeigeHeutig.innerText = "Pause...";
+                } else if(eintrag.status === "Fertig") {
+                    if(startBtn) { startBtn.disabled = false; startBtn.innerText = "▶ Erneut starten"; }
+                    if(pauseBtn) pauseBtn.disabled = true;
+                    if(feierabendBtn) feierabendBtn.disabled = true;
+                    if(statusBadge) { statusBadge.innerText = "🏁 Beendet (Neuer Start möglich)"; statusBadge.className = "bg-slate-200 text-slate-800 text-xs px-2.5 py-1 rounded-full font-bold"; }
+                    if(zeitenInfo) zeitenInfo.innerText = `Letzter Start: ${eintrag.start} | Feierabend: ${eintrag.feierabend} | Pause: ${eintrag.pauseMinuten || 0} Min`;
+                    if(anzeigeHeutig) anzeigeHeutig.innerText = eintrag.nettoStunden;
+                }
+            }
+
+            const tbody = document.querySelector('#zeiterfassung-historie-tabelle tbody');
+            if(tbody) {
+                tbody.innerHTML = '';
+                const userZeiten = globalDaten.zeiterfassung[eingeloggterMitarbeiter] || {};
+                const datenTage = Object.keys(userZeiten).sort().reverse();
+
+                if(datenTage.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400 italic">Noch keine Arbeitszeiten erfasst.</td></tr>`;
+                } else {
+                    datenTage.forEach(tag => {
+                        const d = userZeiten[tag];
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="p-3 font-semibold text-slate-900">${d.datum}</td>
+                                <td class="p-3 font-mono text-slate-600">${d.start || '--:--'}</td>
+                                <td class="p-3 font-mono text-slate-600">${d.pauseMinuten || 0} Min</td>
+                                <td class="p-3 font-mono text-slate-600">${d.feierabend || 'Offen'}</td>
+                                <td class="p-3 font-mono text-right font-bold text-blue-700">${d.nettoStunden || 'Laufend'}</td>
+                            </tr>
+                        `;
+                    });
+                }
+            }
+        }
+
+        window.neuesProjektModalOeffnen = function() {
+            document.getElementById('manuell-projekt-titel').value = "";
+            document.getElementById('manuell-projekt-adresse').value = "";
+            document.getElementById('manuell-projekt-anweisung').value = "";
+            document.getElementById('manuell-material-container').innerHTML = "";
+            
+            materialZeileHinzufuegen();
+            document.getElementById('neues-projekt-modal').classList.remove('hidden');
+        }
+
+        window.materialZeileHinzufuegen = function() {
+            const container = document.getElementById('manuell-material-container');
+            const zeileId = 'mat-row-' + Date.now() + Math.random();
+            
+            const div = document.createElement('div');
+            div.id = zeileId;
+            div.className = "flex gap-2 items-center bg-white p-2 rounded border";
+            div.innerHTML = `
+                <input type="text" placeholder="Produkt (z.B. Uzin MK 250)..." class="mat-bez flex-1 px-2 py-1 border rounded text-xs bg-white">
+                <input type="text" placeholder="Menge (z.B. 20 Eimer)..." class="mat-menge w-28 px-2 py-1 border rounded text-xs bg-white">
+                <input type="text" placeholder="Lagerort (z.B. Regal C1)..." class="mat-ort w-28 px-2 py-1 border rounded text-xs bg-white">
+                <button type="button" onclick="document.getElementById('${zeileId}').remove()" class="text-red-500 hover:text-red-700 font-bold px-2 text-sm" title="Zeile löschen">✕</button>
+            `;
+            container.appendChild(div);
+        }
+
+        window.neuesProjektManuellSpeichern = function(event) {
+            event.preventDefault();
+            const titel = document.getElementById('manuell-projekt-titel').value.trim();
+            const adresse = document.getElementById('manuell-projekt-adresse').value.trim();
+            const status = document.getElementById('manuell-projekt-status').value;
+            const anweisung = document.getElementById('manuell-projekt-anweisung').value.trim();
+
+            if(!titel) {
+                alert("Bitte gib einen Projekttitel ein!");
+                return;
+            }
+
+            if(globalDaten.projekte[titel]) {
+                alert("Ein Projekt mit diesem Namen existiert bereits!");
+                return;
+            }
+
+            let materialListe = [];
+            const materialZeilen = document.querySelectorAll('#manuell-material-container > div');
+            
+            materialZeilen.forEach(zeile => {
+                const bez = zeile.querySelector('.mat-bez').value.trim();
+                const menge = zeile.querySelector('.mat-menge').value.trim();
+                const ort = zeile.querySelector('.mat-ort').value.trim();
+
+                if(bez) {
+                    materialListe.push({
+                        bez: bez,
+                        kat: "Material",
+                        menge: menge || "10 Stk",
+                        ort: ort || "Lager",
+                        status: "⏳ Offen"
+                    });
+                }
+            });
+
+            if(materialListe.length === 0) {
+                materialListe.push({
+                    bez: "Uzin MK 250 Parkettklebstoff (16 kg)",
+                    kat: "Verklebung",
+                    menge: "10 Eimer",
+                    ort: "Regal C1",
+                    status: "⏳ Offen"
+                });
+            }
+
+            globalDaten.projekte[titel] = {
+                adresse: adresse || "Luxemburg",
+                status: status,
+                anweisung: anweisung || "Keine spezifische Anweisung hinterlegt.",
+                plaene: [],
+                aktiverPlanIndex: 0,
+                pins: [],
+                material: materialListe
+            };
+
+            projektSpeichern(titel);
+            document.getElementById('neues-projekt-modal').classList.add('hidden');
+            
+            projektLaden(titel);
+            alert(`Baustelle "${titel}" mit ${materialListe.length} Materialeinträgen erfolgreich angelegt!`);
+        }
+
+        window.projektBearbeitenOeffnen = function() {
+            if(!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
+            const p = globalDaten.projekte[aktuellesProjekt];
+
+            document.getElementById('edit-projekt-titel').value = aktuellesProjekt;
+            document.getElementById('edit-projekt-adresse').value = p.adresse;
+            document.getElementById('edit-projekt-status').value = p.status;
+            document.getElementById('edit-projekt-anweisung').value = p.anweisung;
+
+            document.getElementById('projekt-bearbeiten-modal').classList.remove('hidden');
+        }
+
+        window.projektBearbeitenSpeichern = function(event) {
+            event.preventDefault();
+            const adresse = document.getElementById('edit-projekt-adresse').value.trim();
+            const status = document.getElementById('edit-projekt-status').value;
+            const anweisung = document.getElementById('edit-projekt-anweisung').value.trim();
+
+            if(!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
+
+            globalDaten.projekte[aktuellesProjekt].adresse = adresse;
+            globalDaten.projekte[aktuellesProjekt].status = status;
+            globalDaten.projekte[aktuellesProjekt].anweisung = anweisung;
+
+            projektSpeichern(aktuellesProjekt);
+            document.getElementById('projekt-bearbeiten-modal').classList.add('hidden');
+            projektLaden(aktuellesProjekt);
+            alert("Projektdaten erfolgreich aktualisiert!");
+        }
+
+        window.projektLoeschenBestätigen = function() {
+            if(!aktuellesProjekt) return;
+            if(confirm(`Möchtest du das Projekt "${aktuellesProjekt}" wirklich unwiderruflich löschen?`)) {
+                const zuLoeschen = aktuellesProjekt;
+                
+                Object.keys(globalDaten.zuweisungen).forEach(ma => {
+                    globalDaten.zuweisungen[ma] = globalDaten.zuweisungen[ma].filter(p => p !== zuLoeschen);
+                });
+
+                delete globalDaten.projekte[zuLoeschen];
+                projektAusCloudLoeschen(zuLoeschen);
+                globalGlobalSpeichern();
+
+                const verbleibendeProjekte = Object.keys(globalDaten.projekte);
+                if(verbleibendeProjekte.length > 0) {
+                    projektLaden(verbleibendeProjekte[0]);
+                } else {
+                    alert("Alle Projekte wurden gelöscht.");
+                }
+                allesAktualisieren();
+            }
+        }
+
+        function startseiteAktualisieren() {
+            if(!eingeloggterMitarbeiter) return;
+            document.getElementById('start-begruessung').innerText = `Guten Tag, ${eingeloggterMitarbeiter}!`;
+            document.getElementById('start-user-name').innerText = eingeloggterMitarbeiter;
+            document.getElementById('start-user-rolle').innerText = eingeloggteRolle;
+            
+            const initialen = eingeloggterMitarbeiter.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
+            document.getElementById('start-user-initial').innerText = initialen;
+
+            const aktuellerResturlaub = (globalDaten.resturlaub && globalDaten.resturlaub[eingeloggterMitarbeiter] !== undefined) ? globalDaten.resturlaub[eingeloggterMitarbeiter] : 14;
+            const restUrlaubEl = document.getElementById('start-resturlaub');
+            if(restUrlaubEl) restUrlaubEl.innerText = `${aktuellerResturlaub} Tage`;
+
+            const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+            if(zugewieseneProjekte.length > 0) {
+                const erstesProj = zugewieseneProjekte[0];
+                document.getElementById('start-aktuelle-baustelle').innerText = erstesProj;
+                if(globalDaten.projekte[erstesProj]) {
+                    document.getElementById('start-baustelle-adresse').innerText = globalDaten.projekte[erstesProj].adresse;
+                }
+            } else {
+                document.getElementById('start-aktuelle-baustelle').innerText = "Keine Baustelle zugeteilt";
+                document.getElementById('start-baustelle-adresse').innerText = "Bitte wende dich an die Arbeitsvorbereitung.";
+            }
+        }
+
+        window.neuenMitarbeiterHinzufuegen = function() {
+            const name = document.getElementById('neuer-ma-name').value.trim();
+            const tel = document.getElementById('neuer-ma-tel').value.trim();
+
+            if(!name) {
+                alert("Bitte gib den Namen des Mitarbeiters ein!");
+                return;
+            }
+
+            if(globalDaten.mitarbeiterListe.some(m => m.name.toLowerCase() === name.toLowerCase())) {
+                alert("Ein Mitarbeiter mit diesem Namen existiert bereits!");
+                return;
+            }
+
+            const neuerMitarbeiter = { name: name, tel: tel, rolle: "Verleger" };
+
+            globalDaten.mitarbeiterListe.push(neuerMitarbeiter);
+            globalDaten.passwoerter[name] = "start123";
+            globalDaten.mitarbeiterProfil[name] = { tel: tel, email: "" };
+            globalDaten.zuweisungen[name] = [];
+
+            globalGlobalSpeichern();
+            allesAktualisieren();
+
+            document.getElementById('neuer-ma-name').value = "";
+            document.getElementById('neuer-ma-tel').value = "";
+        }
+
+        function mitarbeiterZuweisungsTabelleAktualisieren() {
+            const tbody = document.querySelector('#mitarbeiter-zuweisung-tabelle tbody');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+
+            globalDaten.mitarbeiterListe.forEach(m => {
+                const name = m.name;
+                const rolle = m.rolle || "Verleger";
+                if(!globalDaten.zuweisungen[name]) globalDaten.zuweisungen[name] = [];
+                const zugewieseneProjekte = globalDaten.zuweisungen[name];
+
+                let projektBadges = '';
+                Object.keys(globalDaten.projekte).forEach(proj => {
+                    const istZugewiesen = zugewieseneProjekte.includes(proj);
+                    projektBadges += `
+                        <label class="inline-flex items-center gap-1.5 bg-slate-50 border px-2.5 py-1 rounded-lg text-xs cursor-pointer hover:bg-slate-100 transition">
+                            <input type="checkbox" value="${proj}" ${istZugewiesen ? 'checked' : ''} onchange="mehrfachZuweisungGeändert('${name}', '${proj}', this.checked)" class="rounded text-blue-600 focus:ring-blue-500">
+                            <span class="font-medium text-slate-700">${proj}</span>
+                        </label>
+                    `;
+                });
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold text-slate-900 align-top">${name}</td>
+                    <td class="p-3 align-top"><span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold">${rolle}</span></td>
+                    <td class="p-3">
+                        <div class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
+                            ${projektBadges}
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.mehrfachZuweisungGeändert = function(mitarbeiter, projekt, istHinzugefuegt) {
+            if(!globalDaten.zuweisungen[mitarbeiter]) {
+                globalDaten.zuweisungen[mitarbeiter] = [];
+            }
+
+            if (istHinzugefuegt) {
+                if(!globalDaten.zuweisungen[mitarbeiter].includes(projekt)) {
+                    globalDaten.zuweisungen[mitarbeiter].push(projekt);
+                }
+            } else {
+                globalDaten.zuweisungen[mitarbeiter] = globalDaten.zuweisungen[mitarbeiter].filter(p => p !== projekt);
+            }
+
+            globalGlobalSpeichern();
+            allesAktualisieren();
+        }
+
+        function projektTeamAnzeigen() {
+            const container = document.getElementById('projekt-team-liste');
+            if(!container) return;
+            container.innerHTML = '';
+
+            if(!aktuellesProjekt) {
+                container.innerHTML = `<span class="text-xs text-slate-400 italic">Kein Projekt ausgewählt.</span>`;
+                return;
+            }
+
+            let zugewieseneArbeiter = [];
+            Object.keys(globalDaten.zuweisungen).forEach(mitarbeiter => {
+                const projList = globalDaten.zuweisungen[mitarbeiter] || [];
+                if (projList.includes(aktuellesProjekt)) {
+                    zugewieseneArbeiter.push(mitarbeiter);
+                }
+            });
+
+            if(zugewieseneArbeiter.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-400 italic">Keine Mitarbeiter diesem Projekt zugewiesen.</span>`;
+                return;
+            }
+
+            zugewieseneArbeiter.forEach(ma => {
+                const isChefOrTech = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggterMitarbeiter === 'Christian Leppin';
+                let loeschBtn = isChefOrTech ? `<button onclick="mitarbeiterVomProjektEntfernen('${ma}')" class="text-red-500 hover:text-red-700 font-bold ml-1 text-xs" title="Von Baustelle entfernen">✕</button>` : '';
+                container.innerHTML += `
+                    <span class="bg-blue-50 border border-blue-200 text-blue-900 text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 shadow-sm">
+                        👷 ${ma} ${loeschBtn}
+                    </span>
+                `;
+            });
+        }
+
+        window.mitarbeiterVomProjektEntfernen = function(maName) {
+            if(globalDaten.zuweisungen[maName]) {
+                globalDaten.zuweisungen[maName] = globalDaten.zuweisungen[maName].filter(p => p !== aktuellesProjekt);
+                globalGlobalSpeichern();
+                allesAktualisieren();
+            }
+        }
+
+        function schnellZuweisungDropdownBefuellen() {
+            const select = document.getElementById('projekt-schnell-zuweisen-select');
+            if(!select) return;
+            const aktuellerWert = select.value;
+            select.innerHTML = `<option value="">-- Mitarbeiter zuweisen --</option>`;
+            
+            globalDaten.mitarbeiterListe.forEach(m => {
+                const projList = globalDaten.zuweisungen[m.name] || [];
+                if (!projList.includes(aktuellesProjekt)) {
+                    select.innerHTML += `<option value="${m.name}">${m.name} (${m.rolle || 'Verleger'})</option>`;
+                }
+            });
+            if(aktuellerWert) select.value = aktuellerWert;
+        }
+
+        window.mitarbeiterZuAktuellemProjektHinzufuegen = function() {
+            const select = document.getElementById('projekt-schnell-zuweisen-select');
+            const maName = select.value;
+            if(!maName) {
+                alert("Bitte wähle einen Mitarbeiter aus!");
+                return;
+            }
+
+            if(!globalDaten.zuweisungen[maName]) {
+                globalDaten.zuweisungen[maName] = [];
+            }
+            if(!globalDaten.zuweisungen[maName].includes(aktuellesProjekt)) {
+                globalDaten.zuweisungen[maName].push(aktuellesProjekt);
+            }
+
+            globalGlobalSpeichern();
+            allesAktualisieren();
+        }
+
+        window.uzinAuswahlOeffnen = function() {
+            uzinKatalogGridAktualisieren();
+            document.getElementById('uzin-auswahl-modal').classList.remove('hidden');
+        }
+
+        function uzinKatalogGridAktualisieren() {
+            const grid = document.getElementById('uzin-produkte-grid');
+            if(!grid) return;
+            grid.innerHTML = '';
+
+            if(!globalDaten.uzinKatalog) globalDaten.uzinKatalog = [];
+
+            globalDaten.uzinKatalog.forEach((prod, index) => {
+                grid.innerHTML += `
+                    <div class="border rounded-xl p-3 flex gap-3 items-center bg-slate-50 hover:bg-blue-50/50 transition cursor-pointer relative group">
+                        <img src="${prod.bild || 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&auto=format&fit=crop&q=80'}" class="w-16 h-16 object-cover rounded-lg border shadow-sm" alt="${prod.bez}">
+                        <div class="flex-1" onclick="uzinProduktHinzufuegen('${prod.bez}', '${prod.kat}', '${prod.ort}', '${prod.standardMenge || '10 Stk'}')">
+                            <h4 class="font-bold text-slate-900 text-sm">${prod.bez}</h4>
+                            <p class="text-xs text-slate-500">Kat: ${prod.kat} | Lager: ${prod.ort}</p>
+                            <span class="text-xs text-blue-600 font-bold mt-1 inline-block">➕ Zur Packliste</span>
+                        </div>
+                        <button type="button" onclick="event.stopPropagation(); uzinKatalogArtikelLoeschen(${index})" class="absolute top-2 right-2 text-slate-300 hover:text-red-600 font-bold text-xs bg-white px-1.5 py-0.5 rounded border shadow-sm" title="Aus Katalog löschen">✕</button>
+                    </div>
+                `;
+            });
+        }
+
+        window.neuesProduktInKatalogAufnehmen = function() {
+            const bez = document.getElementById('neues-uzin-bez').value.trim();
+            const kat = document.getElementById('neues-uzin-kat').value.trim();
+            const ort = document.getElementById('neues-uzin-ort').value.trim();
+
+            if(!bez) {
+                alert("Bitte gib eine Produktbezeichnung ein!");
+                return;
+            }
+
+            if(!globalDaten.uzinKatalog) globalDaten.uzinKatalog = [];
+
+            globalDaten.uzinKatalog.push({
+                bez: bez,
+                kat: kat || "Sonstige",
+                ort: ort || "Lager",
+                standardMenge: "10 Stk",
+                bild: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&auto=format&fit=crop&q=80"
+            });
+
+            globalGlobalSpeichern();
+            uzinKatalogGridAktualisieren();
+
+            document.getElementById('neues-uzin-bez').value = "";
+            document.getElementById('neues-uzin-kat').value = "";
+            document.getElementById('neues-uzin-ort').value = "";
+        }
+
+        window.uzinKatalogArtikelLoeschen = function(index) {
+            if(confirm("Möchtest du diesen Produkt wirklich aus dem Uzin-Katalog löschen?")) {
+                globalDaten.uzinKatalog.splice(index, 1);
+                globalGlobalSpeichern();
+                uzinKatalogGridAktualisieren();
+            }
+        }
+
+        window.uzinProduktHinzufuegen = function(bez, kat, ort, stdMenge) {
+            const menge = prompt(`Menge für ${bez} eingeben:`, stdMenge);
+            if(!menge) return;
+
+            if(!globalDaten.projekte[aktuellesProjekt].material) {
+                globalDaten.projekte[aktuellesProjekt].material = [];
+            }
+
+            globalDaten.projekte[aktuellesProjekt].material.push({
+                bez: bez,
+                kat: kat,
+                menge: menge,
+                ort: ort,
+                status: "⏳ Offen"
+            });
+
+            projektSpeichern(aktuellesProjekt);
+            document.getElementById('uzin-auswahl-modal').classList.add('hidden');
+        }
+
+        function empfaengerDropdownBefuellen() {
+            const select = document.getElementById('nachricht-empfaenger');
+            if(!select) return;
+            const aktuellerWert = select.value;
+            select.innerHTML = `<option value="Alle">🌐 An alle (Team & Chefs)</option>`;
+            globalDaten.mitarbeiterListe.forEach(m => {
+                if(m.name !== eingeloggterMitarbeiter) {
+                    select.innerHTML += `<option value="${m.name}">${m.name}</option>`;
+                }
+            });
+            if(aktuellerWert) select.value = aktuellerWert;
+        }
+
+        function benachrichtigungenAnzeigen() {
+            const container = document.getElementById('benachrichtigungen-liste');
+            if(!container) return;
+            container.innerHTML = '';
+
+            const liste = globalDaten.benachrichtigungen || [];
+            let ungelesenZaehler = 0;
+
+            const gefilterteListe = liste.map((item, originalIndex) => {
+                if(!item.geloeschtVon) item.geloeschtVon = [];
+                if(item.geloeschtVon.includes(eingeloggterMitarbeiter)) return null;
+
+                let anzeigen = false;
+                if (item.empfaenger === "Alle" || item.empfaenger === eingeloggterMitarbeiter || item.von.startsWith(eingeloggterMitarbeiter)) {
+                    anzeigen = true;
+                } else if (item.von && item.von.includes("🚨")) {
+                    const isChefOrTechOrSekr = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+                    if (isChefOrTechOrSekr) {
+                        anzeigen = true;
+                    } else {
+                        const zugewieseneProj = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+                        if (zugewieseneProj.includes(item.projekt)) {
+                            anzeigen = true;
+                        }
+                    }
+                }
+
+                if (!anzeigen) return null;
+
+                if(!item.gelesenVon) item.gelesenVon = [];
+                const istGelesen = item.gelesenVon.includes(eingeloggterMitarbeiter);
+                if(!istGelesen) ungelesenZaehler++;
+
+                return { item, originalIndex, istGelesen };
+            }).filter(Boolean);
+
+            if (gefilterteListe.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">Keine Benachrichtigungen für dich vorhanden.</p>`;
+                const badge = document.getElementById('badge-count');
+                if(badge) badge.classList.add('hidden');
+                return;
+            }
+
+            gefilterteListe.forEach(({ item, originalIndex, istGelesen }) => {
+                const isChefMsg = item.von.includes('Chef') || item.von.includes('Jeff') || item.von.includes('Patrick');
+                const rahmenFarbe = istGelesen 
+                    ? "border-slate-300 bg-slate-100 opacity-75" 
+                    : (isChefMsg ? "border-amber-500 bg-amber-50/50 shadow-md font-medium" : "border-blue-300 bg-slate-50 shadow-md font-medium");
+                
+                const zielAnzeige = item.empfaenger !== "Alle" ? `<span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-bold">Direkt an: ${item.empfaenger}</span>` : `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded font-bold">An alle</span>`;
+                const zielBaustelleText = item.projekt ? `<span class="bg-purple-100 text-purple-900 text-[10px] px-2 py-0.5 rounded font-bold">📍 Baustelle: ${item.projekt}</span>` : '';
+                const lesebestaetigungBadge = istGelesen ? `<span class="text-slate-400 text-[11px]">✔ Gelesen</span>` : `<span class="text-blue-600 font-bold text-[11px]">👉 Anklicken für Details</span>`;
+
+                container.innerHTML += `
+                    <div onclick="benachrichtigungAnklicken(${originalIndex})" class="p-4 rounded-xl border-l-4 border cursor-pointer transition hover:scale-[1.01] space-y-2 ${rahmenFarbe}">
+                        <div class="flex justify-between items-center text-xs">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-bold text-slate-900">📢 ${item.von}</span>
+                                ${zielAnzeige}
+                                ${zielBaustelleText}
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-slate-400">${item.datum}</span>
+                                ${lesebestaetigungBadge}
+                            </div>
+                        </div>
+                        <p class="text-sm text-slate-700">${item.text}</p>
+                    </div>
+                `;
+            });
+
+            const badge = document.getElementById('badge-count');
+            if(badge) {
+                if(ungelesenZaehler > 0) {
+                    badge.innerText = ungelesenZaehler;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
+        }
+
+        window.benachrichtigungAnklicken = function(index) {
+            ausgewaehlteNachrichtIndex = index;
+            const liste = globalDaten.benachrichtigungen || [];
+            const item = liste[index];
+            if(!item) return;
+
+            if(!item.gelesenVon) item.gelesenVon = [];
+            if(!item.gelesenVon.includes(eingeloggterMitarbeiter)) {
+                item.gelesenVon.push(eingeloggterMitarbeiter);
+                globalGlobalSpeichern();
+            }
+
+            document.getElementById('modal-benachrichtigung-titel').innerText = `🔔 Nachricht von ${item.von}`;
+            document.getElementById('modal-benachrichtigung-von').innerText = `Absender: ${item.von}`;
+            document.getElementById('modal-benachrichtigung-datum').innerText = `Datum: ${item.datum}`;
+            document.getElementById('modal-benachrichtigung-text').innerText = item.text;
+
+            const projInfoEl = document.getElementById('modal-benachrichtigung-projekt-info');
+            const btnZuProjekt = document.getElementById('modal-btn-zu-projekt');
+
+            if (item.projekt) {
+                projInfoEl.innerText = `📍 Zugeordnetes Projekt / Baustelle: ${item.projekt}`;
+                projInfoEl.classList.remove('hidden');
+                btnZuProjekt.classList.remove('hidden');
+            } else {
+                projInfoEl.classList.add('hidden');
+                btnZuProjekt.classList.add('hidden');
+            }
+
+            document.getElementById('benachrichtigung-detail-modal').classList.remove('hidden');
+            benachrichtigungenAnzeigen();
+        }
+
+        window.benachrichtigungZuProjektWechseln = function() {
+            if (ausgewaehlteNachrichtIndex === null) return;
+            const item = globalDaten.benachrichtigungen[ausgewaehlteNachrichtIndex];
+            if (item && item.projekt && globalDaten.projekte[item.projekt]) {
+                const isChefOrTechOrSekr = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+                const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+                
+                if (isChefOrTechOrSekr || zugewieseneProjekte.includes(item.projekt)) {
+                    projektLaden(item.projekt);
+                    document.getElementById('benachrichtigung-detail-modal').classList.add('hidden');
+                    wechselnTab('auftraege');
+                } else {
+                    alert("Du hast keinen Zugriff auf diese Baustelle, da sie dir nicht zugewiesen ist.");
+                }
+            }
+        }
+
+        window.benachrichtigungAusListeEntfernen = function() {
+            if (ausgewaehlteNachrichtIndex === null) return;
+            const item = globalDaten.benachrichtigungen[ausgewaehlteNachrichtIndex];
+            if(!item) return;
+
+            if(!item.geloeschtVon) item.geloeschtVon = [];
+            if(!item.geloeschtVon.includes(eingeloggterMitarbeiter)) {
+                item.geloeschtVon.push(eingeloggterMitarbeiter);
+                globalGlobalSpeichern();
+            }
+
+            document.getElementById('benachrichtigung-detail-modal').classList.add('hidden');
+            benachrichtigungenAnzeigen();
+        }
+
+        window.alleBenachrichtigungenAlsGelesenMarkieren = function() {
+            const liste = globalDaten.benachrichtigungen || [];
+            let updated = false;
+
+            liste.forEach(item => {
+                if(!item.geloeschtVon) item.geloeschtVon = [];
+                if(item.geloeschtVon.includes(eingeloggterMitarbeiter)) return;
+
+                if(!item.gelesenVon) item.gelesenVon = [];
+                if(!item.gelesenVon.includes(eingeloggterMitarbeiter)) {
+                    item.gelesenVon.push(eingeloggterMitarbeiter);
+                    updated = true;
+                }
+            });
+
+            if(updated) {
+                globalGlobalSpeichern();
+                benachrichtigungenAnzeigen();
+            }
+        }
+
+        window.alleBenachrichtigungenLoeschen = function() {
+            if(confirm("Möchtest du wirklich alle sichtbaren Benachrichtigungen für dich löschen?")) {
+                const liste = globalDaten.benachrichtigungen || [];
+                let updated = false;
+
+                liste.forEach(item => {
+                    if(!item.geloeschtVon) item.geloeschtVon = [];
+                    if(!item.geloeschtVon.includes(eingeloggterMitarbeiter)) {
+                        item.geloeschtVon.push(eingeloggterMitarbeiter);
+                        updated = true;
+                    }
+                });
+
+                if(updated) {
+                    globalGlobalSpeichern();
+                    benachrichtigungenAnzeigen();
+                }
+            }
+        }
+
+        window.nachrichtAbsenden = function() {
+            const empfaenger = document.getElementById('nachricht-empfaenger').value;
+            const text = document.getElementById('nachricht-text-input').value;
+            if(!text.trim()) {
+                alert("Bitte gib einen Nachrichtentext ein!");
+                return;
+            }
+
+            const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            
+            if(!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
+            globalDaten.benachrichtigungen.unshift({
+                von: eingeloggterMitarbeiter + (eingeloggteRolle.includes('Chef') ? " (Chef)" : " (Team)"),
+                empfaenger: empfaenger,
+                text: text,
+                datum: datum,
+                gelesenVon: [eingeloggterMitarbeiter],
+                geloeschtVon: [],
+                projekt: aktuellesProjekt
+            });
+
+            globalGlobalSpeichern();
+            document.getElementById('nachricht-modal').classList.add('hidden');
+            benachrichtigungenAnzeigen();
+        }
+
+        function profilLadenInTab() {
+            document.getElementById('profil-name').value = eingeloggterMitarbeiter;
+            const prof = globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] || { tel: "", email: "" };
+            document.getElementById('profil-telefon').value = prof.tel || "";
+            document.getElementById('profil-email').value = prof.email || "";
+            document.getElementById('profil-passwort').value = "";
+        }
+
+        window.eigenesProfilSpeichern = function(event) {
+            event.preventDefault();
+            const telNeu = document.getElementById('profil-telefon').value;
+            const emailNeu = document.getElementById('profil-email').value;
+            const passNeu = document.getElementById('profil-passwort').value;
+
+            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
+            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
+
+            if (passNeu && passNeu.length >= 4) {
+                globalDaten.passwoerter[eingeloggterMitarbeiter] = passNeu;
+            } else if (passNeu && passNeu.length < 4) {
+                alert("Das Passwort muss mindestens 4 Zeichen lang sein!");
+                return;
+            }
+
+            globalGlobalSpeichern();
+            telefonlistenTabelleFüllen();
+            alert("Deine Profildaten wurden in der Cloud aktualisiert!");
+        }
+
+        function telefonlistenTabelleFüllen() {
+            const tbody = document.querySelector('#telefonlisten-tabelle tbody');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+
+            globalDaten.mitarbeiterListe.forEach(m => {
+                const prof = (globalDaten.mitarbeiterProfil && globalDaten.mitarbeiterProfil[m.name]) ? globalDaten.mitarbeiterProfil[m.name] : m;
+                const tel = prof.tel || m.tel || "Keine Nummer";
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold text-slate-900">${m.name}</td>
+                    <td class="p-3 font-mono text-slate-600">${tel}</td>
+                    <td class="p-3 text-right">
+                        ${tel !== "Keine Nummer" ? `<a href="tel:${tel.replace(/\s+/g, '')}" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold inline-block transition shadow-sm">📞 Anrufen</a>` : ''}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function chefStundenAnzeigen() {
+            const grid = document.getElementById('chef-stunden-grid');
+            if(!grid) return;
+            grid.innerHTML = '';
+            globalDaten.mitarbeiterListe.slice(9, 15).forEach(v => {
+                const std = (70 + Math.floor(Math.random() * 20)).toFixed(1);
+                grid.innerHTML += `
+                    <div class="bg-slate-50 p-3 rounded-lg border flex justify-between items-center">
+                        <div>
+                            <span class="font-bold text-slate-900">${v.name}</span>
+                            <p class="text-xs text-slate-500">Verleger</p>
+                        </div>
+                        <span class="text-lg font-extrabold text-blue-600">${std} Std</span>
+                    </div>
+                `;
+            });
+        }
+
+        window.urlaubsantragStellen = function() {
+            prompt("Urlaub beantragen von/bis:", "12.11.2026 - 16.11.2026");
+            alert("Urlaubsantrag erfolgreich an die Geschäftsleitung übermittelt!");
+        }
+
+        window.urlaubEntscheidung = function(button, entscheidung) {
+            if (entscheidung === 'genehmigt') {
+                button.closest('tr').cells[3].innerHTML = `<span class="bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded text-xs">✔ Genehmigt</span>`;
+            } else {
+                button.closest('tr').cells[3].innerHTML = `<span class="bg-red-100 text-red-800 font-bold px-2 py-1 rounded text-xs">✖ Abgelehnt</span>`;
+            }
+        }
+
+        window.abmelden = function() {
+            document.getElementById('app-container').classList.add('hidden');
+            document.getElementById('login-modal').classList.remove('hidden');
+            document.getElementById('login-passwort').value = "";
+        }
+
+        function projektListeAktualisieren() {
+            const liste = document.getElementById('projekt-liste');
+            if(!liste) return;
+            liste.innerHTML = '';
+
+            const isChefOrTechOrSekr = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+
+            let anzahlAnzuigenderProjekte = 0;
+
+            Object.keys(globalDaten.projekte).forEach(titel => {
+                if (!isChefOrTechOrSekr) {
+                    const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+                    if (!zugewieseneProjekte.includes(titel)) return;
+                }
+
+                anzahlAnzuigenderProjekte++;
+                const p = globalDaten.projekte[titel];
+                let statusFarbe = "bg-blue-50 border-blue-600 text-blue-900";
+                if (p.status === 'Fertig') statusFarbe = "bg-slate-100 border-slate-400 text-slate-500 opacity-75";
+                else if (p.status === 'Anstehend') statusFarbe = "bg-amber-50 border-amber-500 text-amber-900";
+
+                const istAktivMarkiert = titel === aktuellesProjekt ? "ring-2 ring-blue-600 shadow-md" : "";
+
+                const div = document.createElement('div');
+                div.className = `projekt-karte p-3 border-l-4 rounded cursor-pointer transition hover:brightness-95 ${statusFarbe} ${istAktivMarkiert}`;
+                div.onclick = function() { projektLaden(titel); };
+                div.innerHTML = `
+                    <div class="font-bold flex justify-between items-center">
+                        <span>${titel}</span>
+                        ${titel === aktuellesProjekt ? '<span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded">Aktiv</span>' : ''}
+                    </div>
+                    <div class="text-xs mt-1">Status: <strong>${p.status}</strong></div>
+                `;
+                liste.appendChild(div);
+            });
+
+            if (anzahlAnzuigenderProjekte === 0) {
+                liste.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-4">Dir sind derzeit noch keine Baustellen zugewiesen.</p>`;
+            }
+        }
+
+        function projektLaden(titel) {
+            const isChefOrTechOrSekr = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+            if (!isChefOrTechOrSekr) {
+                const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+                if (!zugewieseneProjekte.includes(titel)) {
+                    return;
+                }
+            }
+
+            if (!globalDaten.projekte[titel]) return;
+            aktuellesProjekt = titel;
+            const p = globalDaten.projekte[titel];
+
+            if (!p.plaene) p.plaene = [];
+            if (p.aktiverPlanIndex === undefined) p.aktiverPlanIndex = 0;
+
+            document.getElementById('projekt-titel').innerText = titel;
+            document.getElementById('projekt-adresse').innerText = `Adresse: ${p.adresse}`;
+            document.getElementById('anweisung-text').innerText = p.anweisung;
+            document.getElementById('projekt-status-dropdown').value = p.status;
+
+            planZoomFaktor = 1;
+            aktualisierePlanTransform();
+
+            projektListeAktualisieren();
+            plaeneLeisteAktualisieren();
+            planAnzeigen();
+            packlisteAktualisieren();
+            projektTeamAnzeigen();
+            schnellZuweisungDropdownBefuellen();
+            startseiteAktualisieren();
+        }
+
+        window.planZoomIn = function() {
+            planZoomFaktor = Math.min(planZoomFaktor + 0.25, 3.5);
+            aktualisierePlanTransform();
+        }
+
+        window.planZoomOut = function() {
+            planZoomFaktor = Math.max(planZoomFaktor - 0.25, 0.75);
+            aktualisierePlanTransform();
+        }
+
+        window.planZoomReset = function() {
+            planZoomFaktor = 1;
+            aktualisierePlanTransform();
+        }
+
+        function aktualisierePlanTransform() {
+            const wrapper = document.getElementById('plan-transform-wrapper');
+            if(wrapper) {
+                wrapper.style.transform = `scale(${planZoomFaktor})`;
+            }
+        }
+
+        window.startPan = function(e) {
+            if(e.target.closest('#pin-container') || e.target.closest('button')) return;
+            isPanning = true;
+            const container = document.getElementById('plan-scroll-container');
+            startX = e.pageX - container.offsetLeft;
+            startY = e.pageY - container.offsetTop;
+            scrollLeft = container.scrollLeft;
+            scrollTop = container.scrollTop;
+        }
+
+        window.panBewegen = function(e) {
+            if(!isPanning) return;
+            e.preventDefault();
+            const container = document.getElementById('plan-scroll-container');
+            const x = e.pageX - container.offsetLeft;
+            const y = e.pageY - container.offsetTop;
+            const walkX = (x - startX);
+            const walkY = (y - startY);
+            container.scrollLeft = scrollLeft - walkX;
+            container.scrollTop = scrollTop - walkY;
+        }
+
+        window.stopPan = function() {
+            isPanning = false;
+        }
+
+        function plaeneLeisteAktualisieren() {
+            const leiste = document.getElementById('plaene-auswahl-leiste');
+            if(!leiste) return;
+            leiste.innerHTML = '';
+
+            const p = globalDaten.projekte[aktuellesProjekt];
+            if (!p || !p.plaene || p.plaene.length === 0) {
+                leiste.innerHTML = `<span class="text-xs text-slate-400 italic">Keine Pläne hochgeladen.</span>`;
+                return;
+            }
+
+            p.plaene.forEach((planUrl, idx) => {
+                const aktiv = idx === p.aktiverPlanIndex;
+                leiste.innerHTML += `
+                    <button type="button" onclick="aktivenPlanWechseln(${idx})" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1 ${aktiv ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
+                        📄 Plan ${idx + 1} ${aktiv ? '✓' : ''}
+                    </button>
+                `;
+            });
+        }
+
+        window.aktivenPlanWechseln = function(idx) {
+            const p = globalDaten.projekte[aktuellesProjekt];
+            p.aktiverPlanIndex = idx;
+            planZoomFaktor = 1;
+            aktualisierePlanTransform();
+            projektSpeichern(aktuellesProjekt);
+            planAnzeigen();
+            plaeneLeisteAktualisieren();
+        }
+
+        function planAnzeigen() {
+            const bildEl = document.getElementById('plan-bild');
+            const pdfViewer = document.getElementById('pdf-viewer-container');
+            const placeholder = document.getElementById('plan-placeholder');
+
+            if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
+                if(bildEl) bildEl.classList.add('hidden');
+                if(pdfViewer) pdfViewer.classList.add('hidden');
+                if(placeholder) placeholder.style.display = 'block';
+                return;
+            }
+
+            const p = globalDaten.projekte[aktuellesProjekt];
+
+            if (p.plaene && p.plaene.length > 0) {
+                const aktiverPlan = p.plaene[p.aktiverPlanIndex] || p.plaene[0];
+                placeholder.style.display = 'none';
+
+                if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
+                    bildEl.classList.add('hidden');
+                    pdfViewer.classList.remove('hidden');
+                    pdfViewer.innerHTML = `
+                        <iframe src="${aktiverPlan}" class="w-full h-full min-h-[500px] border-0 pointer-events-none"></iframe>
+                        <div class="absolute inset-0 z-10 cursor-crosshair" title="Klicken zum Pin setzen"></div>
+                    `;
+                } else {
+                    pdfViewer.classList.add('hidden');
+                    bildEl.src = aktiverPlan;
+                    bildEl.classList.remove('hidden');
+                }
+            } else {
+                bildEl.src = "";
+                bildEl.classList.add('hidden');
+                pdfViewer.classList.add('hidden');
+                placeholder.style.display = 'block';
+            }
+            pinsAnzeigen();
+        }
+
+        window.statusAendern = function(neuerStatus) {
+            if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
+            globalDaten.projekte[aktuellesProjekt].status = neuerStatus;
+            projektSpeichern(aktuellesProjekt);
+        }
+
+        window.pinModusUmschalten = function() {
+            pinModusAktiv = !pinModusAktiv;
+            const btn = document.getElementById('pin-modus-btn');
+            if (pinModusAktiv) {
+                btn.className = "text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm animate-pulse";
+                btn.innerText = "📌 Pin setzen (Aktiv)";
+            } else {
+                btn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
+                btn.innerText = "📌 Pin setzen (Aus)";
+            }
+        }
+
+        window.grundrissKlickVerarbeiten = function(event) {
+            if (!pinModusAktiv) return;
+            const p = globalDaten.projekte[aktuellesProjekt];
+            if (!p || !p.plaene || p.plaene.length === 0) {
+                alert("Bitte lade erst mindestens einen Grundriss-Plan hoch, bevor du Pins setzt!");
+                return;
+            }
+
+            const wrapper = document.getElementById('plan-transform-wrapper');
+            const rect = wrapper.getBoundingClientRect();
+            
+            const klickX = event.clientX - rect.left;
+            const klickY = event.clientY - rect.top;
+
+            if (klickX < 0 || klickY < 0 || klickX > rect.width || klickY > rect.height) {
+                return;
+            }
+
+            temporärePinX = (klickX / rect.width) * 100;
+            temporärePinY = (klickY / rect.height) * 100;
+
+            document.getElementById('pin-text-input').value = "";
+            document.getElementById('pin-foto-input').value = "";
+            document.getElementById('pin-modal').classList.remove('hidden');
+        }
+
+        window.pinSpeichernBestätigen = function() {
+            const text = document.getElementById('pin-text-input').value.trim();
+            const fotoInput = document.getElementById('pin-foto-input');
+
+            if (!text) {
+                alert("Bitte gib eine Beschreibung oder einen Mangel für den Pin ein!");
+                return;
+            }
+
+            const speicherePinMitFoto = (fotoUrl = "") => {
+                const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                const p = globalDaten.projekte[aktuellesProjekt];
+                const planIdx = p.aktiverPlanIndex !== undefined ? p.aktiverPlanIndex : 0;
+
+                if (!p.pins) p.pins = [];
+
+                p.pins.push({
+                    x: temporärePinX,
+                    y: temporärePinY,
+                    planIndex: planIdx,
+                    text: text,
+                    foto: fotoUrl,
+                    von: eingeloggterMitarbeiter,
+                    zeit: datum,
+                    gelesenVon: []
+                });
+
+                if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
+                globalDaten.benachrichtigungen.unshift({
+                    von: `🚨 ${eingeloggterMitarbeiter} (Baustellen-Pin)`,
+                    empfaenger: "Chef/Techniker/Zugewiesen",
+                    text: `Neuer Mangel-Pin auf Baustelle "${aktuellesProjekt}": "${text}"`,
+                    datum: datum,
+                    gelesenVon: [eingeloggterMitarbeiter],
+                    geloeschtVon: [],
+                    projekt: aktuellesProjekt
+                });
+
+                projektSpeichern(aktuellesProjekt);
+                globalGlobalSpeichern();
+                document.getElementById('pin-modal').classList.add('hidden');
+                pinsAnzeigen();
+                benachrichtigungenAnzeigen();
+
+                pinModusAktiv = false;
+                const btn = document.getElementById('pin-modus-btn');
+                btn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
+                btn.innerText = "📌 Pin setzen (Aus)";
+            };
+
+            if (fotoInput.files && fotoInput.files[0]) {
+                bildKomprimierenUndKonvertieren(fotoInput.files[0], function(komprimierteUrl) {
+                    speicherePinMitFoto(komprimierteUrl);
+                });
+            } else {
+                speicherePinMitFoto("");
+            }
+        }
+
+        function pinsAnzeigen() {
+            const container = document.getElementById('pin-container');
+            if (!container || !aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
+            container.innerHTML = '';
+
+            const p = globalDaten.projekte[aktuellesProjekt];
+            const pins = (p && p.pins) ? p.pins : [];
+            const aktiverPlanIdx = p.aktiverPlanIndex !== undefined ? p.aktiverPlanIndex : 0;
+
+            pins.forEach((pin, index) => {
+                const pinPlanIdx = pin.planIndex !== undefined ? pin.planIndex : 0;
+                if (pinPlanIdx !== aktiverPlanIdx) return;
+
+                const pinEl = document.createElement('div');
+                pinEl.className = "absolute -ml-3 -mt-6 bg-red-600 text-white font-black text-xs w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 border-white cursor-pointer hover:scale-110 transition pointer-events-auto";
+                pinEl.style.left = pin.x + '%';
+                pinEl.style.top = pin.y + '%';
+                pinEl.innerHTML = `📌`;
+                
+                pinEl.onclick = function(e) {
+                    e.stopPropagation();
+                    ausgewaehlterPinIndex = index;
+
+                    if (!pin.gelesenVon) pin.gelesenVon = [];
+                    if (!pin.gelesenVon.includes(eingeloggterMitarbeiter)) {
+                        pin.gelesenVon.push(eingeloggterMitarbeiter);
+                        projektSpeichern(aktuellesProjekt);
+                    }
+
+                    document.getElementById('modal-pin-titel').innerText = `📌 Pin von ${pin.von}`;
+                    document.getElementById('modal-pin-meta').innerText = `Erstellt am: ${pin.zeit} auf Baustelle "${aktuellesProjekt}" (Plan ${pinPlanIdx + 1})`;
+                    document.getElementById('modal-pin-text').innerText = pin.text;
+
+                    const fotoContainer = document.getElementById('modal-pin-foto-container');
+                    const pinFoto = document.getElementById('modal-pin-foto');
+                    if (pin.foto) {
+                        pinFoto.src = pin.foto;
+                        fotoContainer.classList.remove('hidden');
+                    } else {
+                        pinFoto.src = "";
+                        fotoContainer.classList.add('hidden');
+                    }
+
+                    const leseContainer = document.getElementById('modal-lesebestaetigung-liste');
+                    leseContainer.innerHTML = '';
+                    if (pin.gelesenVon.length === 0) {
+                        leseContainer.innerHTML = `<span class="italic text-slate-500">Noch von niemandem geöffnet.</span>`;
+                    } else {
+                        pin.gelesenVon.forEach(leser => {
+                            leseContainer.innerHTML += `<span class="bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-bold text-[11px]">✔ ${leser}</span>`;
+                        });
+                    }
+
+                    document.getElementById('pin-details-modal').classList.remove('hidden');
+                };
+
+                container.appendChild(pinEl);
+            });
+        }
+
+        window.pinLoeschenBestätigen = function() {
+            if (ausgewaehlterPinIndex !== null) {
+                if (confirm("Möchtest du diesen Pin wirklich löschen?")) {
+                    const p = globalDaten.projekte[aktuellesProjekt];
+                    p.pins.splice(ausgewaehlterPinIndex, 1);
+                    projektSpeichern(aktuellesProjekt);
+                    document.getElementById('pin-details-modal').classList.add('hidden');
+                    pinsAnzeigen();
+                }
+            }
+        }
+
+        function packlisteAktualisieren() {
+            const tbody = document.querySelector('#packlisten-tabelle tbody');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+
+            if(!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
+            const p = globalDaten.projekte[aktuellesProjekt];
+            const materialien = p ? p.material : [];
+
+            materialien.forEach((mat, index) => {
+                const isChefOrTech = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggterMitarbeiter === 'Christian Leppin';
+                let statusBtn = isChefOrTech 
+                    ? `<button onclick="statusMatUmschalten(${index})" class="px-3 py-1 rounded-full text-xs font-bold ${mat.status.includes('✔') ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${mat.status}</button>`
+                    : `<span class="px-3 py-1 rounded-full text-xs font-bold ${mat.status.includes('✔') ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${mat.status}</span>`;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold text-slate-900">${mat.bez}</td>
+                    <td class="p-3"><span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded font-medium">${mat.kat}</span></td>
+                    <td class="p-3 font-medium text-blue-700">${mat.menge}</td>
+                    <td class="p-3 text-slate-600">${mat.ort}</td>
+                    <td class="p-3 text-center">${statusBtn}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.statusMatUmschalten = function(index) {
+            const mat = globalDaten.projekte[aktuellesProjekt].material[index];
+            mat.status = mat.status.includes('✔') ? "⏳ Offen" : "✔ Kommissioniert";
+            projektSpeichern(aktuellesProjekt);
+        }
+
+        function karteInitialisieren() {
+            if (!map) {
+                map = L.map('map').setView([49.6116, 6.1319], 10);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+            }
+            karteAktualisieren();
+        }
+
+        function karteAktualisieren() {
+            if (!map) return;
+            mapMarkerLayer.forEach(marker => marker.remove());
+            mapMarkerLayer = [];
+
+            const baustellenKoords = {
+                "Wohnkomplex Kirchberg": [49.6200, 6.1650],
+                "Bürogebäude Cloche d'Or": [49.5850, 6.1280],
+                "Residenz Belair": [49.6100, 6.1150],
+                "Schule Mamer": [49.6260, 6.0250],
+                "Kulturzentrum Dudelange": [49.4830, 6.0850],
+                "Wohnanlage Esch-Belval": [49.4975, 5.9814],
+                "Villa Limpertsberg": [49.6180, 6.1250],
+                "Verwaltungspark Munsbach": [49.6350, 6.3200],
+                "Altenpflegeheim Differdange": [49.5220, 5.8900],
+                "Penthouse Kirchberg-Nord": [49.6300, 6.1750]
+            };
+
+            Object.keys(globalDaten.projekte).forEach(titel => {
+                const koord = baustellenKoords[titel] || [49.6116 + (Math.random()*0.05), 6.1319 + (Math.random()*0.05)];
+                
+                let zugewieseneArbeiter = [];
+                Object.keys(globalDaten.zuweisungen).forEach(mitarbeiter => {
+                    const projList = globalDaten.zuweisungen[mitarbeiter] || [];
+                    if (projList.includes(titel)) {
+                        zugewieseneArbeiter.push(mitarbeiter);
+                    }
+                });
+
+                let arbeiterHtml = zugewieseneArbeiter.length > 0 
+                    ? `<br><b class="text-blue-600">Vor Ort:</b> ${zugewieseneArbeiter.join(', ')}` 
+                    : `<br><span class="text-slate-400">Kein Verleger zugewiesen</span>`;
+
+                const marker = L.marker(koord).addTo(map)
+                    .bindPopup(`<b>${titel}</b><br>Status: ${globalDaten.projekte[titel].status}${arbeiterHtml}`);
+                
+                mapMarkerLayer.push(marker);
+            });
+
+            map.invalidateSize();
+        }
+
+        window.echtesBildEinlesenDrop = function(event) {
+            event.preventDefault();
+            const datei = event.dataTransfer ? event.dataTransfer.files[0] : null;
+            if (datei) verarbeiteKiBild(datei);
+        }
+
+        window.echtesBildEinlesenAuswahl = function(event) {
+            const datei = event.target.files[0];
+            if (datei) verarbeiteKiBild(datei);
+        }
+
+        function verarbeiteKiBild(datei) {
+            document.getElementById('ki-status-text').innerText = "KI scannt Dokument / Bild...";
+            document.getElementById('ki-icon').innerText = "⏳";
+
+            if (datei.type === 'application/pdf' || datei.name.toLowerCase().endsWith('.pdf')) {
+                dateiEinlesenOderKonvertieren(datei, function(pdfUrl) {
+                    const projektName = "Auftrag (PDF Scan)";
+                    globalDaten.projekte[projektName] = {
+                        adresse: "Luxemburg (aus PDF)",
+                        status: "Anstehend",
+                        anweisung: `Automatischer Auftrag per PDF-Upload.`,
+                        plaene: [pdfUrl],
+                        aktiverPlanIndex: 0,
+                        pins: [],
+                        material: [
+                            { bez: "Uzin PE 360 Grundierung (10 L)", kat: "Vorbereitung", menge: "5 Kanister", ort: "Regal B2", status: "⏳ Offen" },
+                            { bez: "Uzin NC 170 Egalin (25 kg)", kat: "Vorbereitung", menge: "30 Säcke", ort: "Regal A4", status: "⏳ Offen" }
+                        ]
+                    };
+
+                    projektSpeichern(projektName);
+                    document.getElementById('projekt-ki-modal').classList.add('hidden');
+                    projektLaden(projektName);
+                });
+                return;
+            }
+
+            Tesseract.recognize(datei, 'deu+fra').then(({ data: { text } }) => {
+                let qm = "470";
+                const qmMatch = text.match(/(\d+)\s*m[²2]/i);
+                if (qmMatch) qm = qmMatch[1];
+
+                let projektName = "Auftrag " + qm + " m²";
+
+                const qmZahl = parseInt(qm);
+                const saeckeSpachtel = Math.ceil((qmZahl * 4.5) / 25);
+                const kanisterGrundierung = Math.ceil(qmZahl / 150);
+
+                bildKomprimierenUndKonvertieren(datei, function(komprimierteUrl) {
+                    globalDaten.projekte[projektName] = {
+                        adresse: "Luxemburg (aus KI-Scan)",
+                        status: "Anstehend",
+                        anweisung: `Automatischer Auftrag mit ${qm} m² Fläche.`,
+                        plaene: [komprimierteUrl],
+                        aktiverPlanIndex: 0,
+                        pins: [],
+                        material: [
+                            { bez: "Uzin PE 360 Grundierung (10 L)", kat: "Vorbereitung", menge: `${kanisterGrundierung} Kanister`, ort: "Regal B2", status: "⏳ Offen" },
+                            { bez: "Uzin NC 170 Egalin (25 kg)", kat: "Vorbereitung", menge: `${saeckeSpachtel} Säcke`, ort: "Regal A4", status: "⏳ Offen" }
+                        ]
+                    };
+
+                    projektSpeichern(projektName);
+                    document.getElementById('projekt-ki-modal').classList.add('hidden');
+                    projektLaden(projektName);
+
+                    if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
+                    const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                    globalDaten.benachrichtigungen.unshift({
+                        von: `🚨 ${eingeloggterMitarbeiter} (Neuer Plan / Auftrag)`,
+                        empfaenger: "Chef/Techniker/Zugewiesen",
+                        text: `Neuer Grundriss-Plan / Auftrag für "${projektName}" hochgeladen.`,
+                        datum: datum,
+                        gelesenVon: [eingeloggterMitarbeiter],
+                        geloeschtVon: [],
+                        projekt: projektName
+                    });
+                    globalGlobalSpeichern();
+                });
+            }).catch(err => {
+                alert("Fehler beim Scannen.");
+                document.getElementById('ki-status-text').innerText = "Screenshot / PDF antippen oder hierher ziehen";
+                document.getElementById('ki-icon').innerText = "👁️‍🗨️";
+            });
+        }
+
+        window.planEinlesenDrop = function(event) {
+            event.preventDefault();
+            const datei = event.dataTransfer ? event.dataTransfer.files[0] : null;
+            if (datei) verarbeiteGrundriss(datei);
+        }
+
+        window.planEinlesenAuswahl = function(event) {
+            const datei = event.target.files[0];
+            if (datei) verarbeiteGrundriss(datei);
+        }
+
+        window.weitererPlanHinzufuegen = function(event) {
+            const datei = event.target.files[0];
+            if (datei) verarbeiteGrundriss(datei);
+        }
+
+        function verarbeiteGrundriss(datei) {
+            dateiEinlesenOderKonvertieren(datei, function(ergebnisUrl) {
+                const p = globalDaten.projekte[aktuellesProjekt];
+                if (!p.plaene) p.plaene = [];
+                p.plaene.push(ergebnisUrl);
+                p.aktiverPlanIndex = p.plaene.length - 1;
+                planZoomFaktor = 1;
+                aktualisierePlanTransform();
+                
+                if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
+                const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                globalDaten.benachrichtigungen.unshift({
+                    von: `🚨 ${eingeloggterMitarbeiter} (Baustellen-Plan)`,
+                    empfaenger: "Chef/Techniker/Zugewiesen",
+                    text: `Neuer Grundriss-Plan (Bild oder PDF) auf Baustelle "${aktuellesProjekt}" hochgeladen.`,
+                    datum: datum,
+                    gelesenVon: [eingeloggterMitarbeiter],
+                    geloeschtVon: [],
+                    projekt: aktuellesProjekt
+                });
+
+                projektSpeichern(aktuellesProjekt);
+                globalGlobalSpeichern();
+                plaeneLeisteAktualisieren();
+                planAnzeigen();
+                benachrichtigungenAnzeigen();
+            });
+        }
+
+        window.wechselnTab = function(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('tab-' + tabName).classList.remove('hidden');
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                btn.classList.add('text-slate-600');
+            });
+            const aktivBtn = document.getElementById('btn-' + tabName);
+            aktivBtn.classList.remove('text-slate-600');
+            aktivBtn.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+
+            if (tabName === 'kollegen') {
+                setTimeout(karteInitialisieren, 200);
+            }
+            if (tabName === 'mitarbeiter') {
+                mitarbeiterZuweisungsTabelleAktualisieren();
+            }
+            if (tabName === 'mitarbeiter-liste') {
+                telefonlistenTabelleFüllen();
+            }
+            if (tabName === 'profil') {
+                profilLadenInTab();
+            }
+            if (tabName === 'benachrichtigungen') {
+                benachrichtigungenAnzeigen();
+            }
+            if (tabName === 'startseite') {
+                wetterLaden();
+                startseiteAktualisieren();
+            }
+            if (tabName === 'urlaub') {
+                zeiterfassungAnzeigen();
+            }
+        }
+    </script>
+</body>
+</html>
