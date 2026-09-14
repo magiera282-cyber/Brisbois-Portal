@@ -892,6 +892,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyC4X4AzkoqdjBuv5ux5wGLcXTPdrqvm3iU",
@@ -905,6 +906,7 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app, "(default)");
+        const storage = getStorage(app);
 
         let belegeDaten = [];
 
@@ -2453,7 +2455,7 @@
             document.getElementById('pin-modal').classList.remove('hidden');
         }
 
-        window.pinSpeichernBestätigen = function() {
+        window.pinSpeichernBestätigen = async function() {
             const text = document.getElementById('pin-text-input').value.trim();
             const fotoInput = document.getElementById('pin-foto-input');
 
@@ -2462,11 +2464,19 @@
                 return;
             }
 
-            const speicherePinMitFoto = (fotoUrl = "") => {
+            const btn = document.querySelector('#pin-modal button[onclick*="pinSpeichern"]');
+            if (btn) { btn.disabled = true; btn.innerText = "⏳ Wird gespeichert..."; }
+
+            try {
+                let fotoUrl = "";
+                const foto = fotoInput.files && fotoInput.files[0];
+                if (foto) {
+                    fotoUrl = await uploadBaustellenDatei(foto, "mangel-fotos", aktuellesProjekt);
+                }
+
                 const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
                 const p = globalDaten.projekte[aktuellesProjekt];
                 const planIdx = p.aktiverPlanIndex !== undefined ? p.aktiverPlanIndex : 0;
-
                 if (!p.pins) p.pins = [];
 
                 p.pins.push({
@@ -2491,26 +2501,25 @@
                     projekt: aktuellesProjekt
                 });
 
-                projektSpeichern(aktuellesProjekt);
-                globalGlobalSpeichern();
+                await projektSpeichern(aktuellesProjekt);
+                await globalGlobalSpeichern();
                 document.getElementById('pin-modal').classList.add('hidden');
                 vollbildPinsAnzeigen();
                 benachrichtigungenAnzeigen();
 
                 pinModusAktiv = false;
-                const btn = document.getElementById('pin-modus-btn');
-                btn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
-                btn.innerText = "📌 Pin setzen (Aus)";
-            };
-
-            if (fotoInput.files && fotoInput.files[0]) {
-                bildVerarbeitenUndKomprimieren(fotoInput.files[0], function(komprimierteUrl) {
-                    speicherePinMitFoto(komprimierteUrl);
-                });
-            } else {
-                speicherePinMitFoto("");
+                const modusBtn = document.getElementById('pin-modus-btn');
+                if (modusBtn) {
+                    modusBtn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
+                    modusBtn.innerText = "📌 Pin setzen (Aus)";
+                }
+            } catch (error) {
+                console.error("Fehler beim Speichern des Mangel-Pins:", error);
+                alert(`Der Mangel-Pin konnte nicht gespeichert werden. ${error.message || "Bitte prüfe deine Firebase-Storage-Regeln."}`);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerText = "💾 Pin speichern"; }
             }
-        }
+        };
 
         function vollbildPinsAnzeigen() {
             const container = document.getElementById('vollbild-pin-container');
@@ -2889,7 +2898,7 @@
             }
         }
 
-        window.kiErgebnisAlsBaustelleSpeichern = function() {
+        window.kiErgebnisAlsBaustelleSpeichern = async function() {
             if (!letzterKiScan) return;
             const titel = document.getElementById('ki-ergebnis-projekt').value.trim();
             const adresse = document.getElementById('ki-ergebnis-adresse').value.trim();
@@ -2907,11 +2916,24 @@
                 projektName = `${titel} – Auftrag ${new Date().toLocaleDateString('de-DE')}`;
             }
 
+            let auftragsDateiUrl = '';
+            try {
+                if (letzterKiScan.originalDatei) {
+                    auftragsDateiUrl = await uploadBaustellenDatei(letzterKiScan.originalDatei, 'plaene', projektName);
+                } else if (letzterKiScan.planUrl) {
+                    // Falls kein Original vorliegt, bleibt die bisherige URL als Rückfall erhalten.
+                    auftragsDateiUrl = letzterKiScan.planUrl;
+                }
+            } catch (uploadError) {
+                console.error('Auftragsdatei konnte nicht in Storage gespeichert werden:', uploadError);
+                return alert(`Die Baustelle wurde noch nicht angelegt, weil der Auftrag nicht in Firebase Storage gespeichert werden konnte. ${uploadError.message || ''}`);
+            }
+
             globalDaten.projekte[projektName] = {
                 adresse: adresse || 'Adresse im Auftrag nicht erkannt',
                 status: 'Anstehend',
                 anweisung: anweisung || 'Arbeitsauftrag aus dem eingescannten Auftrag.',
-                plaene: letzterKiScan.planUrl ? [letzterKiScan.planUrl] : [],
+                plaene: auftragsDateiUrl ? [auftragsDateiUrl] : [],
                 aktiverPlanIndex: 0,
                 pins: [],
                 material,
@@ -2956,21 +2978,51 @@
             if (datei) verarbeiteGrundriss(datei);
         }
 
-        function verarbeiteGrundriss(datei) {
-            if (datei.type === 'application/pdf' || datei.name.toLowerCase().endsWith('.pdf')) {
-                dateiEinlesenOderKonvertieren(datei, function(ergebnisUrl) {
-                    speichereGrundrissPlan(ergebnisUrl);
+        async function uploadBaustellenDatei(datei, ordner, projektname) {
+            if (!datei) throw new Error("Keine Datei ausgewählt.");
+            const maxMB = ordner === "plaene" ? 50 : 15;
+            if (datei.size > maxMB * 1024 * 1024) {
+                throw new Error(`Die Datei darf maximal ${maxMB} MB groß sein.`);
+            }
+            const sichererProjektname = String(projektname || "baustelle").replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, "_").slice(0, 80);
+            const sichererDateiname = String(datei.name || "datei").replace(/[^a-zA-Z0-9äöüÄÖÜß._ -]/g, "_").slice(0, 120);
+            const dateiname = `${Date.now()}_${crypto.randomUUID()}_${sichererDateiname}`;
+            const pfad = `baustellen/${sichererProjektname}/${ordner}/${dateiname}`;
+            const ziel = storageRef(storage, pfad);
+            await uploadBytes(ziel, datei, { contentType: datei.type || "application/octet-stream" });
+            return await getDownloadURL(ziel);
+        }
+
+        async function verarbeiteGrundriss(datei) {
+            if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
+                alert("Bitte zuerst eine Baustelle öffnen.");
+                return;
+            }
+            const istPdf = datei.type === 'application/pdf' || datei.name.toLowerCase().endsWith('.pdf');
+            try {
+                if (datei.size > 50 * 1024 * 1024) {
+                    alert("Der Plan darf maximal 50 MB groß sein.");
+                    return;
+                }
+                // Die Datei wird im Original in Firebase Storage gespeichert.
+                // Firestore bekommt nur die Download-URL – keine Base64-Daten mehr.
+                const url = await uploadBaustellenDatei(datei, "plaene", aktuellesProjekt);
+                await speichereGrundrissPlan(url, {
+                    dateiname: datei.name,
+                    dateityp: datei.type || (istPdf ? "application/pdf" : "image/*"),
+                    groesse: datei.size
                 });
-            } else {
-                bildVerarbeitenUndKomprimieren(datei, function(ergebnisUrl) {
-                    speichereGrundrissPlan(ergebnisUrl);
-                });
+            } catch (error) {
+                console.error("Fehler beim Hochladen des Plans:", error);
+                alert(`Der Plan konnte nicht hochgeladen werden. ${error.message || "Bitte prüfe deine Firebase-Storage-Regeln."}`);
             }
         }
 
-        function speichereGrundrissPlan(ergebnisUrl) {
+        async function speichereGrundrissPlan(ergebnisUrl, meta = {}) {
             const p = globalDaten.projekte[aktuellesProjekt];
+            if (!p) return;
             if (!p.plaene) p.plaene = [];
+            // Rückwärtskompatibel: alte Einträge können weiterhin Strings sein.
             p.plaene.push(ergebnisUrl);
             p.aktiverPlanIndex = p.plaene.length - 1;
             
@@ -2986,8 +3038,8 @@
                 projekt: aktuellesProjekt
             });
 
-            projektSpeichern(aktuellesProjekt);
-            globalGlobalSpeichern();
+            await projektSpeichern(aktuellesProjekt);
+            await globalGlobalSpeichern();
             plaeneLeisteAktualisieren();
             planVorschauAnzeigen();
             benachrichtigungenAnzeigen();
