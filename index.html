@@ -950,7 +950,10 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app, "(default)");
-        const storage = getStorage(app);
+        let storage = null;
+        try { storage = getStorage(app); } catch (storageError) {
+            console.warn("Firebase Storage ist noch nicht verfügbar. Login und Portal bleiben nutzbar:", storageError);
+        }
 
         let belegeDaten = [];
 
@@ -1130,7 +1133,11 @@
         onSnapshot(doc(db, "portal", "global"), (docSnap) => {
             if (docSnap.exists()) {
                 const cloudDaten = docSnap.data();
-                if (cloudDaten.mitarbeiterListe) globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
+                if (Array.isArray(cloudDaten.mitarbeiterListe) && cloudDaten.mitarbeiterListe.length > 0) {
+                    globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
+                } else if (!Array.isArray(globalDaten.mitarbeiterListe) || globalDaten.mitarbeiterListe.length === 0) {
+                    globalDaten.mitarbeiterListe = basisMitarbeiter.slice();
+                }
                 globalDaten.passwoerter = cloudDaten.passwoerter || {};
                 globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || {};
                 globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
@@ -1286,10 +1293,26 @@
             if(aktuellerWert) select.value = aktuellerWert;
         }
 
+        // Login-Auswahl sofort mit den eingebauten Teamdaten füllen, auch wenn Firebase noch lädt.
+        try { loginDropdownBefuellen(); } catch(e) {
+            console.warn('Mitarbeiter-Dropdown konnte nicht initialisiert werden:', e);
+            const select = document.getElementById('login-name-select');
+            if (select) select.innerHTML = basisMitarbeiter.map(m => `<option value="${String(m.name).replace(/"/g, '&quot;')}">${m.name} (${m.rolle || 'Verleger'})</option>`).join('');
+        }
+
         window.schnellLoginDirekt = function(name, rolle) {
+            // Schnell-Test ist bewusst ein lokaler Test-Login und benötigt kein Firebase-Passwort.
             eingeloggterMitarbeiter = name;
             eingeloggteRolle = rolle;
-            oeffneAppNachLogin();
+            try { oeffneAppNachLogin(); } catch(e) {
+                console.error('Schnell-Login Fehler:', e);
+                const loginModal = document.getElementById('login-modal');
+                const appContainer = document.getElementById('app-container');
+                if (loginModal) loginModal.classList.add('hidden');
+                if (appContainer) appContainer.classList.remove('hidden');
+                const badge = document.getElementById('user-badge');
+                if (badge) badge.innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
+            }
         }
 
         window.anmeldenMitTeam = function(event) {
@@ -1312,10 +1335,18 @@
         }
 
         function oeffneAppNachLogin() {
+            // Login-Oberfläche SOFORT schließen/Portal öffnen.
+            // Alle weiteren Aktualisierungen dürfen den Login nicht blockieren.
+            const loginModal = document.getElementById('login-modal');
+            const appContainer = document.getElementById('app-container');
+            const userBadge = document.getElementById('user-badge');
+            if (userBadge) userBadge.innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
+            if (loginModal) loginModal.classList.add('hidden');
+            if (appContainer) appContainer.classList.remove('hidden');
+
             const belegDatum = document.getElementById('beleg-datum');
             if (belegDatum && !belegDatum.value) belegDatum.value = new Date().toISOString().split('T')[0];
-            belegeAnzeigen();
-            document.getElementById('user-badge').innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
+            try { belegeAnzeigen(); } catch(e) { console.warn('Belege konnten beim Login nicht aktualisiert werden:', e); }
             
             const chefElemente = document.querySelectorAll('.chef-only');
             const chefUrlaubsBereich = document.getElementById('chef-urlaubs-bereich');
@@ -1362,12 +1393,10 @@
                 }
             }
 
-            wetterLaden();
-            startseiteAktualisieren();
-            zeiterfassungAnzeigen();
-            document.getElementById('login-modal').classList.add('hidden');
-            document.getElementById('app-container').classList.remove('hidden');
-            wechselnTab('startseite');
+            try { wetterLaden(); } catch(e) { console.warn('Wetter-Start fehlgeschlagen:', e); }
+            try { startseiteAktualisieren(); } catch(e) { console.warn('Startseite konnte nicht aktualisiert werden:', e); }
+            try { zeiterfassungAnzeigen(); } catch(e) { console.warn('Zeiterfassung konnte nicht aktualisiert werden:', e); }
+            try { wechselnTab('startseite'); } catch(e) { console.warn('Startseite konnte nicht geöffnet werden:', e); }
         }
 
         window.arbeitszeitStarten = function() {
