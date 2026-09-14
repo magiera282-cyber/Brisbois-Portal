@@ -2732,12 +2732,12 @@
             const lower = sauber.toLowerCase();
 
             let projekt = kiErstePassendeZeile(lines, [
-                /^(?:projekt|bauvorhaben|objekt|baustelle|auftragsbezeichnung|bezeichnung)\s*[:\-]\s*(.+)$/i,
-                /^(?:projektname|objektname)\s*[:\-]\s*(.+)$/i
+                /^(?:projekt|bauvorhaben|objekt|baustelle|auftragsbezeichnung|bezeichnung|projet|chantier|objet|intitulé du chantier|désignation)\s*[:\-]\s*(.+)$/i,
+                /^(?:projektname|objektname|nom du projet|nom du chantier|nom de l'objet)\s*[:\-]\s*(.+)$/i
             ]);
             if (!projekt) {
-                const idx = lines.findIndex(x => /\b(auftrag|bauvorhaben|projekt|baustelle)\b/i.test(x));
-                if (idx >= 0 && lines[idx].length < 120) projekt = lines[idx].replace(/^(?:auftrag|projekt|baustelle)\s*[:#\-]?\s*/i, '').trim();
+                const idx = lines.findIndex(x => /\b(auftrag|bauvorhaben|projekt|baustelle|commande|chantier|projet|travaux)\b/i.test(x));
+                if (idx >= 0 && lines[idx].length < 120) projekt = lines[idx].replace(/^(?:auftrag|projekt|baustelle|commande|projet|chantier|travaux)\s*[:#\-]?\s*/i, '').trim();
             }
             if (!projekt) {
                 const candidate = lines.find(x => x.length >= 8 && x.length <= 90 && !/^(rechnung|angebot|datum|seite|tel|email|www|www\.)/i.test(x));
@@ -2745,12 +2745,12 @@
             }
 
             const adresse = kiErstePassendeZeile(lines, [
-                /^(?:baustellenadresse|baustelle|bauort|ausführungsort|lieferadresse|objektadresse|adresse)\s*[:\-]\s*(.+)$/i,
-                /^(?:ort|anschrift)\s*[:\-]\s*(.+)$/i
+                /^(?:baustellenadresse|baustelle|bauort|ausführungsort|lieferadresse|objektadresse|adresse|adresse du chantier|adresse des travaux|lieu des travaux|lieu d'exécution|adresse de livraison|adresse de l'objet)\s*[:\-]\s*(.+)$/i,
+                /^(?:ort|anschrift|lieu|ville|commune|localité)\s*[:\-]\s*(.+)$/i
             ]) || '';
 
             let flaeche = '';
-            const qmMatch = sauber.match(/(\d{1,6}(?:[\.,]\d{1,2})?)\s*(?:m²|m2|qm|m\^2)\b/i);
+            const qmMatch = sauber.match(/(\d{1,6}(?:[\.,]\d{1,2})?)\s*(?:m²|m2|qm|m\^2|mètres? carrés?|mètres?²|m\s*carrés?)\b/i);
             if (qmMatch) flaeche = qmMatch[1].replace(',', '.') + ' m²';
 
             const arbeitszeilen = lines.filter(line => /\b(verlegen|verlegung|kleben|verkleb|schleifen|spachtel|grundieren|linoleum|vinyl|parkett|boden|teppich|belag|estrich|sockel|leisten|m²|qm)\b/i.test(line));
@@ -2762,8 +2762,8 @@
 
             const material = [];
             const gesehen = new Set();
-            const materialRegex = /(?:^|\s)(\d{1,6}(?:[\.,]\d+)?)\s*(Stk\.?|Stück|Eimer|Sack|Säcke|Kanister|Rolle|Rollen|kg|l|Liter|Gebinde|Pakete?|Kartons?)\b/i;
-            const produktHinweis = /\b(uzin|klebstoff|kleber|grundierung|spachtelmasse|spachtel|primer|reiniger|reiniger|ausgleich|egal|schleif|parkett|linoleum|vinyl|teppich|sockel|leiste|fugen|werkzeug|material)\b/i;
+            const materialRegex = /(?:^|\s)(\d{1,6}(?:[\.,]\d+)?)\s*(Stk\.?|Stück|Eimer|Sack|Säcke|Kanister|Rolle|Rollen|kg|l|Liter|Gebinde|Pakete?|Kartons?|pcs?|pièces?|sacs?|seau(?:x)?|bidons?|rouleaux?|litres?|litres?|pots?|boîtes?|cartons?)\b/i;
+            const produktHinweis = /\b(uzin|klebstoff|kleber|grundierung|spachtelmasse|spachtel|primer|reiniger|ausgleich|egal|schleif|parkett|linoleum|vinyl|teppich|sockel|leiste|fugen|werkzeug|material|colle|adhésif|primaire|apprêt|ragréage|enduit|nettoyant|égalisation|ponçage|parquet|linoléum|vinyle|moquette|plinthe|joint|outil|matériau|fourniture)\b/i;
 
             for (const lineRaw of lines) {
                 const line = lineRaw.replace(/\s+/g, ' ').trim();
@@ -2781,7 +2781,7 @@
                 const key = (bez + '|' + menge).toLowerCase();
                 if (!gesehen.has(key)) {
                     gesehen.add(key);
-                    material.push({ bez, menge: menge || 'Menge im Auftrag prüfen', kat: /uzin|kleber|klebstoff/i.test(bez) ? 'Verklebung' : (/grundierung|primer|spachtel|egal/i.test(bez) ? 'Vorbereitung' : 'Material'), ort: '—', status: '⏳ Offen' });
+                    material.push({ bez, menge: menge || 'Menge im Auftrag prüfen', kat: /uzin|kleber|klebstoff|colle|adhésif/i.test(bez) ? 'Verklebung' : (/grundierung|primer|spachtel|egal|primaire|apprêt|ragréage|enduit/i.test(bez) ? 'Vorbereitung' : 'Material'), ort: '—', status: '⏳ Offen' });
                 }
             }
 
