@@ -3543,5 +3543,212 @@ window.zeigeVerlegerPlanungAufStartseite=function(){const b=document.getElementB
 })();
 </script>
 
+
+<script id="CHEF_KALENDER_MITARBEITER_ZUWEISUNG_V1">
+(function(){
+"use strict";
+
+/*
+ * Chef-Kalender:
+ * Mitarbeiter anklicken -> Baustelle auswählen -> Tag anklicken.
+ * Jeder Tag ist einzeln änderbar. Die Planung wird lokal gehalten und,
+ * wenn Firebase/Firestore vorhanden ist, zusätzlich unter
+ * kalenderPlanung/{YYYY-MM-DD_Mitarbeiter} gespeichert.
+ */
+
+const isChef = () => {
+  const r = window.eingeloggteRolle || "";
+  return r === "Chef";
+};
+
+function getMitarbeiter(){
+  const g = window.globalDaten || {};
+  const arr = Array.isArray(g.mitarbeiterListe) ? g.mitarbeiterListe : [];
+  return arr.filter(x => x && x.name && (!x.rolle || x.rolle === "Verleger"))
+    .map(x => x.name);
+}
+
+function getBaustellen(){
+  const candidates = [
+    window.baustellenDaten,
+    window.projekteDaten,
+    window.projekte,
+    window.baustellen
+  ];
+  for(const a of candidates){
+    if(Array.isArray(a)) return a;
+  }
+  return [];
+}
+
+function planningKey(date, employee){
+  return date + "_" + encodeURIComponent(employee);
+}
+
+window.chefKalenderPlanung = window.chefKalenderPlanung || {};
+
+window.setzeChefKalenderEintrag = async function(date, employee, projectId, projectName, von, bis, notiz){
+  const item = {
+    datum: date,
+    mitarbeiter: employee,
+    projektId: projectId || "",
+    baustelle: projectName || "",
+    von: von || "",
+    bis: bis || "",
+    notiz: notiz || "",
+    status: "Geplant",
+    geaendertAm: new Date().toISOString()
+  };
+  window.chefKalenderPlanung[planningKey(date, employee)] = item;
+
+  try{
+    if(window.db && typeof window.setDoc === "function" && typeof window.doc === "function"){
+      await window.setDoc(window.doc(window.db, "kalenderPlanung", planningKey(date, employee)), item, {merge:true});
+    }
+  }catch(e){ console.warn("Kalender-Speicherung:", e); }
+
+  if(typeof window.zeigeChefKalender === "function") window.zeigeChefKalender();
+  if(typeof window.zeigeVerlegerPlanungAufStartseite === "function") window.zeigeVerlegerPlanungAufStartseite();
+};
+
+window.oeffneChefKalenderZuweisung = function(date, employee){
+  if(!isChef()) return;
+
+  const projects = getBaustellen();
+  let modal = document.getElementById("chef-kalender-modal");
+  if(modal) modal.remove();
+
+  modal = document.createElement("div");
+  modal.id = "chef-kalender-modal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;";
+
+  const options = projects.map((p,i)=>{
+    const id = p.id || p.projektId || p.key || "";
+    const name = p.name || p.projekt || p.baustelle || p.titel || ("Baustelle "+(i+1));
+    return `<option value="${String(id).replace(/"/g,"&quot;")}" data-name="${String(name).replace(/"/g,"&quot;")}">${String(name).replace(/[<>]/g,"")}</option>`;
+  }).join("");
+
+  modal.innerHTML = `
+    <div style="background:white;width:min(620px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:22px;">
+      <h2 style="margin-top:0">👷 Mitarbeiter einteilen</h2>
+      <p><b>${String(employee).replace(/[<>]/g,"")}</b> · ${date}</p>
+      <label style="display:block;margin:12px 0;">Baustelle
+        <select id="chef-kal-projekt" style="width:100%;padding:10px;margin-top:5px;">
+          <option value="">-- Baustelle auswählen --</option>${options}
+        </select>
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <label>Von<input id="chef-kal-von" type="time" style="width:100%;padding:9px;margin-top:5px;"></label>
+        <label>Bis<input id="chef-kal-bis" type="time" style="width:100%;padding:9px;margin-top:5px;"></label>
+      </div>
+      <label style="display:block;margin:12px 0;">Tagesnotiz
+        <textarea id="chef-kal-notiz" rows="3" style="width:100%;padding:9px;margin-top:5px;" placeholder="z. B. Untergrund spachteln"></textarea>
+      </label>
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+        <button id="chef-kal-loeschen" type="button">🗑️ Tag leeren</button>
+        <button id="chef-kal-abbrechen" type="button">Abbrechen</button>
+        <button id="chef-kal-speichern" type="button" style="font-weight:bold;">💾 Zuweisen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const existing = window.chefKalenderPlanung[planningKey(date, employee)];
+  if(existing){
+    document.getElementById("chef-kal-projekt").value = existing.projektId || "";
+    document.getElementById("chef-kal-von").value = existing.von || "";
+    document.getElementById("chef-kal-bis").value = existing.bis || "";
+    document.getElementById("chef-kal-notiz").value = existing.notiz || "";
+  }
+
+  document.getElementById("chef-kal-abbrechen").onclick=()=>modal.remove();
+  document.getElementById("chef-kal-loeschen").onclick=async()=>{
+    delete window.chefKalenderPlanung[planningKey(date,employee)];
+    try{
+      if(window.db && typeof window.deleteDoc==="function" && typeof window.doc==="function"){
+        await window.deleteDoc(window.doc(window.db,"kalenderPlanung",planningKey(date,employee)));
+      }
+    }catch(e){ console.warn(e); }
+    modal.remove();
+    if(typeof window.zeigeChefKalender==="function") window.zeigeChefKalender();
+    if(typeof window.zeigeVerlegerPlanungAufStartseite==="function") window.zeigeVerlegerPlanungAufStartseite();
+  };
+  document.getElementById("chef-kal-speichern").onclick=async()=>{
+    const sel=document.getElementById("chef-kal-projekt");
+    if(!sel.value){ alert("Bitte zuerst eine Baustelle auswählen."); return; }
+    const opt=sel.options[sel.selectedIndex];
+    await window.setzeChefKalenderEintrag(
+      date,employee,sel.value,opt.dataset.name,
+      document.getElementById("chef-kal-von").value,
+      document.getElementById("chef-kal-bis").value,
+      document.getElementById("chef-kal-notiz").value
+    );
+    modal.remove();
+  };
+};
+
+window.zeigeChefKalender = function(){
+  const host = document.getElementById("baustellen-kalender") ||
+               document.getElementById("kalender") ||
+               document.querySelector("[data-baustellen-kalender]");
+  if(!host || !isChef()) return;
+
+  const employees=getMitarbeiter();
+  if(!employees.length) return;
+
+  const now=new Date();
+  const year=window._chefKalenderYear || now.getFullYear();
+  const month=window._chefKalenderMonth ?? now.getMonth();
+  window._chefKalenderYear=year; window._chefKalenderMonth=month;
+
+  const days=new Date(year,month+1,0).getDate();
+  const monthName=new Date(year,month,1).toLocaleDateString("de-DE",{month:"long",year:"numeric"});
+
+  let html=`<div style="padding:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+      <button type="button" id="chef-kal-prev">‹</button>
+      <h2 style="margin:0;text-transform:capitalize;">📅 ${monthName}</h2>
+      <button type="button" id="chef-kal-next">›</button>
+    </div>
+    <div style="overflow:auto;">
+    <table style="border-collapse:collapse;min-width:${Math.max(900,days*145)}px;width:100%;">
+      <thead><tr><th style="position:sticky;left:0;background:white;z-index:2;padding:8px;text-align:left;">Mitarbeiter</th>`;
+  for(let d=1;d<=days;d++){
+    const dt=new Date(year,month,d);
+    html+=`<th style="padding:8px;border-bottom:1px solid #ddd;min-width:125px;">${dt.toLocaleDateString("de-DE",{weekday:"short"})}<br>${String(d).padStart(2,"0")}.${String(month+1).padStart(2,"0")}</th>`;
+  }
+  html+=`</tr></thead><tbody>`;
+
+  employees.forEach(emp=>{
+    html+=`<tr><th style="position:sticky;left:0;background:white;z-index:1;padding:8px;text-align:left;border-bottom:1px solid #eee;">${emp}</th>`;
+    for(let d=1;d<=days;d++){
+      const date=year+"-"+String(month+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+      const p=window.chefKalenderPlanung[planningKey(date,emp)];
+      html+=`<td data-date="${date}" data-employee="${emp.replace(/"/g,"&quot;")}" style="padding:6px;border-bottom:1px solid #eee;border-left:1px solid #eee;vertical-align:top;cursor:pointer;background:${p?"#eef6ff":"#fff"};">
+        ${p?`<div style="font-weight:700;">🏗️ ${String(p.baustelle).replace(/[<>]/g,"")}</div>
+             <div style="font-size:12px;color:#555;">${p.von||p.bis?(p.von||"")+" – "+(p.bis||""):"Ganztägig"}</div>
+             ${p.notiz?`<div style="font-size:12px;margin-top:3px;">${String(p.notiz).replace(/[<>]/g,"")}</div>`:""}`
+          :`<span style="color:#aaa;">+ Baustelle</span>`}
+      </td>`;
+    }
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table></div>
+    <p style="font-size:13px;color:#666;margin-bottom:0;">💡 Als Chef auf einen Mitarbeiter-Tag klicken → Baustelle auswählen. Ein einzelner Tag kann jederzeit geändert oder geleert werden.</p>
+  </div>`;
+
+  host.innerHTML=html;
+  host.querySelector("#chef-kal-prev").onclick=()=>{ window._chefKalenderMonth--; if(window._chefKalenderMonth<0){window._chefKalenderMonth=11;window._chefKalenderYear--;} window.zeigeChefKalender(); };
+  host.querySelector("#chef-kal-next").onclick=()=>{ window._chefKalenderMonth++; if(window._chefKalenderMonth>11){window._chefKalenderMonth=0;window._chefKalenderYear++;} window.zeigeChefKalender(); };
+  host.querySelectorAll("td[data-date]").forEach(td=>td.onclick=()=>window.oeffneChefKalenderZuweisung(td.dataset.date,td.dataset.employee));
+};
+
+// Try to render after the portal has initialized its data.
+document.addEventListener("DOMContentLoaded",()=>{
+  setTimeout(window.zeigeChefKalender,700);
+  setTimeout(window.zeigeChefKalender,1800);
+});
+})();
+</script>
+
 </body>
 </html>
