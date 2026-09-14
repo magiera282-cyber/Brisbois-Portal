@@ -1,3 +1,5 @@
+
+<div id="verleger-planung-startseite" style="display:none;margin:18px 0"><div class="card" style="border-left:4px solid #2563eb"><h3 style="margin:0 0 6px">📅 Meine Baustellenplanung</h3><div id="verleger-planung-start-subtitle" style="color:#666;font-size:14px"></div><div id="verleger-planung-start-liste" style="margin-top:12px"></div></div></div>
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -788,9 +790,16 @@
 
         <!-- BAUSTELLEN-KALENDER -->
         <main id="tab-kalender" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden">
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
-                <div class="flex justify-between items-center flex-wrap gap-2"><div><h2 class="text-xl font-bold text-slate-900">📅 Baustellen-Kalender</h2><p class="text-xs text-slate-500">Übersicht über geplante, laufende und fertige Baustellen.</p></div><input id="kalender-datum" type="month" onchange="kalenderAnzeigen()" class="px-3 py-2 border rounded-lg text-sm"></div>
-                <div id="baustellen-kalender" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+                <div class="flex justify-between items-center flex-wrap gap-2">
+                    <div><h2 class="text-xl font-bold text-slate-900">📅 Baustellen-Kalender & Verleger-Planung</h2><p class="text-xs text-slate-500">Der Chef plant für jeden Verleger Baustelle, Zeitraum und jeden einzelnen Arbeitstag. Änderungen können täglich vorgenommen werden.</p></div>
+                    <input id="kalender-datum" type="month" onchange="kalenderAnzeigen()" class="px-3 py-2 border rounded-lg text-sm">
+                </div>
+                <div id="verleger-uebersicht" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+                <div class="border-t pt-5">
+                    <div class="flex items-center justify-between mb-3"><h3 class="font-bold text-slate-900">🏗️ Baustellenplanung</h3><span id="kalender-hinweis" class="text-[11px] text-slate-400"></span></div>
+                    <div id="baustellen-kalender" class="space-y-4"></div>
+                </div>
             </div>
         </main>
 
@@ -1270,6 +1279,7 @@
             zeiterfassungAnzeigen();
             if (aktuellesProjekt && globalDaten.projekte[aktuellesProjekt]) projektLaden(aktuellesProjekt);
             if (map) karteAktualisieren();
+            kalenderAnzeigen();
         }
 
         function loginDropdownBefuellen() {
@@ -2318,7 +2328,50 @@
         window.tagesberichtSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; const text=document.getElementById('tagesbericht-text')?.value.trim(); const st=document.getElementById('tagesbericht-stunden')?.value; if(!p||!text) return alert('Bitte einen Tagesbericht eingeben.'); p.tagesberichte=p.tagesberichte||[]; p.tagesberichte.push({datum:new Date().toLocaleDateString('de-DE'),mitarbeiter:eingeloggterMitarbeiter,text,stunden:st||'',erstelltAm:new Date().toISOString()}); document.getElementById('tagesbericht-text').value=''; document.getElementById('tagesbericht-stunden').value=''; await projektSpeichern(aktuellesProjekt); projektModuleAktualisieren(); };
         window.abnahmeSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; if(!p) return; const verantwortlicher=document.getElementById('abnahme-verantwortlicher')?.value.trim(); const notiz=document.getElementById('abnahme-notiz')?.value.trim(); if(!verantwortlicher) return alert('Bitte Kunde / Verantwortlichen eintragen.'); p.abnahme={verantwortlicher,notiz,datum:new Date().toLocaleDateString('de-DE'),durch:eingeloggterMitarbeiter}; p.status='Fertig'; await projektSpeichern(aktuellesProjekt); projektLaden(aktuellesProjekt); alert('Abnahme gespeichert und Baustelle auf Fertig gesetzt.'); };
 
-        window.kalenderAnzeigen = function(){ const el=document.getElementById('baustellen-kalender'); if(!el) return; const month=document.getElementById('kalender-datum')?.value || new Date().toISOString().slice(0,7); const arr=Object.entries(globalDaten.projekte).filter(([t,p])=>{ if(!isChefOrPrivileged() && !(globalDaten.zuweisungen[eingeloggterMitarbeiter]||[]).includes(t)) return false; return true; }); el.innerHTML=arr.map(([t,p])=>{const team=(globalDaten.zuweisungen||{}); const names=Object.keys(team).filter(n=>(team[n]||[]).includes(t)); return `<div class="border rounded-xl p-4 bg-slate-50"><div class="font-bold">${escapeHtml(t)}</div><div class="text-xs text-slate-500 mt-1">${escapeHtml(p.adresse||'Keine Adresse')}</div><div class="mt-3 flex flex-wrap gap-1"><span class="text-[10px] font-bold px-2 py-1 rounded bg-white border">${escapeHtml(p.status||'Anstehend')}</span>${names.slice(0,5).map(n=>`<span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-1 rounded">👷 ${escapeHtml(n)}</span>`).join('')}</div><button onclick="projektLaden(${JSON.stringify(t)})" class="mt-3 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold">Baustelle öffnen</button></div>`}).join('') || '<p class="text-sm text-slate-400">Keine Baustellen gefunden.</p>'; };
+        function kalenderIstChef(){ return eingeloggteRolle === 'Chef' || eingeloggteRolle === '2. Chef' || eingeloggteRolle === 'Admin'; }
+        function datumSchluessel(d){ const x=new Date(d); return x.toISOString().slice(0,10); }
+        function monatstage(monat){
+            const [y,m]=monat.split('-').map(Number); const tage=[]; const start=new Date(y,m-1,1); const end=new Date(y,m,0);
+            for(let d=1;d<=end.getDate();d++){ const x=new Date(y,m-1,d); tage.push({key:datumSchluessel(x), label:x.toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'})}); }
+            return tage;
+        }
+        function planungFuerProjekt(p){ p.planung = p.planung || {verleger:{}}; p.planung.verleger = p.planung.verleger || {}; return p.planung; }
+        function verplanterStatus(p,name,key){ return planungFuerProjekt(p).verleger?.[name]?.tage?.[key] || null; }
+        function baustellenNamenFuerVerleger(name){ return (globalDaten.zuweisungen?.[name] || []).filter(t=>globalDaten.projekte[t]); }
+
+        window.kalenderAnzeigen = function(){
+            const el=document.getElementById('baustellen-kalender'); const overview=document.getElementById('verleger-uebersicht'); if(!el||!overview) return;
+            const month=document.getElementById('kalender-datum')?.value || new Date().toISOString().slice(0,7); const tage=monatstage(month); const chef=kalenderIstChef();
+            const verleger=(globalDaten.mitarbeiterListe||[]).filter(m=>m.rolle==='Verleger');
+            const sichtbar=chef ? verleger : verleger.filter(m=>m.name===eingeloggterMitarbeiter);
+            document.getElementById('kalender-hinweis').textContent=chef?'Chef-Ansicht: Planung und tägliche Änderungen sind möglich.':'Du siehst nur deine eigene Einsatzplanung.';
+            overview.innerHTML = sichtbar.map(m=>{
+                const jobs=[]; baustellenNamenFuerVerleger(m.name).forEach(t=>{ const p=globalDaten.projekte[t]; const daten=planungFuerProjekt(p).verleger[m.name]?.tage||{}; const belegte=tage.filter(d=>daten[d.key]?.baustelle===t).length; if(belegte) jobs.push({t,belegte}); });
+                const gesamt=jobs.reduce((a,x)=>a+x.belegte,0);
+                return `<div class="border rounded-xl p-4 bg-slate-50"><div class="flex items-center justify-between"><div><div class="font-bold text-slate-900">👷 ${escapeHtml(m.name)}</div><div class="text-[11px] text-slate-500">${escapeHtml(m.rolle||'Verleger')}</div></div><span class="text-xs font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-800">${gesamt} Tage</span></div><div class="mt-3 space-y-1.5">${jobs.length?jobs.map(j=>`<div class="flex justify-between text-xs bg-white border rounded-lg px-2 py-1.5"><span class="font-medium">${escapeHtml(j.t)}</span><span>${j.belegte} Tage</span></div>`).join(''):'<span class="text-xs text-slate-400">Keine Einsätze im ausgewählten Monat.</span>'}</div></div>`;
+            }).join('') || '<p class="text-sm text-slate-400">Keine Verleger gefunden.</p>';
+            const projekte=Object.entries(globalDaten.projekte).filter(([t,p])=>chef || (globalDaten.zuweisungen[eingeloggterMitarbeiter]||[]).includes(t));
+            el.innerHTML=projekte.map(([t,p])=>{
+                const names=(globalDaten.mitarbeiterListe||[]).filter(m=>m.rolle==='Verleger' && (globalDaten.zuweisungen[m.name]||[]).includes(t)).map(m=>m.name);
+                const rows=names.map(name=>{
+                    const plan=planungFuerProjekt(p).verleger[name] = planungFuerProjekt(p).verleger[name] || {tage:{}}; const tageD=plan.tage||{};
+                    const cells=tage.map(d=>{const v=tageD[d.key]; const checked=v?.baustelle===t; const cls=checked?'bg-blue-100 border-blue-300':'bg-white'; return `<div class="min-w-[88px] border rounded-lg p-1.5 ${cls}"><div class="text-[9px] font-bold text-slate-500">${d.label}</div>${chef?`<button type="button" onclick="kalenderTagUmschalten(${JSON.stringify(t)},${JSON.stringify(name)},${JSON.stringify(d.key)})" class="w-full mt-1 text-[10px] font-bold px-1.5 py-1 rounded ${checked?'bg-blue-600 text-white':'bg-slate-100 text-slate-600'}">${checked?'✓ Einsatz':'+ Einsatz'}</button>`:`<div class="mt-1 text-[10px] font-bold">${checked?'✓ Einsatz':'–'}</div>`}${checked?`<select ${chef?'':'disabled'} onchange="kalenderTagAendern(${JSON.stringify(t)},${JSON.stringify(name)},${JSON.stringify(d.key)},this.value)" class="w-full mt-1 text-[9px] border rounded px-1 py-1"><option value="Geplant" ${(v.status||'Geplant')==='Geplant'?'selected':''}>Geplant</option><option value="Arbeit" ${v.status==='Arbeit'?'selected':''}>Arbeit</option><option value="Urlaub" ${v.status==='Urlaub'?'selected':''}>Urlaub</option><option value="Krank" ${v.status==='Krank'?'selected':''}>Krank</option><option value="Abwesend" ${v.status==='Abwesend'?'selected':''}>Abwesend</option></select>`:''}</div>`;}).join('');
+                    return `<div class="mb-4"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><div class="font-bold text-sm">👷 ${escapeHtml(name)}</div><div class="text-[10px] text-slate-400">Tage direkt oben ändern</div></div><div class="overflow-x-auto pb-2"><div class="flex gap-1.5 min-w-max">${cells}</div></div></div>`;
+                }).join('');
+                return `<div class="border rounded-xl p-4 bg-slate-50"><div class="flex justify-between gap-3 items-start"><div><div class="font-bold text-slate-900">🏗️ ${escapeHtml(t)}</div><div class="text-xs text-slate-500">${escapeHtml(p.adresse||'Keine Adresse')}</div></div><button onclick="projektLaden(${JSON.stringify(t)})" class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold">Baustelle öffnen</button></div><div class="mt-4">${rows || '<p class="text-xs text-slate-400">Noch kein Verleger zugewiesen. Die Zuweisung erfolgt über Mitarbeiter & Zuweisung.</p>'}</div></div>`;
+            }).join('') || '<p class="text-sm text-slate-400">Keine Baustellen gefunden.</p>';
+        };
+
+        window.kalenderTagUmschalten = async function(projekt,name,key){
+            if(!kalenderIstChef()) return alert('Nur der Chef kann die Einsatzplanung ändern.');
+            const p=globalDaten.projekte[projekt]; if(!p) return; const plan=planungFuerProjekt(p); plan.verleger[name]=plan.verleger[name]||{tage:{}}; plan.verleger[name].tage=plan.verleger[name].tage||{};
+            if(plan.verleger[name].tage[key]?.baustelle===projekt) delete plan.verleger[name].tage[key];
+            else plan.verleger[name].tage[key]={baustelle:projekt,status:'Geplant'};
+            await projektSpeichern(projekt); kalenderAnzeigen();
+        };
+        window.kalenderTagAendern = async function(projekt,name,key,status){
+            if(!kalenderIstChef()) return; const p=globalDaten.projekte[projekt]; if(!p) return; const plan=planungFuerProjekt(p); const v=plan.verleger[name]?.tage?.[key]; if(!v) return; v.status=status; await projektSpeichern(projekt); kalenderAnzeigen();
+        };
         function isChefOrPrivileged(){ return eingeloggteRolle.includes('Chef')||eingeloggteRolle.includes('Techniker')||eingeloggteRolle.includes('Admin')||eingeloggteRolle.includes('Sekretariat')||eingeloggterMitarbeiter==='Christian Leppin'; }
 
         function projektListeAktualisieren() {
@@ -3265,5 +3318,9 @@ ${text}`;
             }
         }
     </script>
+
+<script>
+window.zeigeVerlegerPlanungAufStartseite=function(){const b=document.getElementById('verleger-planung-startseite'),l=document.getElementById('verleger-planung-start-liste'),sub=document.getElementById('verleger-planung-start-subtitle');if(!b||!l)return;const rolle=typeof eingeloggteRolle!=='undefined'?eingeloggteRolle:'';const name=typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:'';if(!name){b.style.display='none';return}const daten=window.baustellenPlanung||window.baustellenKalenderDaten||window.kalenderDaten||window.planungDaten||[];const a=Array.isArray(daten)?daten.filter(x=>x&&(x.mitarbeiter===name||x.verleger===name||x.name===name||(Array.isArray(x.mitarbeiterListe)&&x.mitarbeiterListe.includes(name)))):[];b.style.display='block';sub.textContent=rolle==='Verleger'?'Deine aktuellen Einsätze':'Planung für '+name;if(!a.length){l.innerHTML='<div style="padding:12px;border-radius:8px;background:#f6f6f6;color:#666">Für dich sind aktuell keine Einsätze eingetragen.</div>';return}l.innerHTML=a.slice(0,14).map(x=>{const d=x.datum||x.date||x.tag||'',bs=x.baustelle||x.projekt||x.projektName||x.chantier||'Baustelle',v=x.von||x.start||'',e=x.bis||x.ende||'',st=x.status||'Geplant';return '<div style="display:grid;grid-template-columns:95px 1fr auto;gap:10px;padding:10px 4px;border-bottom:1px solid #eee"><strong>'+d+'</strong><strong>'+String(bs).replace(/[<>]/g,'')+'</strong><span>'+((v||e)?v+' – '+e:st)+'</span></div>'}).join('')};document.addEventListener('DOMContentLoaded',()=>setTimeout(window.zeigeVerlegerPlanungAufStartseite,500));
+</script>
 </body>
 </html>
