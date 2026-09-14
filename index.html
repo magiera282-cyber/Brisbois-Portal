@@ -375,7 +375,7 @@
             <button onclick="wechselnTab('profil')" id="btn-profil" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⚙️ Mein Profil</button>
             <button onclick="wechselnTab('mitarbeiter-liste')" id="btn-mitarbeiter-liste" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📞 Telefonliste</button>
             <button onclick="wechselnTab('mitarbeiter')" id="btn-mitarbeiter" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap chef-only">👥 Mitarbeiter & Zuweisung</button>
-            <button onclick="wechselnTab('kollegen')" id="btn-kollegen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap admin-view-only">🗺️ Live-Karte</button>
+            <button onclick="wechselnTab('kollegen')" id="btn-kollegen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">🗺️ Live-Karte</button>
             <button onclick="wechselnTab('belege')" id="btn-belege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⛽ Belege & Kasse</button>
             <button onclick="wechselnTab('urlaub')" id="btn-urlaub" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⏱️ Zeiterfassung & Urlaub</button>
         </nav>
@@ -1236,7 +1236,6 @@
             document.getElementById('user-badge').innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
             
             const chefElemente = document.querySelectorAll('.chef-only');
-            const adminViewElements = document.querySelectorAll('.admin-view-only');
             const chefUrlaubsBereich = document.getElementById('chef-urlaubs-bereich');
             const mitarbeiterZeiterfassungBereich = document.getElementById('mitarbeiter-zeiterfassung-bereich');
 
@@ -1249,7 +1248,6 @@
                 chefElemente.forEach(el => {
                     if(!el.classList.contains('chef-only') || isChefOrTech) el.classList.remove('hidden');
                 });
-                adminViewElements.forEach(el => el.classList.remove('hidden'));
                 if(projektListenTitel) projektListenTitel.innerText = "Aktive & Nächste Projekte";
 
                 if(isChefOrTech) {
@@ -1267,7 +1265,6 @@
                 if (ersteBaustelle) projektLaden(ersteBaustelle);
             } else {
                 chefElemente.forEach(el => el.classList.add('hidden'));
-                adminViewElements.forEach(el => el.classList.add('hidden'));
                 if(projektListenTitel) projektListenTitel.innerText = "Meine Baustellen";
 
                 if(chefUrlaubsBereich) chefUrlaubsBereich.classList.add('hidden');
