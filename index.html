@@ -735,17 +735,24 @@
         <!-- BELEGE -->
         <main id="tab-belege" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
-                <div class="flex justify-between items-center">
-                    <h2 class="text-xl font-bold text-slate-900">⛽ Belege & Kasse</h2>
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+                    <div><h2 class="text-xl font-bold text-slate-900">⛽ Belege & Kasse</h2><p class="text-xs text-slate-500 mt-1">Verleger sehen nur eigene Belege. Chef, Techniker und Sekretariat sehen alle Belege.</p></div>
+                    <span id="belege-berechtigungs-badge" class="inline-flex w-fit bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-full">Nur eigene Belege</span>
                 </div>
-                <table class="w-full text-left text-sm" id="belege-tabelle">
-                    <thead class="bg-slate-100 text-slate-700">
-                        <tr><th class="p-3">Datum</th><th class="p-3">Mitarbeiter</th><th class="p-3">Zweck</th><th class="p-3">Betrag</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td class="p-3">09.09.2026</td><td class="p-3">Christophe Becker</td><td class="p-3">Tankstelle</td><td class="p-3 font-bold">85,40 €</td></tr>
-                    </tbody>
-                </table>
+                <form id="beleg-formular" onsubmit="belegHochladen(event)" class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
+                    <div class="flex items-center justify-between"><h3 class="font-bold text-slate-900">➕ Neuen Beleg hochladen</h3><span class="text-[11px] text-slate-400">JPG, PNG oder PDF · max. 750 KB</span></div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Datum</label><input type="date" id="beleg-datum" required class="w-full px-3 py-2 border rounded-lg bg-white"></div>
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Zweck</label><input type="text" id="beleg-zweck" placeholder="z. B. Tankstelle" required class="w-full px-3 py-2 border rounded-lg bg-white"></div>
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Betrag (€)</label><input type="number" id="beleg-betrag" min="0" step="0.01" placeholder="85,40" required class="w-full px-3 py-2 border rounded-lg bg-white"></div>
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Belegdatei</label><input type="file" id="beleg-datei" accept="image/jpeg,image/png,application/pdf" required class="w-full px-2 py-1.5 border rounded-lg bg-white text-xs"></div>
+                    </div>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow transition">📤 Beleg speichern</button>
+                </form>
+                <div class="overflow-x-auto"><table class="w-full text-left text-sm" id="belege-tabelle">
+                    <thead class="bg-slate-100 text-slate-700"><tr><th class="p-3">Datum</th><th class="p-3">Mitarbeiter</th><th class="p-3">Zweck</th><th class="p-3">Betrag</th><th class="p-3">Datei</th><th class="p-3">Aktion</th></tr></thead>
+                    <tbody id="belege-tabelle-koerper"><tr><td colspan="6" class="p-6 text-center text-slate-400">Noch keine Belege vorhanden.</td></tr></tbody>
+                </table></div>
             </div>
         </main>
 
@@ -880,6 +887,8 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app, "(default)");
+
+        let belegeDaten = [];
 
         const basisMitarbeiter = [
             { name: "Jeff Brisbois", tel: "", email: "jeff@brisbois-bembe.lu", rolle: "Chef" },
@@ -1047,6 +1056,12 @@
                 console.log("Wetter konnte nicht geladen werden:", e);
             }
         }
+
+        onSnapshot(collection(db, "belege"), (snapshot) => {
+            belegeDaten = [];
+            snapshot.forEach((belegSnap) => belegeDaten.push({ id: belegSnap.id, ...belegSnap.data() }));
+            belegeAnzeigen();
+        }, (error) => console.error("Fehler beim Laden der Belege:", error));
 
         onSnapshot(doc(db, "portal", "global"), (docSnap) => {
             if (docSnap.exists()) {
@@ -1233,6 +1248,9 @@
         }
 
         function oeffneAppNachLogin() {
+            const belegDatum = document.getElementById('beleg-datum');
+            if (belegDatum && !belegDatum.value) belegDatum.value = new Date().toISOString().split('T')[0];
+            belegeAnzeigen();
             document.getElementById('user-badge').innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
             
             const chefElemente = document.querySelectorAll('.chef-only');
@@ -2775,6 +2793,64 @@
             vollbildOeffnen();
         }
 
+        function darfAlleBelegeSehen() {
+            return eingeloggteRolle === "Chef" || eingeloggteRolle === "Techniker" || eingeloggteRolle === "Sekretariat";
+        }
+
+        function darfBelegSehen(beleg) {
+            return darfAlleBelegeSehen() || beleg.mitarbeiter === eingeloggterMitarbeiter;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+        }
+
+        function belegeAnzeigen() {
+            const tbody = document.getElementById("belege-tabelle-koerper");
+            const badge = document.getElementById("belege-berechtigungs-badge");
+            if (!tbody || !eingeloggterMitarbeiter) return;
+            const alle = darfAlleBelegeSehen();
+            if (badge) {
+                badge.textContent = alle ? "Alle Belege sichtbar" : "Nur eigene Belege";
+                badge.className = alle ? "inline-flex w-fit bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1.5 rounded-full" : "inline-flex w-fit bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-full";
+            }
+            const sichtbar = belegeDaten.filter(darfBelegSehen).sort((a,b) => String(b.datum||"").localeCompare(String(a.datum||"")));
+            if (!sichtbar.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">Keine Belege für deinen Zugriff vorhanden.</td></tr>'; return; }
+            tbody.innerHTML = sichtbar.map(beleg => {
+                const betrag = Number(beleg.betrag || 0).toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2});
+                const datum = beleg.datum ? new Date(beleg.datum + "T00:00:00").toLocaleDateString("de-DE") : "-";
+                const datei = beleg.dateiUrl ? `<a href="${beleg.dateiUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-semibold">📎 ${escapeHtml(beleg.dateiname || "Beleg öffnen")}</a>` : "-";
+                const loeschen = (beleg.mitarbeiter === eingeloggterMitarbeiter || alle) ? `<button type="button" onclick="belegLoeschen('${beleg.id}')" class="text-red-600 hover:text-red-800 text-xs font-bold">🗑️ Löschen</button>` : "";
+                return `<tr class="border-b border-slate-100 hover:bg-slate-50"><td class="p-3 whitespace-nowrap">${datum}</td><td class="p-3 font-semibold">${escapeHtml(beleg.mitarbeiter||"-")}</td><td class="p-3">${escapeHtml(beleg.zweck||"-")}</td><td class="p-3 font-bold whitespace-nowrap">${betrag} €</td><td class="p-3">${datei}</td><td class="p-3">${loeschen}</td></tr>`;
+            }).join("");
+        }
+
+        window.belegHochladen = async function(event) {
+            event.preventDefault();
+            if (!eingeloggterMitarbeiter) return alert("Bitte zuerst anmelden.");
+            const datei = document.getElementById("beleg-datei").files[0];
+            const datum = document.getElementById("beleg-datum").value;
+            const zweck = document.getElementById("beleg-zweck").value.trim();
+            const betrag = parseFloat(document.getElementById("beleg-betrag").value);
+            if (!datei || !datum || !zweck || isNaN(betrag)) return alert("Bitte alle Belegfelder ausfüllen.");
+            if (!["image/jpeg","image/png","application/pdf"].includes(datei.type)) return alert("Bitte JPG, PNG oder PDF auswählen.");
+            if (datei.size > 750 * 1024) return alert("Die Belegdatei darf maximal 750 KB groß sein.");
+            try {
+                const dataUrl = await new Promise((resolve,reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(datei); });
+                await setDoc(doc(db, "belege", crypto.randomUUID()), {datum, mitarbeiter: eingeloggterMitarbeiter, rolle: eingeloggteRolle, zweck, betrag, dateiname:datei.name, dateityp:datei.type, dateiUrl:dataUrl, erstelltAm:new Date().toISOString()});
+                document.getElementById("beleg-formular").reset();
+                document.getElementById("beleg-datum").value = new Date().toISOString().split("T")[0];
+                alert("Beleg wurde gespeichert.");
+            } catch(error) { console.error(error); alert("Der Beleg konnte nicht gespeichert werden. Prüfe die Firestore-Regeln."); }
+        };
+
+        window.belegLoeschen = async function(belegId) {
+            const beleg = belegeDaten.find(b=>b.id===belegId);
+            if (!beleg || !darfBelegSehen(beleg)) return alert("Du hast keine Berechtigung für diesen Beleg.");
+            if (!confirm("Diesen Beleg wirklich löschen?")) return;
+            try { await deleteDoc(doc(db,"belege",belegId)); } catch(error) { console.error(error); alert("Der Beleg konnte nicht gelöscht werden."); }
+        };
+
         window.wechselnTab = function(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.getElementById('tab-' + tabName).classList.remove('hidden');
@@ -2807,6 +2883,11 @@
             }
             if (tabName === 'urlaub') {
                 zeiterfassungAnzeigen();
+            }
+            if (tabName === 'belege') {
+                const belegDatum = document.getElementById('beleg-datum');
+                if (belegDatum && !belegDatum.value) belegDatum.value = new Date().toISOString().split('T')[0];
+                belegeAnzeigen();
             }
         }
     </script>
