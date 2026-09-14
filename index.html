@@ -8,6 +8,8 @@
     <!-- Leaflet.js für die echte interaktive Karte -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- PDF.js für echte PDF-Texterkennung / Seiten-Rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- Tesseract.js für echte Texterkennung (OCR) -->
     <script src='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js'></script>
 </head>
@@ -332,7 +334,7 @@
                 <h3 class="text-xl font-bold text-slate-900">🤖 Echte KI-Bilderkennung (OCR)</h3>
                 <button onclick="document.getElementById('projekt-ki-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
             </div>
-            <p class="text-xs text-slate-600">Foto, Screenshot oder PDF antippen oder hierher ziehen, um das Projekt automatisch anzulegen.</p>
+            <p class="text-xs text-slate-600">Lade den kompletten Auftrag als Foto, Screenshot oder PDF hoch. Die Erkennung liest Projektname, Baustellenadresse, Fläche, Arbeitsleistung und Materialmengen aus dem Auftrag und trägt daraus eine neue Baustelle an.</p>
             <label id="drop-zone" 
                  ondragover="event.preventDefault(); this.classList.add('border-blue-600', 'bg-blue-50');" 
                  ondragleave="this.classList.remove('border-blue-600', 'bg-blue-50');"
@@ -342,6 +344,22 @@
                 <p class="font-bold text-slate-700 mt-2" id="ki-status-text">Foto / PDF / Auftragsbild antippen oder hierher ziehen</p>
                 <input type="file" accept="image/*,.pdf,application/pdf" onchange="echtesBildEinlesenAuswahl(event)" class="hidden">
             </label>
+            <div id="ki-ergebnis-bereich" class="hidden border border-emerald-200 bg-emerald-50 rounded-xl p-4 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <h4 class="font-bold text-emerald-900">✅ Auftrag erkannt – bitte kurz prüfen</h4>
+                    <span id="ki-ergebnis-confidence" class="text-[10px] font-bold bg-white text-emerald-700 border border-emerald-200 px-2 py-1 rounded-full">OCR</span>
+                </div>
+                <div class="grid md:grid-cols-2 gap-3">
+                    <div><label class="block text-[10px] font-bold uppercase text-slate-500">Projekt / Baustelle</label><input id="ki-ergebnis-projekt" class="w-full px-2 py-2 border rounded-lg text-sm bg-white"></div>
+                    <div><label class="block text-[10px] font-bold uppercase text-slate-500">Baustellenadresse</label><input id="ki-ergebnis-adresse" class="w-full px-2 py-2 border rounded-lg text-sm bg-white"></div>
+                </div>
+                <div><label class="block text-[10px] font-bold uppercase text-slate-500">Arbeitsauftrag / Anweisung</label><textarea id="ki-ergebnis-anweisung" rows="3" class="w-full px-2 py-2 border rounded-lg text-sm bg-white"></textarea></div>
+                <div><label class="block text-[10px] font-bold uppercase text-slate-500">Erkanntes Material</label><textarea id="ki-ergebnis-material" rows="5" class="w-full px-2 py-2 border rounded-lg text-sm bg-white" placeholder="Produkt | Menge | Einheit"></textarea></div>
+                <div class="flex gap-2 pt-1">
+                    <button type="button" onclick="kiErgebnisAlsBaustelleSpeichern()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-sm">🚀 Baustelle anlegen</button>
+                    <button type="button" onclick="kiScanZuruecksetzen()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-4 py-2.5 rounded-lg text-sm">Neu scannen</button>
+                </div>
+            </div>
             <button type="button" onclick="document.getElementById('projekt-ki-modal').classList.add('hidden')" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2 rounded-lg text-sm">Schließen</button>
         </div>
     </div>
@@ -2661,82 +2679,265 @@
         window.echtesBildEinlesenAuswahl = function(event) {
             const datei = event.target.files[0];
             if (datei) verarbeiteKiBild(datei);
+            event.target.value = "";
         }
 
-        function verarbeiteKiBild(datei) {
-            document.getElementById('ki-status-text').innerText = "KI scannt Dokument / Bild...";
-            document.getElementById('ki-icon').innerText = "⏳";
+        let letzterKiScan = null;
 
-            if (datei.type === 'application/pdf' || datei.name.toLowerCase().endsWith('.pdf')) {
-                dateiEinlesenOderKonvertieren(datei, function(pdfUrl) {
-                    const projektName = "Auftrag (PDF Scan)";
-                    globalDaten.projekte[projektName] = {
-                        adresse: "Luxemburg (aus PDF)",
-                        status: "Anstehend",
-                        anweisung: `Automatischer Auftrag per PDF-Upload.`,
-                        plaene: [pdfUrl],
-                        aktiverPlanIndex: 0,
-                        pins: [],
-                        material: [
-                            { bez: "Uzin PE 360 Grundierung (10 L)", kat: "Vorbereitung", menge: "5 Kanister", ort: "Regal B2", status: "⏳ Offen" },
-                            { bez: "Uzin NC 170 Egalin (25 kg)", kat: "Vorbereitung", menge: "30 Säcke", ort: "Regal A4", status: "⏳ Offen" }
-                        ]
-                    };
+        function kiScanStatus(text, icon = "⏳") {
+            const status = document.getElementById('ki-status-text');
+            const iconEl = document.getElementById('ki-icon');
+            if (status) status.innerText = text;
+            if (iconEl) iconEl.innerText = icon;
+        }
 
-                    projektSpeichern(projektName);
-                    document.getElementById('projekt-ki-modal').classList.add('hidden');
-                    projektLaden(projektName);
-                });
-                return;
+        function kiScanZuruecksetzen() {
+            letzterKiScan = null;
+            document.getElementById('ki-ergebnis-bereich')?.classList.add('hidden');
+            kiScanStatus("Foto / PDF / Auftragsbild antippen oder hierher ziehen", "👁️‍🗨️");
+        }
+
+        function kiTextNormalisieren(text) {
+            return (text || '')
+                .replace(/\r/g, '\n')
+                .replace(/[ \t]+/g, ' ')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+        }
+
+        function kiErstePassendeZeile(lines, regexes) {
+            for (const line of lines) {
+                const sauber = line.trim();
+                if (!sauber) continue;
+                for (const rx of regexes) {
+                    const m = sauber.match(rx);
+                    if (m && m[1]) return m[1].replace(/^[:\-–]+\s*/, '').trim();
+                }
+            }
+            return '';
+        }
+
+        function kiExtrahiereAuftrag(text) {
+            const sauber = kiTextNormalisieren(text);
+            const lines = sauber.split('\n').map(x => x.trim()).filter(Boolean);
+            const lower = sauber.toLowerCase();
+
+            let projekt = kiErstePassendeZeile(lines, [
+                /^(?:projekt|bauvorhaben|objekt|baustelle|auftragsbezeichnung|bezeichnung)\s*[:\-]\s*(.+)$/i,
+                /^(?:projektname|objektname)\s*[:\-]\s*(.+)$/i
+            ]);
+            if (!projekt) {
+                const idx = lines.findIndex(x => /\b(auftrag|bauvorhaben|projekt|baustelle)\b/i.test(x));
+                if (idx >= 0 && lines[idx].length < 120) projekt = lines[idx].replace(/^(?:auftrag|projekt|baustelle)\s*[:#\-]?\s*/i, '').trim();
+            }
+            if (!projekt) {
+                const candidate = lines.find(x => x.length >= 8 && x.length <= 90 && !/^(rechnung|angebot|datum|seite|tel|email|www|www\.)/i.test(x));
+                projekt = candidate || `Baustelle aus Auftrag ${new Date().toLocaleDateString('de-DE')}`;
             }
 
-            Tesseract.recognize(datei, 'deu+fra').then(({ data: { text } }) => {
-                let qm = "470";
-                const qmMatch = text.match(/(\d+)\s*m[²2]/i);
-                if (qmMatch) qm = qmMatch[1];
+            const adresse = kiErstePassendeZeile(lines, [
+                /^(?:baustellenadresse|baustelle|bauort|ausführungsort|lieferadresse|objektadresse|adresse)\s*[:\-]\s*(.+)$/i,
+                /^(?:ort|anschrift)\s*[:\-]\s*(.+)$/i
+            ]) || '';
 
-                let projektName = "Auftrag " + qm + " m²";
+            let flaeche = '';
+            const qmMatch = sauber.match(/(\d{1,6}(?:[\.,]\d{1,2})?)\s*(?:m²|m2|qm|m\^2)\b/i);
+            if (qmMatch) flaeche = qmMatch[1].replace(',', '.') + ' m²';
 
-                const qmZahl = parseInt(qm);
-                const saeckeSpachtel = Math.ceil((qmZahl * 4.5) / 25);
-                const kanisterGrundierung = Math.ceil(qmZahl / 150);
+            const arbeitszeilen = lines.filter(line => /\b(verlegen|verlegung|kleben|verkleb|schleifen|spachtel|grundieren|linoleum|vinyl|parkett|boden|teppich|belag|estrich|sockel|leisten|m²|qm)\b/i.test(line));
+            let anweisung = arbeitszeilen.slice(0, 12).join('\n');
+            if (!anweisung) {
+                anweisung = sauber.length > 800 ? sauber.slice(0, 800) + '…' : sauber;
+            }
+            if (flaeche && !anweisung.toLowerCase().includes(flaeche.toLowerCase())) anweisung = `${flaeche} – ${anweisung}`;
 
-                bildVerarbeitenUndKomprimieren(datei, function(komprimierteUrl) {
-                    globalDaten.projekte[projektName] = {
-                        adresse: "Luxemburg (aus KI-Scan)",
-                        status: "Anstehend",
-                        anweisung: `Automatischer Auftrag mit ${qm} m² Fläche.`,
-                        plaene: [komprimierteUrl],
-                        aktiverPlanIndex: 0,
-                        pins: [],
-                        material: [
-                            { bez: "Uzin PE 360 Grundierung (10 L)", kat: "Vorbereitung", menge: `${kanisterGrundierung} Kanister`, ort: "Regal B2", status: "⏳ Offen" },
-                            { bez: "Uzin NC 170 Egalin (25 kg)", kat: "Vorbereitung", menge: `${saeckeSpachtel} Säcke`, ort: "Regal A4", status: "⏳ Offen" }
-                        ]
-                    };
+            const material = [];
+            const gesehen = new Set();
+            const materialRegex = /(?:^|\s)(\d{1,6}(?:[\.,]\d+)?)\s*(Stk\.?|Stück|Eimer|Sack|Säcke|Kanister|Rolle|Rollen|kg|l|Liter|Gebinde|Pakete?|Kartons?)\b/i;
+            const produktHinweis = /\b(uzin|klebstoff|kleber|grundierung|spachtelmasse|spachtel|primer|reiniger|reiniger|ausgleich|egal|schleif|parkett|linoleum|vinyl|teppich|sockel|leiste|fugen|werkzeug|material)\b/i;
 
-                    projektSpeichern(projektName);
-                    document.getElementById('projekt-ki-modal').classList.add('hidden');
-                    projektLaden(projektName);
+            for (const lineRaw of lines) {
+                const line = lineRaw.replace(/\s+/g, ' ').trim();
+                if (!produktHinweis.test(line)) continue;
+                const qty = line.match(materialRegex);
+                let menge = qty ? `${qty[1].replace(',', '.')} ${qty[2]}` : '';
+                let bez = line
+                    .replace(/^\s*[•·\-–]\s*/, '')
+                    .replace(/\s{2,}/g, ' ')
+                    .trim();
+                if (qty) {
+                    bez = bez.replace(qty[0], '').replace(/[:\-–]+\s*$/, '').trim();
+                }
+                if (bez.length < 3) continue;
+                const key = (bez + '|' + menge).toLowerCase();
+                if (!gesehen.has(key)) {
+                    gesehen.add(key);
+                    material.push({ bez, menge: menge || 'Menge im Auftrag prüfen', kat: /uzin|kleber|klebstoff/i.test(bez) ? 'Verklebung' : (/grundierung|primer|spachtel|egal/i.test(bez) ? 'Vorbereitung' : 'Material'), ort: '—', status: '⏳ Offen' });
+                }
+            }
 
-                    if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
-                    const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-                    globalDaten.benachrichtigungen.unshift({
-                        von: `🚨 ${eingeloggterMitarbeiter} (Neuer Plan / Auftrag)`,
-                        empfaenger: "Chef/Techniker/Zugewiesen",
-                        text: `Neuer Grundriss-Plan / Auftrag für "${projektName}" hochgeladen.`,
-                        datum: datum,
-                        gelesenVon: [eingeloggterMitarbeiter],
-                        geloeschtVon: [],
-                        projekt: projektName
-                    });
-                    globalGlobalSpeichern();
-                });
-            }).catch(err => {
-                alert("Fehler beim Scannen.");
-                document.getElementById('ki-status-text').innerText = "Foto / PDF antippen oder hierher ziehen";
-                document.getElementById('ki-icon').innerText = "👁️‍🗨️";
+            // Tabellenartige Zeilen ohne Uzin-/Material-Schlüssel ebenfalls erkennen.
+            for (const lineRaw of lines) {
+                const line = lineRaw.replace(/\s+/g, ' ').trim();
+                if (!materialRegex.test(line) || material.some(m => line.includes(m.bez))) continue;
+                const qty = line.match(materialRegex);
+                if (!qty) continue;
+                const bez = line.replace(qty[0], '').replace(/^\s*[•·\-–]\s*/, '').trim();
+                if (bez.length < 3 || bez.length > 120 || !/[A-Za-zÄÖÜäöü]/.test(bez)) continue;
+                material.push({ bez, menge: `${qty[1].replace(',', '.')} ${qty[2]}`, kat: 'Material', ort: '—', status: '⏳ Offen' });
+            }
+
+            return {
+                projekt,
+                adresse,
+                flaeche,
+                anweisung,
+                material,
+                roherText: sauber
+            };
+        }
+
+        function kiErgebnisAnzeigen(ergebnis) {
+            letzterKiScan = ergebnis;
+            document.getElementById('ki-ergebnis-projekt').value = ergebnis.projekt || '';
+            document.getElementById('ki-ergebnis-adresse').value = ergebnis.adresse || 'Adresse im Auftrag nicht eindeutig erkannt';
+            document.getElementById('ki-ergebnis-anweisung').value = ergebnis.anweisung || '';
+            document.getElementById('ki-ergebnis-material').value = ergebnis.material.map(m => `${m.bez} | ${m.menge}`).join('\n');
+            const conf = document.getElementById('ki-ergebnis-confidence');
+            const score = Math.min(99, Math.max(35, 55 + (ergebnis.projekt ? 10 : 0) + (ergebnis.adresse ? 15 : 0) + (ergebnis.material.length ? 15 : 0) + (ergebnis.flaeche ? 5 : 0)));
+            if (conf) conf.innerText = `Erkennung ${score}%`;
+            document.getElementById('ki-ergebnis-bereich').classList.remove('hidden');
+        }
+
+        async function kiOCRBild(datei) {
+            kiScanStatus("Bild wird vorbereitet…", "🖼️");
+            const { data: { text } } = await Tesseract.recognize(datei, 'deu+fra+eng', {
+                logger: m => {
+                    if (m.status === 'recognizing text' && typeof m.progress === 'number') {
+                        kiScanStatus(`OCR liest Auftrag… ${Math.round(m.progress * 100)}%`, "🔎");
+                    }
+                }
             });
+            return text;
+        }
+
+        async function kiOCRPDF(datei) {
+            kiScanStatus("PDF wird geöffnet und Seiten werden gelesen…", "📄");
+            const arrayBuffer = await datei.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let gesamtText = '';
+            const maxPages = Math.min(pdf.numPages, 12);
+
+            for (let i = 1; i <= maxPages; i++) {
+                kiScanStatus(`PDF-Seite ${i}/${maxPages} wird analysiert…`, "📄");
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ').trim();
+                if (pageText.length > 30) {
+                    gesamtText += `\n${pageText}`;
+                } else {
+                    // Gescannte PDFs haben oft keinen Text: Seite rendern und per Tesseract lesen.
+                    const viewport = page.getViewport({ scale: 1.7 });
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.ceil(viewport.width);
+                    canvas.height = Math.ceil(viewport.height);
+                    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.88));
+                    if (blob) {
+                        const { data: { text } } = await Tesseract.recognize(blob, 'deu+fra+eng');
+                        gesamtText += `\n${text}`;
+                    }
+                }
+            }
+            return gesamtText;
+        }
+
+        async function verarbeiteKiBild(datei) {
+            if (!datei) return;
+            if (datei.size > 20 * 1024 * 1024) {
+                alert('Der Auftrag ist zu groß. Bitte ein PDF/Bild bis 20 MB verwenden.');
+                return;
+            }
+            document.getElementById('ki-ergebnis-bereich')?.classList.add('hidden');
+            letzterKiScan = null;
+            try {
+                let text = '';
+                const istPdf = datei.type === 'application/pdf' || datei.name.toLowerCase().endsWith('.pdf');
+                if (istPdf) text = await kiOCRPDF(datei);
+                else text = await kiOCRBild(datei);
+
+                text = kiTextNormalisieren(text);
+                if (text.length < 20) throw new Error('Zu wenig lesbarer Text im Auftrag.');
+
+                const ergebnis = kiExtrahiereAuftrag(text);
+                ergebnis.originalDatei = datei;
+                if (istPdf) {
+                    ergebnis.planUrl = await new Promise(resolve => {
+                        const reader = new FileReader();
+                        reader.onload = e => resolve(e.target.result);
+                        reader.readAsDataURL(datei);
+                    });
+                } else {
+                    ergebnis.planUrl = await new Promise(resolve => bildVerarbeitenUndKomprimieren(datei, resolve));
+                }
+                kiErgebnisAnzeigen(ergebnis);
+                kiScanStatus("Auftrag erkannt – Angaben prüfen und Baustelle anlegen.", "✅");
+            } catch (err) {
+                console.error('Fehler bei der Auftragserkennung:', err);
+                alert('Der Auftrag konnte nicht zuverlässig gelesen werden. Bitte ein schärferes Foto oder das Original-PDF verwenden.');
+                kiScanStatus("Erkennung fehlgeschlagen – bitte erneut versuchen.", "⚠️");
+            }
+        }
+
+        window.kiErgebnisAlsBaustelleSpeichern = function() {
+            if (!letzterKiScan) return;
+            const titel = document.getElementById('ki-ergebnis-projekt').value.trim();
+            const adresse = document.getElementById('ki-ergebnis-adresse').value.trim();
+            const anweisung = document.getElementById('ki-ergebnis-anweisung').value.trim();
+            const materialText = document.getElementById('ki-ergebnis-material').value.trim();
+            if (!titel) return alert('Bitte einen Projektnamen eingeben.');
+
+            const material = materialText.split('\n').map(x => x.trim()).filter(Boolean).map(line => {
+                const teile = line.split('|').map(x => x.trim());
+                return { bez: teile[0] || 'Material', menge: teile[1] || 'Menge prüfen', kat: /uzin|kleber|klebstoff/i.test(teile[0] || '') ? 'Verklebung' : (/grundierung|primer|spachtel|egal/i.test(teile[0] || '') ? 'Vorbereitung' : 'Material'), ort: '—', status: '⏳ Offen' };
+            });
+
+            let projektName = titel;
+            if (globalDaten.projekte[projektName]) {
+                projektName = `${titel} – Auftrag ${new Date().toLocaleDateString('de-DE')}`;
+            }
+
+            globalDaten.projekte[projektName] = {
+                adresse: adresse || 'Adresse im Auftrag nicht erkannt',
+                status: 'Anstehend',
+                anweisung: anweisung || 'Arbeitsauftrag aus dem eingescannten Auftrag.',
+                plaene: letzterKiScan.planUrl ? [letzterKiScan.planUrl] : [],
+                aktiverPlanIndex: 0,
+                pins: [],
+                material,
+                kiScan: true,
+                kiScanDatum: new Date().toISOString(),
+                kiOriginalText: letzterKiScan.roherText || ''
+            };
+
+            projektSpeichern(projektName);
+            document.getElementById('projekt-ki-modal').classList.add('hidden');
+            document.getElementById('ki-ergebnis-bereich')?.classList.add('hidden');
+            projektLaden(projektName);
+            kiScanStatus("Foto / PDF / Auftragsbild antippen oder hierher ziehen", "👁️‍🗨️");
+
+            if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
+            const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            globalDaten.benachrichtigungen.unshift({
+                von: `🤖 KI-Auftragserkennung (${eingeloggterMitarbeiter})`,
+                empfaenger: 'Chef/Techniker/Zugewiesen',
+                text: `Neue Baustelle "${projektName}" aus Auftrag automatisch angelegt – inklusive erkannter Materialien.`,
+                datum,
+                gelesenVon: [eingeloggterMitarbeiter],
+                geloeschtVon: [],
+                projekt: projektName
+            });
+            globalGlobalSpeichern();
         }
 
         window.planEinlesenDrop = function(event) {
