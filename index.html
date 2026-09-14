@@ -3322,5 +3322,226 @@ ${text}`;
 <script>
 window.zeigeVerlegerPlanungAufStartseite=function(){const b=document.getElementById('verleger-planung-startseite'),l=document.getElementById('verleger-planung-start-liste'),sub=document.getElementById('verleger-planung-start-subtitle');if(!b||!l)return;const rolle=typeof eingeloggteRolle!=='undefined'?eingeloggteRolle:'';const name=typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:'';if(!name){b.style.display='none';return}const daten=window.baustellenPlanung||window.baustellenKalenderDaten||window.kalenderDaten||window.planungDaten||[];const a=Array.isArray(daten)?daten.filter(x=>x&&(x.mitarbeiter===name||x.verleger===name||x.name===name||(Array.isArray(x.mitarbeiterListe)&&x.mitarbeiterListe.includes(name)))):[];b.style.display='block';sub.textContent=rolle==='Verleger'?'Deine aktuellen Einsätze':'Planung für '+name;if(!a.length){l.innerHTML='<div style="padding:12px;border-radius:8px;background:#f6f6f6;color:#666">Für dich sind aktuell keine Einsätze eingetragen.</div>';return}l.innerHTML=a.slice(0,14).map(x=>{const d=x.datum||x.date||x.tag||'',bs=x.baustelle||x.projekt||x.projektName||x.chantier||'Baustelle',v=x.von||x.start||'',e=x.bis||x.ende||'',st=x.status||'Geplant';return '<div style="display:grid;grid-template-columns:95px 1fr auto;gap:10px;padding:10px 4px;border-bottom:1px solid #eee"><strong>'+d+'</strong><strong>'+String(bs).replace(/[<>]/g,'')+'</strong><span>'+((v||e)?v+' – '+e:st)+'</span></div>'}).join('')};document.addEventListener('DOMContentLoaded',()=>setTimeout(window.zeigeVerlegerPlanungAufStartseite,500));
 </script>
+
+<script id="KI_VOLLSTAENDIGE_AUFTRAGSERKENNUNG_V2">
+/*
+ * KI_VOLLSTAENDIGE_AUFTRAGSERKENNUNG_V2
+ * - Deutsch + Französisch + gemischte Aufträge
+ * - Extrahiert Projekt, Adresse, Kunde, Auftragsnummer, Termine,
+ *   Mengen, Leistungen, Materialien, Anweisungen und Mitarbeiter
+ * - Erfindet keine fehlenden Angaben: unbekannt bleibt "Nicht angegeben"
+ * - Liefert eine Kontrollansicht, bevor eine Baustelle angelegt wird.
+ */
+(function () {
+  "use strict";
+
+  const UNKNOWN = "Nicht angegeben";
+
+  const norm = s => String(s || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\r/g, "")
+    .trim();
+
+  const linesOf = s => norm(s).split("\n").map(norm).filter(Boolean);
+
+  function firstMatch(text, patterns) {
+    for (const re of patterns) {
+      const m = text.match(re);
+      if (m && m[1]) return norm(m[1]);
+    }
+    return UNKNOWN;
+  }
+
+  function unique(arr) {
+    return [...new Set(arr.map(norm).filter(x => x && x !== UNKNOWN))];
+  }
+
+  function extractDateCandidates(text) {
+    const out = [];
+    const re = /\b(?:0?[1-9]|[12]\d|3[01])[./-](?:0?[1-9]|1[0-2])[./-](?:20)?\d{2}\b/g;
+    for (const m of text.matchAll(re)) out.push(m[0]);
+    // ISO
+    for (const m of text.matchAll(/\b20\d{2}-\d{2}-\d{2}\b/g)) out.push(m[0]);
+    return unique(out);
+  }
+
+  function extractAreas(text) {
+    const out = [];
+    const re = /(\d+(?:[.,]\d+)?)\s*(?:m²|m2|mètres?\s*carrés?|metres?\s*carres?|qm|m\s*2)\b/gi;
+    for (const m of text.matchAll(re)) out.push(m[1].replace(",", ".") + " m²");
+    return unique(out);
+  }
+
+  function extractOrderNumber(text) {
+    return firstMatch(text, [
+      /(?:auftrags(?:nummer|nr\.?)|auftrag\s*nr\.?|bestell(?:nummer|nr\.?)|commande\s*(?:n[°o.]?|num[ée]ro)?|n[°o.]\s*(?:de\s*)?(?:commande|commande client))\s*[:#-]?\s*([A-Z0-9][A-Z0-9._/-]{2,})/i,
+      /(?:order|reference|référence|ref\.?)\s*[:#-]\s*([A-Z0-9][A-Z0-9._/-]{2,})/i
+    ]);
+  }
+
+  function extractProject(text, lines) {
+    const val = firstMatch(text, [
+      /(?:projekt|projet|chantier|baustelle)\s*(?:name|bezeichnung|nom|bezeichnung)?\s*[:#-]\s*([^\n]+)/i,
+      /(?:betreff|objet|subject)\s*[:#-]\s*([^\n]+)/i
+    ]);
+    if (val !== UNKNOWN) return val;
+
+    const candidates = lines.filter(l =>
+      /(?:chantier|baustelle|projet|travaux|travail|objet|betreff)/i.test(l)
+    );
+    if (candidates.length) {
+      return candidates[0].replace(/^(?:chantier|baustelle|projet|travaux|objet|betreff)\s*[:#-]?\s*/i, "").trim() || candidates[0];
+    }
+    return UNKNOWN;
+  }
+
+  function extractAddress(text) {
+    return firstMatch(text, [
+      /(?:baustellenadresse|adresse\s*der\s*baustelle|adresse\s*du\s*chantier|adresse\s*des\s*travaux|lieu\s*des\s*travaux|adresse)\s*[:#-]\s*([^\n]+)/i,
+      /(?:lieferadresse|adresse\s*de\s*livraison)\s*[:#-]\s*([^\n]+)/i
+    ]);
+  }
+
+  function extractCustomer(text) {
+    return firstMatch(text, [
+      /(?:kunde|auftraggeber|client|donneur\s*d['’]ordre|maître\s*d['’]ouvrage|maitre\s*d['’]ouvrage)\s*[:#-]\s*([^\n]+)/i,
+      /(?:für|pour|pour\s*le\s*compte\s*de)\s*[:#-]?\s*([^\n]+)/i
+    ]);
+  }
+
+  function extractPeople(text) {
+    return unique([
+      ...Array.from(text.matchAll(/(?:mitarbeiter|verleger|techniker|équipe|employ[ée]s?|poseur|ouvrier)\s*[:#-]\s*([^\n]+)/gi)).map(m => m[1])
+    ]);
+  }
+
+  // Material vocabulary is deliberately broad. It supplements, but does not
+  // replace, the exact material names appearing in the order.
+  const materialWords = [
+    "uzin","linoleum","linoléum","vinyl","vinyle","PVC","parquet","moquette",
+    "revêtement","revêtement de sol","bodenbelag","teppich","parkett",
+    "estrich","chape","ausgleichsmasse","ragréage","ragréage de sol",
+    "grundierung","primaire","apprêt","kleber","colle","adhésif",
+    "spachtelmasse","mörtel","mortier","dichtstoff","joint","sockelleiste",
+    "plinthe","grundreiniger","nettoyant","reiniger","nettoyant de sol"
+  ];
+
+  function extractMaterials(text, lines) {
+    const found = [];
+    for (const line of lines) {
+      if (materialWords.some(w => new RegExp("\\b" + w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&") + "\\b","i").test(line))) {
+        found.push(line);
+      }
+    }
+    return unique(found);
+  }
+
+  function extractQuantities(text) {
+    const out = [];
+    const unit = "(?:kg|g|l|liter|litre|litres|liter|ml|sack|säcke|sac|sacs|eimer|seaux|bidon|bidons|rolle|rollen|rouleau|rouleaux|stück|stücke|pièce|pièces|karton|cartons|boîte|boîtes)";
+    const re = new RegExp("\\b(\\d+(?:[.,]\\d+)?)\\s*(" + unit + ")\\b","gi");
+    for (const m of text.matchAll(re)) out.push(m[1].replace(",", ".") + " " + m[2]);
+    return unique(out);
+  }
+
+  function extractWorks(text, lines) {
+    const verbs = [
+      "verlegen","verlegung","kleben","spachteln","schleifen","reinigen","vorbereiten",
+      "montieren","entfernen","grundieren","poser","pose","coller","ragréer","poncer",
+      "nettoyer","préparer","monter","installer","déposer","décaper","appliquer"
+    ];
+    return unique(lines.filter(l => verbs.some(v => new RegExp("\\b"+v+"\\b","i").test(l))));
+  }
+
+  function extractInstructions(text, lines) {
+    return unique(lines.filter(l =>
+      /(?:achtung|hinweis|wichtig|bemerkung|anweisung|instructions?|consigne|remarque|important|attention|spécification|specification)/i.test(l)
+    ));
+  }
+
+  window.analysiereAuftragKomplett = function(rawText, meta) {
+    const text = String(rawText || "");
+    const lines = linesOf(text);
+    const dates = extractDateCandidates(text);
+
+    const result = {
+      sprache: /(?:\b(le|la|les|chantier|pose|commande|adresse|travaux|colle|linoléum)\b)/i.test(text) &&
+                /(?:\b(der|die|das|baustelle|auftrag|verlegen|kleber|grundierung)\b)/i.test(text)
+                ? "Deutsch + Französisch"
+                : /(?:\b(le|la|les|chantier|pose|commande|adresse|travaux|colle|linoléum)\b)/i.test(text)
+                  ? "Französisch" : "Deutsch/Unbekannt",
+      projekt: extractProject(text, lines),
+      adresse: extractAddress(text),
+      kunde: extractCustomer(text),
+      auftragsnummer: extractOrderNumber(text),
+      termine: dates,
+      flaechen: extractAreas(text),
+      arbeiten: extractWorks(text, lines),
+      materialien: extractMaterials(text, lines),
+      materialMengen: extractQuantities(text),
+      anweisungen: extractInstructions(text, lines),
+      mitarbeiter: extractPeople(text),
+      dateiname: meta && meta.name ? meta.name : UNKNOWN,
+      originalText: text
+    };
+
+    return result;
+  };
+
+  window.zeigeKIPruefung = function(data, onConfirm) {
+    let old = document.getElementById("ki-komplett-pruefung");
+    if (old) old.remove();
+
+    const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const list = arr => Array.isArray(arr) && arr.length ? arr.map(x => `<li>${esc(x)}</li>`).join("") : `<li>${UNKNOWN}</li>`;
+
+    const modal = document.createElement("div");
+    modal.id = "ki-komplett-pruefung";
+    modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;";
+    modal.innerHTML = `
+      <div style="background:#fff;max-width:900px;width:100%;max-height:90vh;overflow:auto;border-radius:14px;padding:22px;">
+        <h2 style="margin-top:0">🤖 Auftrag erkannt – bitte prüfen</h2>
+        <p><b>Sprache:</b> ${esc(data.sprache)}</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <label>Baustelle<input id="ki-p-projekt" value="${esc(data.projekt)}" style="width:100%;padding:8px;"></label>
+          <label>Adresse<input id="ki-p-adresse" value="${esc(data.adresse)}" style="width:100%;padding:8px;"></label>
+          <label>Kunde<input id="ki-p-kunde" value="${esc(data.kunde)}" style="width:100%;padding:8px;"></label>
+          <label>Auftragsnummer<input id="ki-p-nummer" value="${esc(data.auftragsnummer)}" style="width:100%;padding:8px;"></label>
+        </div>
+        <h3>📐 Flächen</h3><ul>${list(data.flaechen)}</ul>
+        <h3>🛠️ Arbeiten</h3><ul>${list(data.arbeiten)}</ul>
+        <h3>📦 Materialien</h3><ul>${list(data.materialien)}</ul>
+        <h3>🔢 Mengen</h3><ul>${list(data.materialMengen)}</ul>
+        <h3>📅 Termine</h3><ul>${list(data.termine)}</ul>
+        <h3>📝 Anweisungen</h3><ul>${list(data.anweisungen)}</ul>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+          <button id="ki-p-abbrechen" type="button">Abbrechen</button>
+          <button id="ki-p-anlegen" type="button" style="font-weight:700;">🚀 Baustelle anlegen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    modal.querySelector("#ki-p-abbrechen").onclick = () => modal.remove();
+    modal.querySelector("#ki-p-anlegen").onclick = () => {
+      data.projekt = modal.querySelector("#ki-p-projekt").value.trim() || UNKNOWN;
+      data.adresse = modal.querySelector("#ki-p-adresse").value.trim() || UNKNOWN;
+      data.kunde = modal.querySelector("#ki-p-kunde").value.trim() || UNKNOWN;
+      data.auftragsnummer = modal.querySelector("#ki-p-nummer").value.trim() || UNKNOWN;
+      modal.remove();
+      if (typeof onConfirm === "function") onConfirm(data);
+    };
+  };
+
+  // Adapter for an existing scanner: if it calls one of these common names,
+  // the complete parser is used without changing the existing UI.
+  window.kiAuftragKomplettVerarbeiten = function(text, meta, confirmCallback) {
+    const data = window.analysiereAuftragKomplett(text, meta || {});
+    window.zeigeKIPruefung(data, confirmCallback);
+    return data;
+  };
+})();
+</script>
+
 </body>
 </html>
