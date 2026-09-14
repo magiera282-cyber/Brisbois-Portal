@@ -394,6 +394,7 @@
             <button onclick="wechselnTab('mitarbeiter-liste')" id="btn-mitarbeiter-liste" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📞 Telefonliste</button>
             <button onclick="wechselnTab('mitarbeiter')" id="btn-mitarbeiter" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap chef-only">👥 Mitarbeiter & Zuweisung</button>
             <button onclick="wechselnTab('kollegen')" id="btn-kollegen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">🗺️ Live-Karte</button>
+            <button onclick="wechselnTab('kalender')" id="btn-kalender" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📅 Baustellen-Kalender</button>
             <button onclick="wechselnTab('belege')" id="btn-belege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⛽ Belege & Kasse</button>
             <button onclick="wechselnTab('urlaub')" id="btn-urlaub" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⏱️ Zeiterfassung & Urlaub</button>
         </nav>
@@ -521,6 +522,10 @@
                         </button>
                     </div>
                 </div>
+                <div class="relative">
+                    <span class="absolute left-3 top-2.5 text-slate-400">🔎</span>
+                    <input id="projekt-suche" oninput="projektSucheAktualisieren(this.value)" placeholder="Baustelle, Adresse oder Status suchen..." class="w-full pl-9 pr-3 py-2 border rounded-lg text-xs bg-slate-50 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
                 <div id="projekt-liste" class="space-y-3"></div>
             </div>
 
@@ -634,6 +639,37 @@
                             <tbody class="divide-y divide-slate-200"></tbody>
                         </table>
                     </div>
+
+                <!-- BAUSTELLEN-AUFGABEN / TAGESBERICHT / ABNAHME -->
+                <div class="border-t pt-4 space-y-4">
+                    <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                        <section class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                            <div class="flex justify-between items-center"><h3 class="font-bold text-slate-800">☑️ Baustellen-Aufgaben</h3><span id="projekt-aufgaben-count" class="text-[10px] bg-white border px-2 py-1 rounded-full font-bold">0 offen</span></div>
+                            <div class="flex gap-2 chef-only"><input id="neue-aufgabe-text" placeholder="Neue Aufgabe..." class="flex-1 px-3 py-2 border rounded-lg text-xs bg-white"><button onclick="aufgabeHinzufuegen()" class="bg-blue-600 text-white px-3 rounded-lg font-bold">+</button></div>
+                            <div id="projekt-aufgaben-liste" class="space-y-2"></div>
+                        </section>
+                        <section class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                            <div class="flex justify-between items-center"><h3 class="font-bold text-slate-800">📝 Tagesbericht</h3><span class="text-[10px] text-slate-400">für heute</span></div>
+                            <textarea id="tagesbericht-text" rows="3" placeholder="Was wurde heute gemacht? Besonderheiten?" class="w-full px-3 py-2 border rounded-lg text-xs bg-white"></textarea>
+                            <div class="grid grid-cols-2 gap-2"><input id="tagesbericht-stunden" type="number" min="0" step="0.25" placeholder="Stunden" class="px-3 py-2 border rounded-lg text-xs bg-white"><button onclick="tagesberichtSpeichern()" class="bg-emerald-600 text-white rounded-lg text-xs font-bold">💾 Bericht speichern</button></div>
+                            <div id="tagesberichte-liste" class="space-y-2 max-h-40 overflow-auto"></div>
+                        </section>
+                        <section class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                            <div class="flex justify-between items-center"><h3 class="font-bold text-slate-800">✍️ Digitale Abnahme</h3><span id="abnahme-status" class="text-[10px] bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-bold">Offen</span></div>
+                            <input id="abnahme-verantwortlicher" placeholder="Kunde / Verantwortlicher" class="w-full px-3 py-2 border rounded-lg text-xs bg-white">
+                            <textarea id="abnahme-notiz" rows="2" placeholder="Bemerkungen zur Abnahme..." class="w-full px-3 py-2 border rounded-lg text-xs bg-white"></textarea>
+                            <button onclick="abnahmeSpeichern()" class="w-full bg-slate-900 text-white rounded-lg py-2 text-xs font-bold">✅ Abnahme speichern</button>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- DIGITALER BAUSTELLENORDNER -->
+                <div class="border-t pt-4">
+                    <div class="bg-white border border-slate-200 rounded-xl p-4">
+                        <div class="flex justify-between items-center mb-3"><h3 class="font-bold text-slate-800">📂 Baustellenordner</h3><span class="text-[10px] text-slate-400">Alles zur Baustelle an einem Ort</span></div>
+                        <div id="baustellenordner-uebersicht" class="grid grid-cols-2 md:grid-cols-5 gap-2"></div>
+                    </div>
+                </div>
                 </div>
             </div>
         </main>
@@ -747,6 +783,14 @@
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
                 <h2 class="text-xl font-bold text-slate-900">🗺️ Live-Baustellen & zugeteilte Verleger</h2>
                 <div id="map" class="w-full h-[550px] rounded-xl shadow-inner border-2 border-slate-300 z-10"></div>
+            </div>
+        </main>
+
+        <!-- BAUSTELLEN-KALENDER -->
+        <main id="tab-kalender" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                <div class="flex justify-between items-center flex-wrap gap-2"><div><h2 class="text-xl font-bold text-slate-900">📅 Baustellen-Kalender</h2><p class="text-xs text-slate-500">Übersicht über geplante, laufende und fertige Baustellen.</p></div><input id="kalender-datum" type="month" onchange="kalenderAnzeigen()" class="px-3 py-2 border rounded-lg text-sm"></div>
+                <div id="baustellen-kalender" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
             </div>
         </main>
 
@@ -1147,7 +1191,7 @@
                 await setDoc(doc(db, "projekte", titel), projDaten);
             } catch(e) {
                 console.error("Fehler beim Speichern des Projekts:", e);
-                alert("⚠️ Bild zu groß für Firestore! Bitte nimm ein kleineres Bild.");
+                alert(`⚠️ Baustelle konnte nicht gespeichert werden. ${e.message || "Bitte prüfe deine Firebase-Verbindung und Regeln."}`);
             }
         }
 
@@ -1405,6 +1449,7 @@
             globalGlobalSpeichern();
             alert(`Resturlaub erfolgreich auf ${restTage} Tage aktualisiert!`);
             startseiteAktualisieren();
+            projektModuleAktualisieren();
         }
 
         function zeiterfassungAnzeigen() {
@@ -2204,7 +2249,7 @@
             document.getElementById('login-passwort').value = "";
         }
 
-        function projektListeAktualisieren() {
+\n        function projektSucheAktualisieren(begriff) {\n            const liste = document.getElementById('projekt-liste');\n            if (!liste) return;\n            const q = String(begriff || '').trim().toLowerCase();\n            document.querySelectorAll('.projekt-karte').forEach(card => {\n                card.style.display = !q || card.innerText.toLowerCase().includes(q) ? '' : 'none';\n            });\n        }\n\n        function projektModuleAktualisieren() {\n            const p = globalDaten.projekte[aktuellesProjekt];\n            if (!p) return;\n            p.aufgaben = Array.isArray(p.aufgaben) ? p.aufgaben : [];\n            p.tagesberichte = Array.isArray(p.tagesberichte) ? p.tagesberichte : [];\n            p.abnahme = p.abnahme || null;\n            const aufgaben = document.getElementById('projekt-aufgaben-liste');\n            const count = document.getElementById('projekt-aufgaben-count');\n            if (aufgaben) {\n                const offen = p.aufgaben.filter(a => !a.erledigt).length;\n                if(count) count.textContent = `${offen} offen`;\n                aufgaben.innerHTML = p.aufgaben.length ? p.aufgaben.map((a,i)=>`<div class="flex items-center gap-2 bg-white border rounded-lg p-2 text-xs"><input type="checkbox" ${a.erledigt?'checked':''} onchange="aufgabeStatusAendern(${i},this.checked)"><span class="flex-1 ${a.erledigt?'line-through text-slate-400':''}">${escapeHtml(a.text)}</span><span class="text-[9px] text-slate-400">${escapeHtml(a.von||'')}</span></div>`).join('') : '<p class="text-xs text-slate-400 italic">Noch keine Aufgaben.</p>';\n            }\n            const berichte = document.getElementById('tagesberichte-liste');\n            if (berichte) berichte.innerHTML = p.tagesberichte.slice().reverse().slice(0,8).map(b=>`<div class="bg-white border rounded-lg p-2 text-xs"><div class="font-bold">${escapeHtml(b.datum)} · ${escapeHtml(b.mitarbeiter)}</div><div class="text-slate-600 mt-1">${escapeHtml(b.text)}</div>${b.stunden?`<div class="text-[10px] text-blue-600 font-bold mt-1">${escapeHtml(b.stunden)} Std.</div>`:''}</div>`).join('') || '<p class="text-xs text-slate-400 italic">Noch keine Tagesberichte.</p>';\n            const av = document.getElementById('abnahme-status');\n            if (av) { av.textContent = p.abnahme ? 'Abgenommen' : 'Offen'; av.className = `text-[10px] px-2 py-1 rounded-full font-bold ${p.abnahme?'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800'}`; }\n            if (p.abnahme) { const v=document.getElementById('abnahme-verantwortlicher'), n=document.getElementById('abnahme-notiz'); if(v) v.value=p.abnahme.verantwortlicher||''; if(n) n.value=p.abnahme.notiz||''; }\n            const folder=document.getElementById('baustellenordner-uebersicht');\n            if(folder) folder.innerHTML = [`📄 Auftrag|${p.kiScan?'vorhanden':'—'}`,`📐 Pläne|${(p.plaene||[]).length}`,`📌 Mängel|${(p.pins||[]).length}`,`📝 Berichte|${p.tagesberichte.length}`,`☑️ Aufgaben|${p.aufgaben.filter(a=>!a.erledigt).length} offen`].map(x=>{const [a,b]=x.split('|');return `<div class="bg-slate-50 border rounded-lg p-3"><div class="text-lg">${a.split(' ')[0]}</div><div class="text-[11px] font-bold text-slate-700">${a.substring(a.indexOf(' ')+1)}</div><div class="text-xs text-slate-500 mt-1">${b}</div></div>`}).join('');\n        }\n\n        window.aufgabeHinzufuegen = async function() {\n            const input=document.getElementById('neue-aufgabe-text'); const text=input?.value.trim(); const p=globalDaten.projekte[aktuellesProjekt];\n            if(!p||!text) return; p.aufgaben=p.aufgaben||[]; p.aufgaben.push({text,erledigt:false,von:eingeloggterMitarbeiter,datum:new Date().toISOString()}); input.value=''; await projektSpeichern(aktuellesProjekt); projektModuleAktualisieren();\n        };\n        window.aufgabeStatusAendern = async function(i,checked){ const p=globalDaten.projekte[aktuellesProjekt]; if(!p?.aufgaben?.[i]) return; p.aufgaben[i].erledigt=checked; p.aufgaben[i].erledigtVon=checked?eingeloggterMitarbeiter:''; p.aufgaben[i].erledigtAm=checked?new Date().toISOString():''; await projektSpeichern(aktuellesProjekt); projektModuleAktualisieren(); };\n        window.tagesberichtSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; const text=document.getElementById('tagesbericht-text')?.value.trim(); const st=document.getElementById('tagesbericht-stunden')?.value; if(!p||!text) return alert('Bitte einen Tagesbericht eingeben.'); p.tagesberichte=p.tagesberichte||[]; p.tagesberichte.push({datum:new Date().toLocaleDateString('de-DE'),mitarbeiter:eingeloggterMitarbeiter,text,stunden:st||'',erstelltAm:new Date().toISOString()}); document.getElementById('tagesbericht-text').value=''; document.getElementById('tagesbericht-stunden').value=''; await projektSpeichern(aktuellesProjekt); projektModuleAktualisieren(); };\n        window.abnahmeSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; if(!p) return; const verantwortlicher=document.getElementById('abnahme-verantwortlicher')?.value.trim(); const notiz=document.getElementById('abnahme-notiz')?.value.trim(); if(!verantwortlicher) return alert('Bitte Kunde / Verantwortlichen eintragen.'); p.abnahme={verantwortlicher,notiz,datum:new Date().toLocaleDateString('de-DE'),durch:eingeloggterMitarbeiter}; p.status='Fertig'; await projektSpeichern(aktuellesProjekt); projektLaden(aktuellesProjekt); alert('Abnahme gespeichert und Baustelle auf Fertig gesetzt.'); };\n\n        window.kalenderAnzeigen = function(){ const el=document.getElementById('baustellen-kalender'); if(!el) return; const month=document.getElementById('kalender-datum')?.value || new Date().toISOString().slice(0,7); const arr=Object.entries(globalDaten.projekte).filter(([t,p])=>{ if(!isChefOrPrivileged() && !(globalDaten.zuweisungen[eingeloggterMitarbeiter]||[]).includes(t)) return false; return true; }); el.innerHTML=arr.map(([t,p])=>{const team=(globalDaten.zuweisungen||{}); const names=Object.keys(team).filter(n=>(team[n]||[]).includes(t)); return `<div class="border rounded-xl p-4 bg-slate-50"><div class="font-bold">${escapeHtml(t)}</div><div class="text-xs text-slate-500 mt-1">${escapeHtml(p.adresse||'Keine Adresse')}</div><div class="mt-3 flex flex-wrap gap-1"><span class="text-[10px] font-bold px-2 py-1 rounded bg-white border">${escapeHtml(p.status||'Anstehend')}</span>${names.slice(0,5).map(n=>`<span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-1 rounded">👷 ${escapeHtml(n)}</span>`).join('')}</div><button onclick="projektLaden(${JSON.stringify(t)})" class="mt-3 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold">Baustelle öffnen</button></div>`}).join('') || '<p class="text-sm text-slate-400">Keine Baustellen gefunden.</p>'; };\n        function isChefOrPrivileged(){ return eingeloggteRolle.includes('Chef')||eingeloggteRolle.includes('Techniker')||eingeloggteRolle.includes('Admin')||eingeloggteRolle.includes('Sekretariat')||eingeloggterMitarbeiter==='Christian Leppin'; }\n\n        function projektListeAktualisieren() {
             const liste = document.getElementById('projekt-liste');
             if(!liste) return;
             liste.innerHTML = '';
@@ -2224,6 +2269,8 @@
                 let statusFarbe = "bg-blue-50 border-blue-600 text-blue-900";
                 if (p.status === 'Fertig') statusFarbe = "bg-slate-100 border-slate-400 text-slate-500 opacity-75";
                 else if (p.status === 'Anstehend') statusFarbe = "bg-amber-50 border-amber-500 text-amber-900";
+                else if (p.status === 'Unterbrochen') statusFarbe = "bg-orange-50 border-orange-500 text-orange-900";
+                else if (p.status === 'Problem') statusFarbe = "bg-red-50 border-red-500 text-red-900";
 
                 const istAktivMarkiert = titel === aktuellesProjekt ? "ring-2 ring-blue-600 shadow-md" : "";
 
