@@ -14,6 +14,134 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- Tesseract.js für echte Texterkennung (OCR) -->
     <script src='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js'></script>
+
+<script>
+/* ===== ROBUSTE BILD-OCR: automatische Konvertierung + Bildoptimierung ===== */
+async function kiBildFuerOCRVorbereiten(file) {
+  if (!file) throw new Error("Keine Bilddatei ausgewählt.");
+
+  const type = (file.type || "").toLowerCase();
+  const name = (file.name || "").toLowerCase();
+
+  // Browser kann viele Formate direkt dekodieren. HEIC/HEIF wird bewusst
+  // abgefangen, weil Tesseract/Canvas in vielen Browsern damit nicht umgehen.
+  if (type.includes("heic") || type.includes("heif") ||
+      name.endsWith(".heic") || name.endsWith(".heif")) {
+    throw new Error("HEIC/HEIF wird von diesem Browser nicht zuverlässig unterstützt. Bitte das Foto als JPG oder PNG hochladen.");
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error("Das Bild konnte vom Browser nicht gelesen werden."));
+      im.src = url;
+    });
+
+    // Für OCR auf ca. 2200 px Kantenlänge begrenzen, kleine Fotos hochskalieren.
+    const maxSide = 2600;
+    const minSide = 1600;
+    let w = img.naturalWidth || img.width;
+    let h = img.naturalHeight || img.height;
+    if (!w || !h) throw new Error("Ungültige Bildgröße.");
+
+    const longest = Math.max(w, h);
+    let scale = longest > maxSide ? maxSide / longest : 1;
+    if (longest < minSide) scale = Math.min(2.2, minSide / longest);
+
+    w = Math.max(1, Math.round(w * scale));
+    h = Math.max(1, Math.round(h * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("Canvas wird von diesem Browser nicht unterstützt.");
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+
+    // Kontrast-/Schärfevorbereitung: Graustufen + leichtes Kontrast-Clipping.
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const d = imageData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      let v = (gray - 128) * 1.22 + 128;
+      v = Math.max(0, Math.min(255, v));
+      d[i] = d[i + 1] = d[i + 2] = v;
+    }
+    ctx.putImageData(imageData, 0, 0);
+
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob(blob => {
+        if (!blob) return reject(new Error("Das Bild konnte nicht für die OCR vorbereitet werden."));
+        resolve(blob);
+      }, "image/jpeg", 0.94);
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function kiOCRMitFallback(file, statusCallback) {
+  if (!window.Tesseract) throw new Error("OCR-Bibliothek ist noch nicht geladen. Bitte Seite neu laden.");
+
+  const setStatus = (s) => {
+    try { if (typeof statusCallback === "function") statusCallback(s); } catch(e) {}
+  };
+
+  setStatus("Bild wird vorbereitet …");
+  const vorbereitet = await kiBildFuerOCRVorbereiten(file);
+
+  let bestText = "";
+  let bestConfidence = 0;
+
+  // Erster Versuch: Deutsch + Französisch + Englisch.
+  setStatus("Text wird erkannt (Deutsch / Französisch / Englisch) …");
+  const r1 = await Tesseract.recognize(
+    vorbereitet,
+    "deu+fra+eng",
+    {
+      logger: m => {
+        if (m && m.status === "recognizing text" && typeof m.progress === "number") {
+          setStatus("Text wird erkannt … " + Math.round(m.progress * 100) + "%");
+        }
+      }
+    }
+  );
+  bestText = (r1 && r1.data && r1.data.text) ? r1.data.text : "";
+  bestConfidence = (r1 && r1.data && Number(r1.data.confidence)) || 0;
+
+  // Fallback: Falls sehr wenig Text erkannt wurde, noch einmal nur mit Deutsch.
+  if (bestText.trim().length < 20) {
+    setStatus("Zweiter Erkennungsversuch …");
+    const r2 = await Tesseract.recognize(vorbereitet, "deu", {});
+    const t2 = (r2 && r2.data && r2.data.text) ? r2.data.text : "";
+    const c2 = (r2 && r2.data && Number(r2.data.confidence)) || 0;
+    if (t2.trim().length > bestText.trim().length || c2 > bestConfidence + 8) {
+      bestText = t2;
+      bestConfidence = c2;
+    }
+  }
+
+  if (!bestText.trim()) {
+    throw new Error("Auf dem Bild wurde kein lesbarer Text erkannt. Bitte ein schärferes Foto oder einen Scan hochladen.");
+  }
+
+  return { text: bestText, confidence: bestConfidence };
+}
+</script>
+
+
+<script>
+/* Kompatibilitätsfunktion für bestehende Bild-Scan-Aufrufe */
+window.kiErkenneBildTextRobust = async function(file, statusCallback) {
+  return await kiOCRMitFallback(file, statusCallback);
+};
+</script>
+
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
@@ -346,6 +474,7 @@
                 <p class="font-bold text-slate-700 mt-2" id="ki-status-text">Foto / PDF / Auftragsbild antippen oder hierher ziehen</p>
                 <input type="file" accept="image/*,.pdf,application/pdf" onchange="echtesBildEinlesenAuswahl(event)" class="hidden">
             </label>
+            <div id="ki-bilingual-hinweis" class="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900"><b>🇩🇪 🇫🇷 Deutsch + Français:</b> Die Auftragserkennung liest deutsche und französische Aufträge und ordnet erkannte Angaben automatisch der Baustelle zu. Nicht eindeutig erkennbare Angaben werden als „prüfen“ markiert.</div>
             <div id="ki-ergebnis-bereich" class="hidden border border-emerald-200 bg-emerald-50 rounded-xl p-4 space-y-3">
                 <div class="flex items-center justify-between gap-2">
                     <h4 class="font-bold text-emerald-900">✅ Auftrag erkannt – bitte kurz prüfen</h4>
@@ -2898,80 +3027,179 @@
             return '';
         }
 
+        /*
+         * Erweiterte KI-Auftragserkennung
+         * - Deutsch + Französisch + Englisch
+         * - erkennt Projekt, Kunde, Adresse, Auftrag-Nr., Termine, Fläche,
+         *   Belag, Arbeiten, Ansprechpartner und Material
+         * - arbeitet bewusst ohne externe API im Browser und speichert den
+         *   Originaltext zusätzlich ab.
+         */
         function kiExtrahiereAuftrag(text) {
             const sauber = kiTextNormalisieren(text);
             const lines = sauber.split('\n').map(x => x.trim()).filter(Boolean);
             const lower = sauber.toLowerCase();
 
-            let projekt = kiErstePassendeZeile(lines, [
-                /^(?:projekt|bauvorhaben|objekt|baustelle|auftragsbezeichnung|bezeichnung|projet|chantier|objet|intitulé du chantier|désignation)\s*[:\-]\s*(.+)$/i,
-                /^(?:projektname|objektname|nom du projet|nom du chantier|nom de l'objet)\s*[:\-]\s*(.+)$/i
+            const first = (regexes) => {
+                for (const line of lines) {
+                    for (const rx of regexes) {
+                        const m = line.match(rx);
+                        if (m && m[1]) return m[1].replace(/^[:\-–]+\s*/, '').trim();
+                    }
+                }
+                return '';
+            };
+
+            const allMatches = (regex) => {
+                const out = [];
+                let m;
+                const rx = new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : regex.flags + 'g');
+                while ((m = rx.exec(sauber)) !== null) out.push(m);
+                return out;
+            };
+
+            const clean = s => (s || '').replace(/\s+/g, ' ').replace(/[|;]/g, ' ').trim();
+
+            let projekt = first([
+                /^(?:projekt|bauvorhaben|objekt|baustelle|auftragsbezeichnung|bezeichnung|projektname|objektname|projet|chantier|objet|intitulé du chantier|désignation|nom du projet|nom du chantier|nom de l'objet)\s*[:\-]\s*(.+)$/i
             ]);
             if (!projekt) {
                 const idx = lines.findIndex(x => /\b(auftrag|bauvorhaben|projekt|baustelle|commande|chantier|projet|travaux)\b/i.test(x));
-                if (idx >= 0 && lines[idx].length < 120) projekt = lines[idx].replace(/^(?:auftrag|projekt|baustelle|commande|projet|chantier|travaux)\s*[:#\-]?\s*/i, '').trim();
+                if (idx >= 0 && lines[idx].length < 140) {
+                    projekt = clean(lines[idx].replace(/^(?:auftrag|projekt|baustelle|commande|projet|chantier|travaux)\s*[:#\-]?\s*/i, ''));
+                }
             }
             if (!projekt) {
-                const candidate = lines.find(x => x.length >= 8 && x.length <= 90 && !/^(rechnung|angebot|datum|seite|tel|email|www|www\.)/i.test(x));
-                projekt = candidate || `Baustelle aus Auftrag ${new Date().toLocaleDateString('de-DE')}`;
+                projekt = lines.find(x => x.length >= 8 && x.length <= 100 &&
+                    !/^(rechnung|facture|angebot|devis|datum|date|seite|page|tel|tél|email|e-mail|www\.)/i.test(x)) ||
+                    `Baustelle aus Auftrag ${new Date().toLocaleDateString('de-DE')}`;
             }
 
-            const adresse = kiErstePassendeZeile(lines, [
-                /^(?:baustellenadresse|baustelle|bauort|ausführungsort|lieferadresse|objektadresse|adresse|adresse du chantier|adresse des travaux|lieu des travaux|lieu d'exécution|adresse de livraison|adresse de l'objet)\s*[:\-]\s*(.+)$/i,
-                /^(?:ort|anschrift|lieu|ville|commune|localité)\s*[:\-]\s*(.+)$/i
-            ]) || '';
+            const adresse = first([
+                /^(?:baustellenadresse|baustelle|bauort|ausführungsort|lieferadresse|objektadresse|adresse|ort|anschrift|adresse du chantier|adresse des travaux|lieu des travaux|lieu d'exécution|adresse de livraison|adresse de l'objet|lieu|ville|commune|localité)\s*[:\-]\s*(.+)$/i
+            ]);
 
-            let flaeche = '';
-            const qmMatch = sauber.match(/(\d{1,6}(?:[\.,]\d{1,2})?)\s*(?:m²|m2|qm|m\^2|mètres? carrés?|mètres?²|m\s*carrés?)\b/i);
-            if (qmMatch) flaeche = qmMatch[1].replace(',', '.') + ' m²';
+            const kunde = first([
+                /^(?:kunde|auftraggeber|bauherr|besteller|rechnung an|client|donneur d'ordre|maître d'ouvrage|commanditaire|acheteur|facturation à)\s*[:\-]\s*(.+)$/i
+            ]);
 
-            const arbeitszeilen = lines.filter(line => /\b(verlegen|verlegung|kleben|verkleb|schleifen|spachtel|grundieren|linoleum|vinyl|parkett|boden|teppich|belag|estrich|sockel|leisten|m²|qm)\b/i.test(line));
-            let anweisung = arbeitszeilen.slice(0, 12).join('\n');
-            if (!anweisung) {
-                anweisung = sauber.length > 800 ? sauber.slice(0, 800) + '…' : sauber;
-            }
+            const auftragsnummer = first([
+                /^(?:auftrags(?:nummer|nr\.?|no\.?)|auftrag(?:snummer|snr\.?)|bestell(?:nummer|nr\.?)|order\s*(?:no|number)|n[°º]\s*commande|numéro de commande|réf(?:érence)?(?:\s*commande)?)\s*[:#\-]?\s*([A-Z0-9][A-Z0-9\-\/._]*)$/i
+            ]);
+
+            const ansprechpartner = first([
+                /^(?:ansprechpartner|kontakt|kontaktperson|verantwortlicher|contact|personne de contact|responsable)\s*[:\-]\s*(.+)$/i
+            ]);
+
+            const telefon = first([
+                /^(?:telefon|tel\.?|tél\.?|mobile|mobil|phone)\s*[:\-]\s*([+0-9 ()\/.\-]{6,})$/i
+            ]) || ((sauber.match(/(?:\+?\d[\d ()\/.\-]{6,}\d)/) || [])[0] || '').trim();
+
+            const email = ((sauber.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i) || [])[0] || '').trim();
+
+            const qmMatches = allMatches(/(\d{1,6}(?:[\.,]\d{1,2})?)\s*(?:m²|m2|qm|m\^2|mètres?\s*carrés?|mètres?²|m\s*carrés?)/i);
+            const flaeche = qmMatches.length ? qmMatches[0][1].replace(',', '.') + ' m²' : '';
+
+            const termin = first([
+                /^(?:baubeginn|ausführungstermin|ausführung|termin|beginn|start|montage(?:beginn)?|date des travaux|date d'exécution|début des travaux|début|intervention|date de pose)\s*[:\-]\s*(.+)$/i
+            ]) || ((sauber.match(/\b(?:\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}|\d{1,2}\s+(?:janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember)\s+\d{2,4})\b/i) || [])[0] || '');
+
+            const belagMap = [
+                ['linoleum', /\blinoleum|linoléum\b/i],
+                ['Vinyl', /\bvinyl|vinyle|PVC\b/i],
+                ['Parkett', /\bparkett|parquet\b/i],
+                ['Teppich', /\bteppich|moquette\b/i],
+                ['Designbelag', /\bdesignbelag|LVT|lvt\b/i],
+                ['Kautschuk', /\bkautschuk|caoutchouc\b/i],
+                ['Fliesen', /\bfliesen|carrelage\b/i]
+            ];
+            const belaege = belagMap.filter(x => x[1].test(sauber)).map(x => x[0]);
+            const belag = belaege.join(', ');
+
+            const arbeitsPatterns = [
+                ['Untergrund reinigen', /\breinigen|nettoyage|nettoyer|nettoyé|nettoyages?\b/i],
+                ['Grundieren', /\bgrundieren|grundierung|primer|primaire|apprêt\b/i],
+                ['Spachteln / Ausgleichen', /\bspachtel|ausgleich|ausgleichen|ragréage|enduit|égalisation\b/i],
+                ['Schleifen', /\bschleifen|ponçage|poncer|poncé\b/i],
+                ['Kleben / Verkleben', /\bkleben|klebstoff|kleber|verkleb|collage|coller|colle|adhésif\b/i],
+                ['Bodenbelag verlegen', /\bverlegen|verlegung|pose|poser|installation\b/i],
+                ['Sockelleisten', /\bsockel|sockelleiste|leisten|plinthe\b/i],
+                ['Estrich bearbeiten', /\bestrich|chape\b/i]
+            ];
+            const arbeiten = arbeitsPatterns.filter(x => x[1].test(sauber)).map(x => x[0]);
+
+            const arbeitszeilen = lines.filter(line =>
+                /\b(verlegen|verlegung|kleben|verkleb|schleifen|spachtel|grundieren|linoleum|vinyl|parkett|boden|teppich|belag|estrich|sockel|leisten|pose|collage|ponçage|ragréage|primaire|linoléum|vinyle|parquet|moquette|chape|plinthe)\b/i.test(line)
+            );
+            let anweisung = arbeitszeilen.slice(0, 18).join('\n');
+            if (!anweisung) anweisung = sauber.length > 1200 ? sauber.slice(0, 1200) + '…' : sauber;
             if (flaeche && !anweisung.toLowerCase().includes(flaeche.toLowerCase())) anweisung = `${flaeche} – ${anweisung}`;
 
             const material = [];
             const gesehen = new Set();
-            const materialRegex = /(?:^|\s)(\d{1,6}(?:[\.,]\d+)?)\s*(Stk\.?|Stück|Eimer|Sack|Säcke|Kanister|Rolle|Rollen|kg|l|Liter|Gebinde|Pakete?|Kartons?|pcs?|pièces?|sacs?|seau(?:x)?|bidons?|rouleaux?|litres?|litres?|pots?|boîtes?|cartons?)\b/i;
-            const produktHinweis = /\b(uzin|klebstoff|kleber|grundierung|spachtelmasse|spachtel|primer|reiniger|ausgleich|egal|schleif|parkett|linoleum|vinyl|teppich|sockel|leiste|fugen|werkzeug|material|colle|adhésif|primaire|apprêt|ragréage|enduit|nettoyant|égalisation|ponçage|parquet|linoléum|vinyle|moquette|plinthe|joint|outil|matériau|fourniture)\b/i;
+            const materialRegex = /(\d{1,6}(?:[\.,]\d+)?)\s*(Stk\.?|Stück|Eimer|Sack|Säcke|Kanister|Rolle|Rollen|kg|l|Liter|Gebinde|Pakete?|Kartons?|pcs?|pièces?|sacs?|seaux?|bidons?|rouleaux?|litres?|pots?|boîtes?|cartons?)(?!\w)/i;
+            const produktHinweis = /\b(uzin|klebstoff|kleber|grundierung|spachtelmasse|spachtel|primer|reiniger|ausgleich|egalisation|schleif|parkett|linoleum|vinyl|teppich|sockel|leiste|fugen|werkzeug|material|colle|adhésif|primaire|apprêt|ragréage|enduit|nettoyant|égalisation|ponçage|parquet|linoléum|vinyle|moquette|plinthe|joint|outil|matériau|fourniture)\b/i;
 
             for (const lineRaw of lines) {
                 const line = lineRaw.replace(/\s+/g, ' ').trim();
-                if (!produktHinweis.test(line)) continue;
+                if (!produktHinweis.test(line) && !materialRegex.test(line)) continue;
                 const qty = line.match(materialRegex);
-                let menge = qty ? `${qty[1].replace(',', '.')} ${qty[2]}` : '';
-                let bez = line
-                    .replace(/^\s*[•·\-–]\s*/, '')
-                    .replace(/\s{2,}/g, ' ')
-                    .trim();
-                if (qty) {
-                    bez = bez.replace(qty[0], '').replace(/[:\-–]+\s*$/, '').trim();
-                }
-                if (bez.length < 3) continue;
+                const menge = qty ? `${qty[1].replace(',', '.')} ${qty[2]}` : '';
+                let bez = line.replace(/^\s*[•·\-–]\s*/, '').trim();
+                if (qty) bez = bez.replace(qty[0], '').replace(/[:\-–]+\s*$/, '').trim();
+                if (bez.length < 3 || bez.length > 180) continue;
                 const key = (bez + '|' + menge).toLowerCase();
-                if (!gesehen.has(key)) {
-                    gesehen.add(key);
-                    material.push({ bez, menge: menge || 'Menge im Auftrag prüfen', kat: /uzin|kleber|klebstoff|colle|adhésif/i.test(bez) ? 'Verklebung' : (/grundierung|primer|spachtel|egal|primaire|apprêt|ragréage|enduit/i.test(bez) ? 'Vorbereitung' : 'Material'), ort: '—', status: '⏳ Offen' });
-                }
+                if (gesehen.has(key)) continue;
+                gesehen.add(key);
+                material.push({
+                    bez,
+                    menge: menge || 'Menge im Auftrag prüfen',
+                    kat: /uzin|kleber|klebstoff|colle|adhésif/i.test(bez) ? 'Verklebung' :
+                         (/grundierung|primer|spachtel|egal|primaire|apprêt|ragréage|enduit/i.test(bez) ? 'Vorbereitung' : 'Material'),
+                    ort: '—',
+                    status: '⏳ Offen'
+                });
             }
 
-            // Tabellenartige Zeilen ohne Uzin-/Material-Schlüssel ebenfalls erkennen.
+            // Zusätzliche Materialmengen aus Tabellenzeilen.
             for (const lineRaw of lines) {
                 const line = lineRaw.replace(/\s+/g, ' ').trim();
-                if (!materialRegex.test(line) || material.some(m => line.includes(m.bez))) continue;
                 const qty = line.match(materialRegex);
                 if (!qty) continue;
                 const bez = line.replace(qty[0], '').replace(/^\s*[•·\-–]\s*/, '').trim();
-                if (bez.length < 3 || bez.length > 120 || !/[A-Za-zÄÖÜäöü]/.test(bez)) continue;
+                if (bez.length < 3 || bez.length > 180 || !/[A-Za-zÀ-ÿÄÖÜäöü]/.test(bez)) continue;
+                const key = (bez + '|' + qty[0]).toLowerCase();
+                if (gesehen.has(key)) continue;
+                gesehen.add(key);
                 material.push({ bez, menge: `${qty[1].replace(',', '.')} ${qty[2]}`, kat: 'Material', ort: '—', status: '⏳ Offen' });
             }
 
+            const sprache = /\b(le|la|les|des|une|un|pour|avec|pose|travaux|chantier|adresse|quantité|colle|primaire|ragréage)\b/i.test(sauber)
+                ? 'Französisch / FR'
+                : (/\b(der|die|das|und|für|mit|auftrag|baustelle|verlegen|kleber|grundierung|spachtel)\b/i.test(sauber) ? 'Deutsch / DE' : 'Unklar');
+
+            const unsicher = [];
+            if (!adresse) unsicher.push('Baustellenadresse');
+            if (!kunde) unsicher.push('Kunde / Auftraggeber');
+            if (!flaeche) unsicher.push('Fläche');
+            if (!termin) unsicher.push('Termin');
+            if (!material.length) unsicher.push('Material');
+            if (!arbeiten.length) unsicher.push('Arbeitsumfang');
+
             return {
-                projekt,
-                adresse,
+                projekt: clean(projekt),
+                adresse: clean(adresse),
+                kunde: clean(kunde),
+                auftragsnummer: clean(auftragsnummer),
+                termin: clean(termin),
                 flaeche,
+                belag,
+                arbeiten,
+                ansprechpartner: clean(ansprechpartner),
+                telefon: clean(telefon),
+                email,
+                sprache,
+                unsicher,
                 anweisung,
                 material,
                 roherText: sauber
@@ -2984,23 +3212,49 @@
             document.getElementById('ki-ergebnis-adresse').value = ergebnis.adresse || 'Adresse im Auftrag nicht eindeutig erkannt';
             document.getElementById('ki-ergebnis-anweisung').value = ergebnis.anweisung || '';
             document.getElementById('ki-ergebnis-material').value = ergebnis.material.map(m => `${m.bez} | ${m.menge}`).join('\n');
+
+            const score = Math.min(99, Math.max(35,
+                45 +
+                (ergebnis.projekt ? 8 : 0) +
+                (ergebnis.adresse ? 10 : 0) +
+                (ergebnis.kunde ? 6 : 0) +
+                (ergebnis.auftragsnummer ? 5 : 0) +
+                (ergebnis.termin ? 5 : 0) +
+                (ergebnis.material.length ? 8 : 0) +
+                (ergebnis.flaeche ? 5 : 0) +
+                (ergebnis.arbeiten.length ? 5 : 0) +
+                (ergebnis.belag ? 3 : 0)
+            ));
             const conf = document.getElementById('ki-ergebnis-confidence');
-            const score = Math.min(99, Math.max(35, 55 + (ergebnis.projekt ? 10 : 0) + (ergebnis.adresse ? 15 : 0) + (ergebnis.material.length ? 15 : 0) + (ergebnis.flaeche ? 5 : 0)));
-            if (conf) conf.innerText = `Erkennung ${score}%`;
-            document.getElementById('ki-ergebnis-bereich').classList.remove('hidden');
+            if (conf) conf.innerText = `Erkennung ${score}% · ${ergebnis.sprache || 'Sprache unklar'}`;
+
+            const resultBox = document.getElementById('ki-ergebnis-bereich');
+            if (resultBox) {
+                let details = document.getElementById('ki-ergebnis-details');
+                if (!details) {
+                    details = document.createElement('div');
+                    details.id = 'ki-ergebnis-details';
+                    details.className = 'grid md:grid-cols-2 gap-2 mt-3';
+                    resultBox.insertBefore(details, resultBox.querySelector('.flex.gap-2.pt-1'));
+                }
+                details.innerHTML = `
+                    <div class="bg-white border rounded-lg p-2 text-xs"><b>Kunde / Auftraggeber</b><div>${escapeHtml(ergebnis.kunde || 'Nicht erkannt')}</div></div>
+                    <div class="bg-white border rounded-lg p-2 text-xs"><b>Auftragsnummer</b><div>${escapeHtml(ergebnis.auftragsnummer || 'Nicht erkannt')}</div></div>
+                    <div class="bg-white border rounded-lg p-2 text-xs"><b>Termin</b><div>${escapeHtml(ergebnis.termin || 'Nicht erkannt')}</div></div>
+                    <div class="bg-white border rounded-lg p-2 text-xs"><b>Fläche</b><div>${escapeHtml(ergebnis.flaeche || 'Nicht erkannt')}</div></div>
+                    <div class="bg-white border rounded-lg p-2 text-xs"><b>Bodenbelag</b><div>${escapeHtml(ergebnis.belag || 'Nicht eindeutig erkannt')}</div></div>
+                    <div class="bg-white border rounded-lg p-2 text-xs"><b>Sprache</b><div>${escapeHtml(ergebnis.sprache || 'Unklar')}</div></div>
+                    <div class="bg-white border rounded-lg p-2 text-xs md:col-span-2"><b>Erkannte Arbeiten</b><div>${escapeHtml(ergebnis.arbeiten.length ? ergebnis.arbeiten.join(' · ') : 'Bitte Auftrag prüfen')}</div></div>
+                    <div class="bg-white border rounded-lg p-2 text-xs md:col-span-2"><b>Ansprechpartner</b><div>${escapeHtml(ergebnis.ansprechpartner || 'Nicht erkannt')}${ergebnis.telefon ? ' · ' + escapeHtml(ergebnis.telefon) : ''}${ergebnis.email ? ' · ' + escapeHtml(ergebnis.email) : ''}</div></div>
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs md:col-span-2"><b>Prüfen:</b> ${escapeHtml(ergebnis.unsicher.length ? ergebnis.unsicher.join(' · ') : 'Keine offensichtlichen Pflichtangaben fehlen.')}</div>
+                `;
+            }
+            document.getElementById('ki-ergebnis-bereich')?.classList.remove('hidden');
         }
 
-        async function kiOCRBild(datei) {
-            kiScanStatus("Bild wird vorbereitet…", "🖼️");
-            const { data: { text } } = await Tesseract.recognize(datei, 'deu+fra+eng', {
-                logger: m => {
-                    if (m.status === 'recognizing text' && typeof m.progress === 'number') {
-                        kiScanStatus(`OCR liest Auftrag… ${Math.round(m.progress * 100)}%`, "🔎");
-                    }
-                }
-            });
-            return text;
-        }
+        async function kiOCRAusBild(file, statusCallback) {
+  return await kiOCRMitFallback(file, statusCallback);
+}
 
         async function kiOCRPDF(datei) {
             kiScanStatus("PDF wird geöffnet und Seiten werden gelesen…", "📄");
@@ -3082,7 +3336,7 @@ ${text}`;
 
             const material = materialText.split('\n').map(x => x.trim()).filter(Boolean).map(line => {
                 const teile = line.split('|').map(x => x.trim());
-                return { bez: teile[0] || 'Material', menge: teile[1] || 'Menge prüfen', kat: /uzin|kleber|klebstoff/i.test(teile[0] || '') ? 'Verklebung' : (/grundierung|primer|spachtel|egal/i.test(teile[0] || '') ? 'Vorbereitung' : 'Material'), ort: '—', status: '⏳ Offen' };
+                return { bez: teile[0] || 'Material', menge: teile[1] || 'Menge prüfen', kat: /uzin|kleber|klebstoff|colle|adhésif/i.test(teile[0] || '') ? 'Verklebung' : (/grundierung|primer|spachtel|egal|primaire|ragréage|enduit/i.test(teile[0] || '') ? 'Vorbereitung' : 'Material'), ort: '—', status: '⏳ Offen' };
             });
 
             let projektName = titel;
@@ -3107,6 +3361,17 @@ ${text}`;
                 adresse: adresse || 'Adresse im Auftrag nicht erkannt',
                 status: 'Anstehend',
                 anweisung: anweisung || 'Arbeitsauftrag aus dem eingescannten Auftrag.',
+                kunde: letzterKiScan.kunde || '',
+                auftragsnummer: letzterKiScan.auftragsnummer || '',
+                termin: letzterKiScan.termin || '',
+                flaeche: letzterKiScan.flaeche || '',
+                belag: letzterKiScan.belag || '',
+                arbeiten: letzterKiScan.arbeiten || [],
+                ansprechpartner: letzterKiScan.ansprechpartner || '',
+                telefon: letzterKiScan.telefon || '',
+                email: letzterKiScan.email || '',
+                auftragssprache: letzterKiScan.sprache || 'Unklar',
+                kiUnsicher: letzterKiScan.unsicher || [],
                 plaene: auftragsDateiUrl ? [auftragsDateiUrl] : [],
                 aktiverPlanIndex: 0,
                 pins: [],
