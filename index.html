@@ -17,254 +17,61 @@
 
 
 <script>
-/* ===== KI-KURZBESCHREIBUNG + MATERIALRECHNER =====
-   Herstellerwerte werden als Verbrauchsbereiche geführt.
-   Fehlende Schichtdicken werden NICHT erfunden.
+/* ===== KI-KURZBESCHREIBUNG – MULTI-RAUM + MATERIALRECHNER =====
+   Erkennt mehrere Räume/Teilflächen aus einem Text und trennt deren Aufbau.
+   Herstellerwerte werden nur für hinterlegte Produkte verwendet.
+   Fehlende Schichtdicken/Zahnung werden nicht erfunden.
 */
 const KI_MATERIALDATEN = {
-    "UZIN NC 160": {
-        hersteller: "UZIN", typ: "Ausgleichsmasse", einheit: "kg",
-        packung: 25, faktor: 1.5, faktorEinheit: "kg/m²/mm",
-        hinweis: "ca. 1,5 kg/m²/mm"
-    },
-    "UZIN NC 145": {
-        hersteller: "UZIN", typ: "Ausgleichsmasse", einheit: "kg",
-        packung: 25, faktor: 1.5, faktorEinheit: "kg/m²/mm",
-        hinweis: "ca. 1,5 kg/m²/mm"
-    },
-    "WAKOL Z 615": {
-        hersteller: "WAKOL", typ: "Ausgleichsmasse", einheit: "kg",
-        packung: 25, faktor: 1.5, faktorEinheit: "kg/m²/mm",
-        hinweis: "ca. 1,5 kg/m²/mm bei ungestreckter Verarbeitung"
-    },
-    "WAKOL D 3318": {
-        hersteller: "WAKOL", typ: "Klebstoff", einheit: "kg",
-        min: 0.290, max: 0.350, packung: 14, faktorEinheit: "kg/m²",
-        hinweis: "ca. 290–350 g/m²"
-    },
-    "WAKOL D 3304": {
-        hersteller: "WAKOL", typ: "Klebstoff", einheit: "kg",
-        min: 0.375, max: 0.500, packung: 14, faktorEinheit: "kg/m²",
-        hinweis: "ca. 375–500 g/m²"
-    },
-    "UZIN WK 222": {
-        hersteller: "UZIN", typ: "Kontaktklebstoff", einheit: "kg",
-        min: 0.300, max: 0.550, packung: 12, faktorEinheit: "kg/m²",
-        hinweis: "300–550 g/m² Gesamtmenge"
-    }
+  "UZIN MK 200": {hersteller:"UZIN", typ:"Parkettklebstoff", einheit:"kg", packung:16, min:.999, max:1.2, faktorEinheit:"kg/m²", hinweis:"1.000–1.200 g/m²; 16-kg-Gebinde"},
+  "UZIN MK 200 T": {hersteller:"UZIN", typ:"Parkettklebstoff", einheit:"kg", packung:16, min:1.2, max:1.2, faktorEinheit:"kg/m²", hinweis:"ca. 1.200 g/m²; 16-kg-Gebinde"},
+  "UZIN NC 160": {hersteller:"UZIN", typ:"Ausgleichsmasse", einheit:"kg", packung:25, faktor:1.5, faktorEinheit:"kg/m²/mm", hinweis:"ca. 1,5 kg/m²/mm"},
+  "UZIN NC 145": {hersteller:"UZIN", typ:"Ausgleichsmasse", einheit:"kg", packung:25, faktor:1.5, faktorEinheit:"kg/m²/mm", hinweis:"ca. 1,5 kg/m²/mm"},
+  "WAKOL Z 615": {hersteller:"WAKOL", typ:"Ausgleichsmasse", einheit:"kg", packung:25, faktor:1.5, faktorEinheit:"kg/m²/mm", hinweis:"ca. 1,5 kg/m²/mm ungestreckt"},
+  "WAKOL D 3318": {hersteller:"WAKOL", typ:"Klebstoff", einheit:"kg", packung:14, min:.290, max:.350, faktorEinheit:"kg/m²", hinweis:"ca. 290–350 g/m²"},
+  "WAKOL D 3304": {hersteller:"WAKOL", typ:"Linoleumklebstoff", einheit:"kg", packung:14, min:.375, max:.500, faktorEinheit:"kg/m²", hinweis:"ca. 375–500 g/m²"},
+  "UZIN WK 222": {hersteller:"UZIN", typ:"Kontaktklebstoff", einheit:"kg", packung:12, min:.300, max:.550, faktorEinheit:"kg/m²", hinweis:"300–550 g/m² Gesamtmenge"},
+  "UZIN PE 414 BiTurbo": {hersteller:"UZIN", typ:"Grundierung", einheit:"kg", packung:11, min:.100, max:.150, faktorEinheit:"kg/m²", hinweis:"Verbrauch produkt-/untergrundabhängig; Richtwert prüfen"},
+  "UZIN PE 360 PLUS": {hersteller:"UZIN", typ:"Dispersionsgrundierung", einheit:"kg", packung:10, min:.080, max:.150, faktorEinheit:"kg/m²", hinweis:"Verbrauch abhängig von Untergrund und Anwendung – Datenblatt prüfen"}
 };
 
-function kiZahl(s) {
-    if (s == null) return null;
-    const m = String(s).replace(',', '.').match(/(\d+(?:\.\d+)?)/);
-    return m ? parseFloat(m[1]) : null;
+function kiZahl(s){ if(s==null)return null; const m=String(s).replace(/\s/g, '').replace(',', '.').match(/(\d+(?:\.\d+)?)/); return m?parseFloat(m[1]):null; }
+function kiFlaecheErkennen(text){ const m=String(text).match(/(\d+(?:[.,]\d+)?)\s*(?:m²|m2|qm|m\^2|mètres?\s*carrés?)/i); return m?parseFloat(m[1].replace(',','.')):null; }
+function kiDickeErkennen(text){ const m=String(text).match(/(?:ca\.?\s*)?(\d+(?:[.,]\d+)?)\s*(?:mm|millimeter|millimètres?)/i); return m?parseFloat(m[1].replace(',','.')):null; }
+function kiHerstellerErkennen(text){ if(/\bwakol\b/i.test(text))return 'WAKOL'; if(/\buzin\b/i.test(text))return 'UZIN'; return ''; }
+function kiBelagErkennen(text){const t=text.toLowerCase();if(/linoleum|\blino\b/.test(t))return 'Linoleum';if(/lvt|designbelag|designbeläge|vinyl|pvc/.test(t))return 'Vinyl / PVC / LVT';if(/teppich|teppichboden|textil/.test(t))return 'Teppich';if(/parkett|parquet/.test(t))return 'Parkett';if(/kautschuk|gummi/.test(t))return 'Kautschuk';return '';}
+function kiProduktErkennen(text,belag,hersteller){const t=text.toLowerCase().replace(/-/g,' ');
+  const checks=[['UZIN MK 200 T',/uzin\s*mk\s*200\s*t\b|mk\s*200\s*t\b/],['UZIN MK 200',/uzin\s*mk\s*200\b|(?<!t\s)mk\s*200\b/],['UZIN NC 160',/uzin\s*nc\s*160\b|nc\s*160\b/],['UZIN NC 145',/uzin\s*nc\s*145\b|nc\s*145\b/],['WAKOL Z 615',/wakol\s*z\s*615\b|z\s*615\b/],['WAKOL D 3318',/wakol\s*d\s*3318\b|d\s*3318\b/],['WAKOL D 3304',/wakol\s*d\s*3304\b|d\s*3304\b/],['UZIN WK 222',/uzin\s*wk\s*222\b|wk\s*222\b/],['UZIN PE 414 BiTurbo',/uzin\s*pe\s*414|pe\s*414\s*bilturbo/],['UZIN PE 360 PLUS',/uzin\s*pe\s*360/]];
+  for(const [n,r] of checks)if(r.test(t))return n;
+  return null;
 }
-
-function kiFlaecheErkennen(text) {
-    const m = text.match(/(\d+(?:[.,]\d+)?)\s*(?:m²|m2|qm|m2\b|mètres?\s*carrés?)/i);
-    return m ? parseFloat(m[1].replace(',', '.')) : null;
+function kiMengeBerechnen(productName,qm,dicke,reserve){const p=KI_MATERIALDATEN[productName];if(!p||!qm)return null;let minKg,maxKg;if(p.faktor!=null){if(!dicke)return {status:'dicke-fehlt',produkt:productName,packung:p.packung};minKg=maxKg=qm*dicke*p.faktor;}else{minKg=qm*p.min;maxKg=qm*p.max;}if(reserve){minKg*=1.10;maxKg*=1.10;}return {produkt:productName,minKg,maxKg,packung:p.packung,gebindeMin:Math.ceil(minKg/p.packung),gebindeMax:Math.ceil(maxKg/p.packung),hinweis:p.hinweis};}
+function kiRaeumeErkennen(text){
+  let parts=String(text).split(/\s*(?=\b(?:raum|zimmer|bereich|schlafzimmer|wohnzimmer|flur|küche|kueche|büro|buero|bad|diele)\s*\d*\b)/i).map(x=>x.trim()).filter(Boolean);
+  if(parts.length<2) parts=String(text).split(/\s*(?:;|\n|\.\s+(?=(?:ein|eine|der|die|das|zweiter|zweite|zweiten|weiterer|weiteren|zusätzlich|außerdem)\b))/i).map(x=>x.trim()).filter(Boolean);
+  if(parts.length<2) return [{name:'Gesamtbereich',text:String(text)}];
+  return parts.map((x,i)=>({name:(x.match(/^(?:raum|zimmer|bereich|schlafzimmer|wohnzimmer|flur|küche|kueche|büro|buero|bad|diele)\s*[^,.:]*/i)?.[0]||('Teilbereich '+(i+1))).trim(),text:x}));
 }
-
-function kiDickeErkennen(text) {
-    const m = text.match(/(?:ca\.?\s*)?(\d+(?:[.,]\d+)?)\s*(?:mm|millimeter|millimètres?)/i);
-    return m ? parseFloat(m[1].replace(',', '.')) : null;
+function kiRaumDaten(room,index,reserve){const t=room.text;const qm=kiFlaecheErkennen(t);const belag=kiBelagErkennen(t);const hersteller=kiHerstellerErkennen(t);const produkt=kiProduktErkennen(t,belag,hersteller);const dicke=kiDickeErkennen(t);const schwimmend=/schwimmend|floating/i.test(t);const vollverkleb=/vollflächig\s*verklebt|voll\s*verklebt|vollflächig\s*kleben|vollflächige\s*verklebung/i.test(t);const unterlage=/unterlage|trittschall|dämmunterlage|däm[m-]?unterlage/i.test(t);const unterlageMm=(t.match(/(\d+(?:[.,]\d+)?)\s*mm\s*(?:unterlage|trittschall|dämmunterlage|däm[m-]?unterlage)/i)||[])[1];const arbeiten=[];if(/reinigen|nettoyer/i.test(t))arbeiten.push('Untergrund reinigen');if(/grundieren|grundierung|primer|vorstrich|primaire/i.test(t))arbeiten.push('Grundieren');if(/spachtel|spachteln|ausgleich|nivell|egal|ragréage/i.test(t))arbeiten.push('Spachteln / Ausgleichen');if(/verlegen|verlegung|pose/i.test(t))arbeiten.push('Belag verlegen');if(vollverkleb||/kleben|verkleben|klebstoff|kleber|colle/i.test(t))arbeiten.push('Belag verkleben');
+  const material=[];
+  if(qm&&unterlage&&schwimmend)material.push({produkt:'Dämm-/Verlegeunterlage',mengeKg:null,bedarfM2:reserve?qm*1.10:qm,einheit:'m²',hinweis:(unterlageMm?unterlageMm.replace(',','.')+' mm · ': '')+'Unterlagefläche = Raumfläche; Produkt/Zuschnitt prüfen'});
+  if(qm&&produkt){const c=kiMengeBerechnen(produkt,qm,dicke,reserve);if(c)material.push(c);}
+  if(qm&&/spachtel|ausgleich|nivell|ragréage/i.test(t)&&!produkt)material.push({status:'produkt-fehlt',produkt:'Ausgleichsmasse',hinweis:'Produkt und Schichtdicke fehlen – keine Menge erfunden'});
+  if(qm&&vollverkleb&&!produkt)material.push({status:'produkt-fehlt',produkt:'Klebstoff',hinweis:'Vollverklebung erkannt, aber kein konkreter Klebstoff genannt'});
+  return {name:room.name,qm,belag,hersteller,produkt,dicke,schwimmend,vollverkleb,unterlage,unterlageMm:unterlageMm?parseFloat(unterlageMm.replace(',','.')):null,arbeiten,material,text:t};
 }
-
-function kiBelagErkennen(text) {
-    const t = text.toLowerCase();
-    if (/linoleum|lino\b/.test(t)) return "Linoleum";
-    if (/lvt|designbelag|designbeläge|vinyl|pvc/.test(t)) return "Vinyl / PVC / LVT";
-    if (/teppich|teppichboden|textil/.test(t)) return "Teppich";
-    if (/parkett|parquet/.test(t)) return "Parkett";
-    if (/kautschuk|gummi/.test(t)) return "Kautschuk";
-    return "";
-}
-
-function kiHerstellerErkennen(text) {
-    if (/\bwakol\b/i.test(text)) return "WAKOL";
-    if (/\buzin\b/i.test(text)) return "UZIN";
-    return "";
-}
-
-function kiProduktErkennen(text, belag, hersteller) {
-    const t = text.toLowerCase();
-    if (/nc\s*160/.test(t)) return "UZIN NC 160";
-    if (/nc\s*145/.test(t)) return "UZIN NC 145";
-    if (/z\s*615/.test(t)) return "WAKOL Z 615";
-    if (/d\s*3318/.test(t)) return "WAKOL D 3318";
-    if (/d\s*3304/.test(t)) return "WAKOL D 3304";
-    if (/wk\s*222/.test(t)) return "UZIN WK 222";
-
-    // Bei ausdrücklich gewünschter Ausgleichsmasse + Hersteller:
-    if (/spachtel|spachteln|ausgleich|nivell|egal/.test(t)) {
-        if (hersteller === "WAKOL") return "WAKOL Z 615";
-        if (hersteller === "UZIN") return "UZIN NC 160";
-    }
-
-    // Kleber für Linoleum ohne konkretes Produkt:
-    if (/kleben|kleber|verkleben|coller|colle/.test(t) && belag === "Linoleum") {
-        if (hersteller === "WAKOL") return "WAKOL D 3318";
-        if (hersteller === "UZIN") return null; // Produkt muss gewählt/geprüft werden.
-    }
-    return null;
-}
-
-function kiMengeBerechnen(productName, qm, dicke, reserve) {
-    const p = KI_MATERIALDATEN[productName];
-    if (!p || !qm) return null;
-
-    let minKg, maxKg;
-    if (p.faktor != null) {
-        if (!dicke) return { status: "dicke-fehlt", produkt: productName, packung: p.packung };
-        minKg = maxKg = qm * dicke * p.faktor;
-    } else {
-        minKg = qm * p.min;
-        maxKg = qm * p.max;
-    }
-
-    if (reserve) {
-        minKg *= 1.10;
-        maxKg *= 1.10;
-    }
-
-    return {
-        produkt: productName,
-        minKg,
-        maxKg,
-        packung: p.packung,
-        gebindeMin: Math.ceil(minKg / p.packung),
-        gebindeMax: Math.ceil(maxKg / p.packung),
-        hinweis: p.hinweis
-    };
-}
-
-function kiKurzbeschreibungAuswerten() {
-    const text = (document.getElementById("ki-kurzbeschreibung")?.value || "").trim();
-    const qmInput = kiZahl(document.getElementById("ki-qm-direkt")?.value);
-    const belagSelect = document.getElementById("ki-belag-direkt")?.value || "";
-    const herstellerSelect = document.getElementById("ki-hersteller-direkt")?.value || "";
-    const reserve = document.getElementById("ki-reserve-10")?.checked !== false;
-
-    if (!text && !qmInput) {
-        alert("Bitte kurz beschreiben, was auf der Baustelle gemacht werden soll – z. B. „170 m² Linoleum, Estrich reinigen, grundieren, 3 mm spachteln, verkleben, UZIN“.");
-        return;
-    }
-
-    const qm = qmInput || kiFlaecheErkennen(text);
-    const belag = belagSelect || kiBelagErkennen(text);
-    const hersteller = herstellerSelect || kiHerstellerErkennen(text);
-    const dicke = kiDickeErkennen(text);
-    const produkt = kiProduktErkennen(text, belag, hersteller);
-
-    const arbeiten = [];
-    const t = text.toLowerCase();
-    if (/reinigen|nettoyer/.test(t)) arbeiten.push("Untergrund reinigen");
-    if (/grundieren|grundierung|primer|vorstrich|primaire/.test(t)) arbeiten.push("Grundieren");
-    if (/spachtel|spachteln|ausgleich|nivell|egal|ragréage/.test(t)) arbeiten.push("Spachteln / Ausgleichen");
-    if (/kleben|verkleben|kleber|coller|colle/.test(t)) arbeiten.push("Belag verkleben");
-    if (/verlegen|verlegung|pose/.test(t)) arbeiten.push("Belag verlegen");
-
-    // Projektname: erste sinnvolle Textzeile, sonst generisch.
-    const projekt = (text.split(/[.!?\n]/).map(x => x.trim()).find(x => x.length >= 4) || "Neue Baustelle").slice(0, 90);
-
-    // Ergebnis in die vorhandenen KI-Felder schreiben.
-    const set = (id, value) => {
-        const el = document.getElementById(id);
-        if (el && value != null) el.value = value;
-    };
-
-    set("ki-ergebnis-projekt", projekt);
-    set("ki-ergebnis-adresse", "");
-    set("ki-ergebnis-anweisung",
-        (arbeiten.length ? arbeiten.join(", ") + ". " : "") +
-        (belag ? "Belag: " + belag + ". " : "") +
-        (text ? text : "")
-    );
-
-    const unsicher = [];
-    if (!qm) unsicher.push("Fläche (m²) fehlt");
-    if (!belag) unsicher.push("Bodenbelag fehlt");
-    if (arbeiten.length === 0) unsicher.push("Arbeitsumfang prüfen");
-    if (/spachtel|ausgleich|nivell|ragréage/i.test(text) && !dicke) {
-        unsicher.push("Schichtdicke der Ausgleichsmasse fehlt");
-    }
-    if (/kleben|verkleben|kleber|colle/i.test(text) && !produkt) {
-        unsicher.push("konkreten Klebstoff prüfen");
-    }
-
-    let materialLines = [];
-    const materialResults = [];
-
-    if (qm && produkt) {
-        const calc = kiMengeBerechnen(produkt, qm, dicke, reserve);
-        if (calc?.status === "dicke-fehlt") {
-            materialLines.push(`${produkt} | Schichtdicke prüfen | Ausgleichsmasse`);
-        } else if (calc) {
-            const menge = calc.minKg === calc.maxKg
-                ? `${calc.minKg.toFixed(1)} kg / ${calc.gebindeMin} x ${calc.packung} kg`
-                : `${calc.minKg.toFixed(1)}–${calc.maxKg.toFixed(1)} kg / ${calc.gebindeMin}–${calc.gebindeMax} x ${calc.packung} kg`;
-            materialLines.push(`${produkt} | ${menge} | ${KI_MATERIALDATEN[produkt].typ}`);
-            materialResults.push(calc);
-        }
-    } else if (qm && /spachtel|ausgleich|nivell|ragréage/i.test(text)) {
-        materialLines.push(`Ausgleichsmasse | Schichtdicke prüfen | Ausgleichsmasse`);
-    }
-
-    if (qm && /kleben|verkleben|kleber|colle/i.test(text) && !produkt) {
-        materialLines.push(`Klebstoff | Produkt/Zahnung prüfen | Klebstoff`);
-    }
-
-    set("ki-ergebnis-material", materialLines.join("\n"));
-
-    // Falls die normale KI-Ergebnisanzeige existiert, nutzen.
-    const bereich = document.getElementById("ki-ergebnis-bereich");
-    if (bereich) bereich.classList.remove("hidden");
-
-    const preview = document.getElementById("ki-material-vorschau");
-    if (preview) {
-        preview.classList.remove("hidden");
-        preview.innerHTML = `
-            <div class="bg-white border border-slate-200 rounded-xl p-4">
-                <div class="font-bold text-slate-900 mb-2">🧮 Materialberechnung</div>
-                <div class="text-sm text-slate-700 mb-3">
-                    Fläche: <b>${qm ? qm + " m²" : "prüfen"}</b> ·
-                    Belag: <b>${belag || "prüfen"}</b> ·
-                    Hersteller: <b>${hersteller || "prüfen"}</b>
-                    ${dicke ? ` · Schichtdicke: <b>${dicke} mm</b>` : ""}
-                </div>
-                ${materialResults.length ? materialResults.map(r => `
-                    <div class="border-t pt-3 mt-3">
-                        <b>${r.produkt}</b><br>
-                        Bedarf: <b>${r.minKg === r.maxKg ? r.minKg.toFixed(1) + " kg" : r.minKg.toFixed(1) + "–" + r.maxKg.toFixed(1) + " kg"}</b><br>
-                        Gebinde: <b>${r.gebindeMin === r.gebindeMax ? r.gebindeMin : r.gebindeMin + "–" + r.gebindeMax} × ${r.packung} kg</b><br>
-                        <span class="text-xs text-slate-500">${r.hinweis}${reserve ? " · +10 % Reserve eingerechnet" : ""}</span>
-                    </div>
-                `).join("") : `<div class="text-amber-700 font-semibold">Noch keine belastbare Menge berechnet – fehlende Angaben bitte prüfen.</div>`}
-                ${unsicher.length ? `<div class="mt-4 p-3 rounded-lg bg-amber-50 text-amber-800 text-sm"><b>⚠️ Prüfen:</b><br>${unsicher.map(x => "• " + x).join("<br>")}</div>` : ""}
-            </div>
-        `;
-    }
-
-    // Existing save function reads letzterKiScan.
-    letzterKiScan = {
-        kunde: "",
-        auftragsnummer: "",
-        termin: "",
-        flaeche: qm ? String(qm) : "",
-        belag,
-        arbeiten,
-        ansprechpartner: "",
-        telefon: "",
-        email: "",
-        sprache: "Deutsch",
-        unsicher,
-        roherText: text,
-        originalDatei: null
-    };
-
-    // Show a concise confirmation.
-    const status = document.getElementById("ki-scan-status");
-    if (status) status.textContent = "✅ Kurzbeschreibung ausgewertet – Daten prüfen und Baustelle anlegen.";
+function kiKurzbeschreibungAuswerten(){
+  const text=(document.getElementById('ki-kurzbeschreibung')?.value||'').trim();const qmInput=kiZahl(document.getElementById('ki-qm-direkt')?.value);const belagSelect=document.getElementById('ki-belag-direkt')?.value||'';const herstellerSelect=document.getElementById('ki-hersteller-direkt')?.value||'';const reserve=document.getElementById('ki-reserve-10')?.checked!==false;
+  if(!text&&!qmInput){alert('Bitte kurz beschreiben, z. B. „Raum 1: 20 m² Parkett schwimmend mit 2 mm Unterlage. Raum 2: 35 m² Parkett vollflächig verklebt mit UZIN MK 200.“');return;}
+  let rooms=kiRaeumeErkennen(text);if(qmInput&&!kiFlaecheErkennen(text))rooms=[{name:'Gesamtbereich',text:text+' '+qmInput+' m²'}];
+  const daten=rooms.map((r,i)=>kiRaumDaten(r,i,reserve));if(daten.length===1){if(belagSelect&&!daten[0].belag)daten[0].belag=belagSelect;if(herstellerSelect&&!daten[0].hersteller)daten[0].hersteller=herstellerSelect;}
+  const allQm=daten.reduce((a,r)=>a+(r.qm||0),0)||qmInput||0;const allArbeiten=[...new Set(daten.flatMap(r=>r.arbeiten))];const unsicher=[];
+  daten.forEach(r=>{if(!r.qm)unsicher.push(r.name+': Fläche fehlt');if(!r.belag)unsicher.push(r.name+': Belag fehlt');if(/spachtel|ausgleich|nivell|ragréage/i.test(r.text)&&!r.dicke)unsicher.push(r.name+': Schichtdicke fehlt');if(r.vollverkleb&&!r.produkt)unsicher.push(r.name+': Klebstoff fehlt');});
+  const lines=[];daten.forEach(r=>{lines.push(`${r.name}: ${r.qm?r.qm+' m²':'Fläche prüfen'}${r.belag?' · '+r.belag:''}${r.schwimmend?' · schwimmend':''}${r.vollverkleb?' · vollflächig verklebt':''}${r.unterlageMm?' · '+r.unterlageMm+' mm Unterlage':''}`);r.material.forEach(m=>{if(m.minKg!=null){lines.push(`  - ${m.produkt}: ${m.minKg===m.maxKg?m.minKg.toFixed(1):m.minKg.toFixed(1)+'–'+m.maxKg.toFixed(1)} kg = ${m.gebindeMin===m.gebindeMax?m.gebindeMin:m.gebindeMin+'–'+m.gebindeMax} × ${m.packung} kg`);}else if(m.bedarfM2!=null){lines.push(`  - ${m.produkt}: ${m.bedarfM2.toFixed(1)} m²`);}else lines.push(`  - ${m.produkt}: ${m.hinweis}`);});});
+  const set=(id,v)=>{const e=document.getElementById(id);if(e&&v!=null)e.value=v;};const projekt=(text.split(/[.!?\n]/).map(x=>x.trim()).find(x=>x.length>=4)||'Neue Baustelle').slice(0,90);set('ki-ergebnis-projekt',projekt);set('ki-ergebnis-adresse','');set('ki-ergebnis-anweisung',allArbeiten.join(', ')+(text?'\n'+text:''));set('ki-ergebnis-material',lines.join('\n'));
+  const bereich=document.getElementById('ki-ergebnis-bereich');if(bereich)bereich.classList.remove('hidden');const preview=document.getElementById('ki-material-vorschau');if(preview){preview.classList.remove('hidden');preview.innerHTML=`<div class="bg-white border border-slate-200 rounded-xl p-4"><div class="font-bold text-slate-900 mb-3">🧮 Erkannte Räume & Material</div><div class="text-sm mb-4">Gesamt erkannte Fläche: <b>${allQm?allQm.toLocaleString('de-DE',{maximumFractionDigits:2})+' m²':'prüfen'}</b></div>${daten.map(r=>`<div class="border-t pt-4 mt-4"><div class="font-bold">${escapeHtml(r.name)}</div><div class="text-sm text-slate-700 mt-1">${r.qm?r.qm+' m²':'Fläche prüfen'} · ${escapeHtml(r.belag||'Belag prüfen')} ${r.schwimmend?'· schwimmend':''} ${r.vollverkleb?'· vollflächig verklebt':''} ${r.unterlageMm?'· '+r.unterlageMm+' mm Unterlage':''}</div>${r.material.length?r.material.map(m=>m.minKg!=null?`<div class="mt-2 text-sm"><b>${escapeHtml(m.produkt)}</b>: <b>${m.minKg===m.maxKg?m.minKg.toFixed(1):m.minKg.toFixed(1)+'–'+m.maxKg.toFixed(1)} kg</b> · ${m.gebindeMin===m.gebindeMax?m.gebindeMin:m.gebindeMin+'–'+m.gebindeMax} × ${m.packung} kg<br><span class="text-xs text-slate-500">${escapeHtml(m.hinweis)}${reserve?' · +10 % Reserve':''}</span></div>`:`<div class="mt-2 text-sm"><b>${escapeHtml(m.produkt)}</b>: ${m.bedarfM2!=null?m.bedarfM2.toFixed(1)+' m²':escapeHtml(m.hinweis||'Prüfen')}</div>`).join(''):'<div class="mt-2 text-sm text-amber-700">Keine belastbare Produktmenge – Produktangabe prüfen.</div>'}</div>`).join('')}${unsicher.length?`<div class="mt-4 p-3 rounded-lg bg-amber-50 text-amber-800 text-sm"><b>⚠️ Prüfen:</b><br>${unsicher.map(x=>'• '+escapeHtml(x)).join('<br>')}</div>`:''}<div class="mt-4 text-xs text-slate-500">Berechnung basiert nur auf hinterlegten Hersteller-Verbrauchswerten. Zahnung, Untergrund, Auftragstechnik und konkrete Systemfreigabe können den Verbrauch ändern.</div></div>`;}
+  letzterKiScan={kunde:'',auftragsnummer:'',termin:'',flaeche:allQm?String(allQm):'',belag:[...new Set(daten.map(r=>r.belag).filter(Boolean))].join(', '),arbeiten:allArbeiten,ansprechpartner:'',telefon:'',email:'',sprache:'Deutsch',unsicher,roherText:text,originalDatei:null,raeume:daten.map(r=>({name:r.name,flaeche:r.qm,belag:r.belag,verlegung:r.schwimmend?'schwimmend':r.vollverkleb?'vollflächig verklebt':'',unterlageMm:r.unterlageMm,produkt:r.produkt,schichtdicke:r.dicke,material:r.material.map(m=>m.produkt)})),materialBerechnung:lines};
+  const status=document.getElementById('ki-scan-status');if(status)status.textContent='✅ Mehrere Räume, Verlegeart, m² und bekannte Produkte wurden ausgewertet. Bitte Ergebnis prüfen.';
 }
 </script>
 <script>
