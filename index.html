@@ -1232,6 +1232,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app, "(default)");
+        // Firebase fuer nachgelagerte Kalender-UI bereitstellen
+        window.db = db; window.setDoc = setDoc; window.doc = doc; window.deleteDoc = deleteDoc; window.collection = collection; window.onSnapshot = onSnapshot;
         let storage = null;
         try { storage = getStorage(app); } catch (storageError) {
             console.warn("Firebase Storage ist noch nicht verfügbar. Login und Portal bleiben nutzbar:", storageError);
@@ -1361,6 +1363,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         let ausgewaehlteNachrichtIndex = null;
         let map = null;
         let mapMarkerLayer = [];
+        // Bridge fuer die nachgelagerten UI-Skripte: Die Hauptlogik laeuft als ES-Modul.
+        // Diese Getter halten window.* immer mit den echten Modulvariablen synchron.
+        Object.defineProperty(window, "globalDaten", { configurable:true, get:()=>globalDaten, set:v=>{ if(v) globalDaten=v; } });
+        Object.defineProperty(window, "eingeloggterMitarbeiter", { configurable:true, get:()=>eingeloggterMitarbeiter, set:v=>{ eingeloggterMitarbeiter=v||""; } });
+        Object.defineProperty(window, "eingeloggteRolle", { configurable:true, get:()=>eingeloggteRolle, set:v=>{ eingeloggteRolle=v||""; } });
 
         let vollbildZoomFaktor = 1;
         let isVollbildPanning = false;
@@ -1459,6 +1466,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 });
             }
         });
+
+        // Neuer Mitarbeiter-Kalender: Daten aus Firestore laden, damit sie auch auf anderen Geraeten erscheinen.
+        window.chefKalenderPlanung = window.chefKalenderPlanung || {};
+        onSnapshot(collection(db, "kalenderPlanung"), (snapshot) => {
+            const daten = {};
+            snapshot.forEach(snap => { daten[snap.id] = snap.data(); });
+            window.chefKalenderPlanung = daten;
+            try { if (typeof window.zeigeChefKalender === "function") window.zeigeChefKalender(); } catch(e) {}
+            try { if (typeof window.zeigeVerlegerPlanungAufStartseite === "function") window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {}
+        }, (error) => console.warn("Fehler beim Laden der Wochenplanung:", error));
 
         async function globalGlobalSpeichern() {
             try {
@@ -3693,62 +3710,72 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
 <script>
 window.zeigeVerlegerPlanungAufStartseite=function(){
-  const b=document.getElementById('verleger-planung-startseite');
+  const b=document.getElementById("verleger-planung-startseite");
   if(!b) return;
-  const name=String(typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:'').trim();
-  const rolle=String(typeof eingeloggteRolle!=='undefined'?eingeloggteRolle:'').trim().toLowerCase();
-  if(!name || !rolle.includes('verleger')){ b.classList.add('hidden'); return; }
 
-  // globalDaten/eingeloggteRolle sind im Portal als let-Variablen definiert,
-  // nicht als window.*. Deshalb direkt auf die echten Variablen zugreifen.
-  const projekte=(typeof globalDaten!=='undefined' && globalDaten && globalDaten.projekte) ? globalDaten.projekte : {};
+  const name=String(window.eingeloggterMitarbeiter||"").trim();
+  const rolle=String(window.eingeloggteRolle||"").trim().toLowerCase();
+  const istVerleger=rolle.includes("verleger") || /^(patrick magiera|wolfgang seimetz)$/i.test(name);
+  if(!name || !istVerleger){ b.classList.add("hidden"); b.style.display="none"; return; }
+
+  const projekte=(window.globalDaten && window.globalDaten.projekte) || {};
   const tage=[
-    {name:'Montag',nr:1},{name:'Dienstag',nr:2},{name:'Mittwoch',nr:3},
-    {name:'Donnerstag',nr:4},{name:'Freitag',nr:5}
+    {name:"Montag",nr:1},{name:"Dienstag",nr:2},{name:"Mittwoch",nr:3},
+    {name:"Donnerstag",nr:4},{name:"Freitag",nr:5}
   ];
   const heute=new Date(); heute.setHours(0,0,0,0);
   const montag=new Date(heute);
   const wd=montag.getDay()||7;
   montag.setDate(montag.getDate()-wd+1);
-  const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
+  const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   const jobs={1:[],2:[],3:[],4:[],5:[]};
+
+  // Alte Baustellen-Kalenderstruktur: projekt.planung.verleger[name].tage[datum]
   Object.keys(projekte).forEach(projekt=>{
-    const p=projekte[projekt];
-    const plan=p&&p.planung&&p.planung.verleger&&p.planung.verleger[name];
-    const daten=plan&&plan.tage?plan.tage:{};
+    const p=projekte[projekt]||{};
+    const plan=p.planung && p.planung.verleger && p.planung.verleger[name];
+    const daten=plan && plan.tage ? plan.tage : {};
     tage.forEach((t,i)=>{
       const d=new Date(montag); d.setDate(montag.getDate()+i);
       const v=daten[key(d)];
-      if(v && (v.baustelle===projekt || v.baustelle===p.name || v.baustelle)){
-        jobs[t.nr].push(v.baustelle||p.name||projekt);
-      }
+      if(v) jobs[t.nr].push(String(v.baustelle||p.name||projekt));
+    });
+  });
+
+  // Neuer Chef-Kalender: ein Eintrag pro Mitarbeiter/Datum.
+  const neu=window.chefKalenderPlanung||{};
+  tage.forEach((t,i)=>{
+    const d=new Date(montag); d.setDate(montag.getDate()+i);
+    const datum=key(d);
+    Object.keys(neu).forEach(k=>{
+      const v=neu[k];
+      if(!v || String(v.employee||v.mitarbeiter||"").trim()!==name) return;
+      const vd=String(v.date||v.datum||k.split("_")[0]||"").slice(0,10);
+      if(vd===datum && (v.baustelle||v.projektName||v.projektId)) jobs[t.nr].push(String(v.baustelle||v.projektName||v.projektId));
     });
   });
   tage.forEach(t=>jobs[t.nr]=[...new Set(jobs[t.nr])]);
 
-  b.classList.remove('hidden');
-  b.style.display='block';
+  b.classList.remove("hidden");
+  b.style.display="block";
+  b.style.visibility="visible";
   b.innerHTML=`
     <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
       <div><h2 class="text-lg font-black text-slate-900">📅 Meine Wochenplanung</h2>
       <p class="text-xs text-slate-500">Deine Baustellen von Montag bis Freitag</p></div>
-      <span class="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full">Diese Woche</span>
-    </div>
-    <div class="grid grid-cols-5 gap-3">
+      <span class="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full">Diese Woche</span></div>
+    <div style="display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px;overflow-x:auto;">
       ${tage.map((t,i)=>{
         const d=new Date(montag); d.setDate(montag.getDate()+i);
         const istHeute=key(d)===key(heute);
-        return `<div class="rounded-2xl border ${istHeute?'border-blue-300 bg-blue-50/50':'border-slate-200 bg-white'} overflow-hidden min-h-[150px]">
-          <div class="px-3 py-3 border-b border-slate-200 ${istHeute?'bg-blue-100':'bg-slate-50'}">
+        return `<div class="rounded-2xl border ${istHeute?"border-blue-300 bg-blue-50/50":"border-slate-200 bg-white"} overflow-hidden" style="min-height:150px;">
+          <div class="px-3 py-3 border-b border-slate-200 ${istHeute?"bg-blue-100":"bg-slate-50"}">
             <div class="font-black text-slate-900 text-sm">${t.name}</div>
-            <div class="text-xs text-slate-500">${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.</div>
-          </div>
-          <div class="p-3 space-y-2">
-            ${jobs[t.nr].length ? jobs[t.nr].map(j=>`<div class="rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-sm font-bold text-slate-800">📍 ${j}</div>`).join('') : '<div class="text-xs text-slate-400 text-center py-4">Keine Baustelle</div>'}
-          </div>
-        </div>`;
-      }).join('')}
+            <div class="text-xs text-slate-500">${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}. </div>
+          </div><div class="p-3 space-y-2">
+            ${jobs[t.nr].length?jobs[t.nr].map(j=>`<div class="rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-sm font-bold text-slate-800">📍 ${String(j).replace(/[<>]/g,"")}</div>`).join(""):"<div class=\"text-xs text-slate-400 text-center py-4\">Keine Baustelle eingeteilt</div>"}
+          </div></div>`;
+      }).join("")}
     </div>`;
 };
 </script>
