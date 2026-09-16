@@ -3291,7 +3291,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (datei) verarbeiteGrundriss(datei);
         }
 
-        function planBildKomprimieren(datei, maxSeite = 2600, qualitaet = 0.86) {
+        function planBildKomprimieren(datei, maxSeite = 1400, qualitaet = 0.72) {
             return new Promise((resolve, reject) => {
                 if (!datei || !String(datei.type || '').startsWith('image/')) return resolve(datei);
                 const reader = new FileReader();
@@ -3353,14 +3353,39 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     return;
                 }
 
-                // Bilder werden vor dem Upload etwas verkleinert, damit auch große
-                // Handyfotos von Grundrissen zuverlässig hochgeladen werden können.
+                /*
+                 * WICHTIG: Der Portal-Login ist ein eigener Schnell-Login und kein
+                 * Firebase-Auth-Login. Deshalb kann Firebase Storage je nach
+                 * Storage-Regeln den Upload mit permission-denied ablehnen.
+                 * Bilder werden deshalb direkt als komprimierte Datei im Projekt
+                 * gespeichert. So funktioniert der Grundriss auch ohne Storage-
+                 * Berechtigung. PDFs verwenden weiterhin Firebase Storage.
+                 */
                 const uploadDatei = istPdf ? datei : await planBildKomprimieren(datei);
-                const url = await uploadBaustellenDatei(uploadDatei, "plaene", aktuellesProjekt);
+                let url = '';
+
+                if (!istPdf) {
+                    // Das Bild bewusst klein halten, damit das Firestore-Dokument
+                    // unter dem Größenlimit bleibt und trotzdem gut lesbar ist.
+                    const reader = new FileReader();
+                    url = await new Promise((resolve, reject) => {
+                        reader.onerror = () => reject(new Error('Das Bild konnte nicht gelesen werden.'));
+                        reader.onload = () => resolve(String(reader.result || ''));
+                        reader.readAsDataURL(uploadDatei);
+                    });
+                    if (!url || url.length > 800000) {
+                        throw new Error('Das Bild ist trotz Komprimierung noch zu groß. Bitte ein kleineres Bild auswählen.');
+                    }
+                } else {
+                    // PDFs werden weiterhin als Datei in Firebase Storage abgelegt.
+                    url = await uploadBaustellenDatei(uploadDatei, "plaene", aktuellesProjekt);
+                }
+
                 await speichereGrundrissPlan(url, {
                     dateiname: datei.name,
                     dateityp: uploadDatei.type || (istPdf ? "application/pdf" : "image/jpeg"),
-                    groesse: uploadDatei.size
+                    groesse: uploadDatei.size,
+                    speicherart: istPdf ? 'firebase-storage' : 'firestore-bild'
                 });
                 alert(`✅ Plan „${datei.name}“ wurde erfolgreich hochgeladen.`);
             } catch (error) {
@@ -3369,7 +3394,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 alert(
                     "❌ Der Plan konnte nicht hochgeladen werden.\n\n" +
                     msg +
-                    "\n\nWenn diese Meldung „permission-denied“ enthält, müssen die Firebase-Storage-Regeln den angemeldeten Portal-Benutzern Uploads erlauben."
+                    (istPdf ? "\n\nBei PDF-Plänen muss Firebase Storage freigeschaltet sein." : "")
                 );
             } finally {
                 // Derselbe Plan kann direkt danach erneut ausgewählt werden.
