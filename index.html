@@ -3049,6 +3049,50 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             projektSpeichern(aktuellesProjekt);
         }
 
+        // ==================== LIVE-KARTE: ECHTE BAUSTELLENADRESSEN ====================
+        // Keine erfundenen Zufallskoordinaten mehr. Neue Baustellen werden anhand
+        // ihrer gespeicherten Adresse geokodiert und die Koordinaten im Projekt gecacht.
+        async function baustellenAdresseGeokodieren(adresse) {
+            const q = String(adresse || '').trim();
+            if (!q || /Adresse im Auftrag nicht erkannt/i.test(q)) return null;
+            try {
+                const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q=' + encodeURIComponent(q);
+                const response = await fetch(url, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!response.ok) return null;
+                const data = await response.json();
+                if (!Array.isArray(data) || !data.length) return null;
+                const lat = Number(data[0].lat);
+                const lon = Number(data[0].lon);
+                if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+                return [lat, lon];
+            } catch (e) {
+                console.warn('Adress-Geocoding fehlgeschlagen:', e);
+                return null;
+            }
+        }
+
+        function mapsLinkFuerAdresse(adresse) {
+            return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(String(adresse || '').trim());
+        }
+
+        function appleMapsLinkFuerAdresse(adresse) {
+            return 'https://maps.apple.com/?q=' + encodeURIComponent(String(adresse || '').trim());
+        }
+
+        window.baustelleInGoogleMapsOeffnen = function(adresse) {
+            const q = String(adresse || '').trim();
+            if (!q) return;
+            window.open(mapsLinkFuerAdresse(q), '_blank', 'noopener,noreferrer');
+        };
+
+        window.baustelleInAppleKartenOeffnen = function(adresse) {
+            const q = String(adresse || '').trim();
+            if (!q) return;
+            window.open(appleMapsLinkFuerAdresse(q), '_blank', 'noopener,noreferrer');
+        };
+
         function karteInitialisieren() {
             if (!map) {
                 map = L.map('map').setView([49.6116, 6.1319], 10);
@@ -3060,44 +3104,71 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             karteAktualisieren();
         }
 
-        function karteAktualisieren() {
+        async function karteAktualisieren() {
             if (!map) return;
             mapMarkerLayer.forEach(marker => marker.remove());
             mapMarkerLayer = [];
 
-            const baustellenKoords = {
-                "Wohnkomplex Kirchberg": [49.6200, 6.1650],
-                "Bürogebäude Cloche d'Or": [49.5850, 6.1280],
-                "Residenz Belair": [49.6100, 6.1150],
-                "Schule Mamer": [49.6260, 6.0250],
-                "Kulturzentrum Dudelange": [49.4830, 6.0850],
-                "Wohnanlage Esch-Belval": [49.4975, 5.9814],
-                "Villa Limpertsberg": [49.6180, 6.1250],
-                "Verwaltungspark Munsbach": [49.6350, 6.3200],
-                "Altenpflegeheim Differdange": [49.5220, 5.8900],
-                "Penthouse Kirchberg-Nord": [49.6300, 6.1750]
-            };
+            const projekte = globalDaten.projekte || {};
+            const markerBounds = [];
 
-            Object.keys(globalDaten.projekte).forEach(titel => {
-                const koord = baustellenKoords[titel] || [49.6116 + (Math.random()*0.05), 6.1319 + (Math.random()*0.05)];
-                
-                let zugewieseneArbeiter = [];
-                Object.keys(globalDaten.zuweisungen).forEach(mitarbeiter => {
-                    const projList = globalDaten.zuweisungen[mitarbeiter] || [];
-                    if (projList.includes(titel)) {
-                        zugewieseneArbeiter.push(mitarbeiter);
+            for (const titel of Object.keys(projekte)) {
+                const p = projekte[titel] || {};
+                const adresse = String(p.adresse || '').trim();
+                let koord = Array.isArray(p.koordinaten) && p.koordinaten.length === 2
+                    ? [Number(p.koordinaten[0]), Number(p.koordinaten[1])]
+                    : null;
+
+                // Nur echte gespeicherte Koordinaten verwenden.
+                if (!koord || !Number.isFinite(koord[0]) || !Number.isFinite(koord[1])) {
+                    koord = await baustellenAdresseGeokodieren(adresse);
+                    if (koord) {
+                        p.koordinaten = koord;
+                        // Koordinaten nur im Projekt speichern; der Kartendatenstand bleibt erhalten.
+                        try { projektSpeichern(titel); } catch (e) { console.warn(e); }
                     }
+                }
+
+                let zugewieseneArbeiter = [];
+                Object.keys(globalDaten.zuweisungen || {}).forEach(mitarbeiter => {
+                    const projList = globalDaten.zuweisungen[mitarbeiter] || [];
+                    if (projList.includes(titel)) zugewieseneArbeiter.push(mitarbeiter);
                 });
 
-                let arbeiterHtml = zugewieseneArbeiter.length > 0 
-                    ? `<br><b class="text-blue-600">Vor Ort:</b> ${zugewieseneArbeiter.join(', ')}` 
+                const adresseText = adresse || 'Keine Baustellenadresse hinterlegt';
+                const arbeiterHtml = zugewieseneArbeiter.length > 0
+                    ? `<br><b class="text-blue-600">Vor Ort:</b> ${zugewieseneArbeiter.join(', ')}`
                     : `<br><span class="text-slate-400">Kein Verleger zugewiesen</span>`;
 
+                const navHtml = `
+                    <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+                        <button onclick="baustelleInGoogleMapsOeffnen(${JSON.stringify(adresseText)})" style="background:#2563eb;color:#fff;border:0;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer">Google Maps</button>
+                        <button onclick="baustelleInAppleKartenOeffnen(${JSON.stringify(adresseText)})" style="background:#111827;color:#fff;border:0;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer">Apple Karten</button>
+                    </div>`;
+
+                // Wenn eine Adresse noch nicht geokodiert werden konnte, nicht irgendwo
+                // zufällig einen Pin setzen. Stattdessen wird die Baustelle in der Liste
+                // angezeigt und kann direkt über Maps geöffnet werden.
+                if (!koord) {
+                    continue;
+                }
+
                 const marker = L.marker(koord).addTo(map)
-                    .bindPopup(`<b>${titel}</b><br>Status: ${globalDaten.projekte[titel].status}${arbeiterHtml}`);
-                
+                    .bindPopup(`<b>${escapeHtml(titel)}</b><br><span style="font-size:11px">${escapeHtml(adresseText)}</span>${arbeiterHtml}${navHtml}`);
+
+                marker.on('click', () => {
+                    map.setView(koord, Math.max(map.getZoom(), 15), { animate: true });
+                });
+
                 mapMarkerLayer.push(marker);
-            });
+                markerBounds.push(koord);
+            }
+
+            if (markerBounds.length === 1) {
+                map.setView(markerBounds[0], 15);
+            } else if (markerBounds.length > 1) {
+                map.fitBounds(markerBounds, { padding: [30, 30], maxZoom: 15 });
+            }
 
             map.invalidateSize();
         }
