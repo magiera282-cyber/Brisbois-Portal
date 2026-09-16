@@ -3367,78 +3367,177 @@ ${text}`;
         }
 
         window.kiErgebnisAlsBaustelleSpeichern = async function() {
-            if (!letzterKiScan) return;
-            const titel = document.getElementById('ki-ergebnis-projekt').value.trim();
-            const adresse = document.getElementById('ki-ergebnis-adresse').value.trim();
-            const anweisung = document.getElementById('ki-ergebnis-anweisung').value.trim();
-            const materialText = document.getElementById('ki-ergebnis-material').value.trim();
-            if (!titel) return alert('Bitte einen Projektnamen eingeben.');
+            const button = document.querySelector('#ki-ergebnis-bereich button[onclick*="kiErgebnisAlsBaustelleSpeichern"]');
+            const originalButtonText = button ? button.innerHTML : '';
 
-            const material = materialText.split('\n').map(x => x.trim()).filter(Boolean).map(line => {
-                const teile = line.split('|').map(x => x.trim());
-                return { bez: teile[0] || 'Material', menge: teile[1] || 'Menge prüfen', kat: /uzin|kleber|klebstoff|colle|adhésif/i.test(teile[0] || '') ? 'Verklebung' : (/grundierung|primer|spachtel|egal|primaire|ragréage|enduit/i.test(teile[0] || '') ? 'Vorbereitung' : 'Material'), ort: '—', status: '⏳ Offen' };
-            });
-
-            let projektName = titel;
-            if (globalDaten.projekte[projektName]) {
-                projektName = `${titel} – Auftrag ${new Date().toLocaleDateString('de-DE')}`;
-            }
-
-            let auftragsDateiUrl = '';
             try {
-                if (letzterKiScan.originalDatei) {
-                    auftragsDateiUrl = await uploadBaustellenDatei(letzterKiScan.originalDatei, 'plaene', projektName);
-                } else if (letzterKiScan.planUrl) {
-                    // Falls kein Original vorliegt, bleibt die bisherige URL als Rückfall erhalten.
-                    auftragsDateiUrl = letzterKiScan.planUrl;
+                if (!letzterKiScan) {
+                    alert('Es liegt kein erkannter Auftrag zum Speichern vor. Bitte zuerst einen Auftrag scannen.');
+                    return;
                 }
-            } catch (uploadError) {
-                console.error('Auftragsdatei konnte nicht in Storage gespeichert werden:', uploadError);
-                return alert(`Die Baustelle wurde noch nicht angelegt, weil der Auftrag nicht in Firebase Storage gespeichert werden konnte. ${uploadError.message || ''}`);
+
+                const titelInput = document.getElementById('ki-ergebnis-projekt');
+                const adresseInput = document.getElementById('ki-ergebnis-adresse');
+                const anweisungInput = document.getElementById('ki-ergebnis-anweisung');
+                const materialInput = document.getElementById('ki-ergebnis-material');
+
+                const titel = titelInput ? titelInput.value.trim() : '';
+                const adresse = adresseInput ? adresseInput.value.trim() : '';
+                const anweisung = anweisungInput ? anweisungInput.value.trim() : '';
+                const materialText = materialInput ? materialInput.value.trim() : '';
+
+                if (!titel) {
+                    alert('Bitte einen Projektnamen eingeben.');
+                    titelInput?.focus();
+                    return;
+                }
+
+                if (!globalDaten.projekte) globalDaten.projekte = {};
+
+                // Firebase-Dokument-IDs dürfen keinen "/" enthalten.
+                // Der sichtbare Baustellenname bleibt trotzdem unverändert.
+                const sichtbarerTitel = titel;
+                const sichereId = titel
+                    .replace(/[\/\\#?\[\]]/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .slice(0, 120) || `Baustelle ${new Date().toLocaleDateString('de-DE')}`;
+
+                let projektName = sichereId;
+                if (globalDaten.projekte[projektName]) {
+                    projektName = `${sichereId} – Auftrag ${new Date().toLocaleDateString('de-DE')}`;
+                }
+
+                const material = materialText
+                    .split('\n')
+                    .map(x => x.trim())
+                    .filter(Boolean)
+                    .map(line => {
+                        const teile = line.split('|').map(x => x.trim());
+                        const bez = teile[0] || 'Material';
+                        return {
+                            bez,
+                            menge: teile[1] || 'Menge prüfen',
+                            kat: /uzin|kleber|klebstoff|colle|adhésif/i.test(bez)
+                                ? 'Verklebung'
+                                : (/grundierung|primer|spachtel|egal|primaire|ragréage|enduit/i.test(bez)
+                                    ? 'Vorbereitung'
+                                    : 'Material'),
+                            ort: '—',
+                            status: '⏳ Offen'
+                        };
+                    });
+
+                if (button) {
+                    button.disabled = true;
+                    button.innerHTML = '⏳ Baustelle wird angelegt …';
+                }
+
+                // ZUERST die Baustelle lokal + in Firestore anlegen.
+                // Das Hochladen des Originalauftrags darf die Baustellenanlage
+                // nicht mehr blockieren.
+                const projekt = {
+                    adresse: adresse || 'Adresse im Auftrag nicht erkannt',
+                    status: 'Anstehend',
+                    anweisung: anweisung || 'Arbeitsauftrag aus dem eingescannten Auftrag.',
+                    kunde: letzterKiScan.kunde || '',
+                    auftragsnummer: letzterKiScan.auftragsnummer || '',
+                    termin: letzterKiScan.termin || '',
+                    flaeche: letzterKiScan.flaeche || '',
+                    belag: letzterKiScan.belag || '',
+                    arbeiten: Array.isArray(letzterKiScan.arbeiten) ? letzterKiScan.arbeiten : [],
+                    ansprechpartner: letzterKiScan.ansprechpartner || '',
+                    telefon: letzterKiScan.telefon || '',
+                    email: letzterKiScan.email || '',
+                    auftragssprache: letzterKiScan.sprache || 'Unklar',
+                    kiUnsicher: Array.isArray(letzterKiScan.unsicher) ? letzterKiScan.unsicher : [],
+                    originalBaustellenName: sichtbarerTitel,
+                    plaene: [],
+                    aktiverPlanIndex: 0,
+                    pins: [],
+                    material,
+                    kiScan: true,
+                    kiScanDatum: new Date().toISOString(),
+                    kiOriginalText: letzterKiScan.roherText || ''
+                };
+
+                globalDaten.projekte[projektName] = projekt;
+
+                // Direktes Speichern mit Rückgabefehler, damit ein Firebase-Problem
+                // sichtbar wird und nicht still verschluckt wird.
+                await setDoc(doc(db, "projekte", projektName), projekt);
+
+                // Originalauftrag danach optional in Storage sichern.
+                // Wenn Storage nicht verfügbar ist, bleibt die Baustelle trotzdem angelegt.
+                if (letzterKiScan.originalDatei) {
+                    try {
+                        kiScanStatus("Baustelle angelegt – Originalauftrag wird gespeichert …", "📄");
+                        const auftragsDateiUrl = await uploadBaustellenDatei(
+                            letzterKiScan.originalDatei,
+                            'plaene',
+                            projektName
+                        );
+
+                        projekt.plaene = [auftragsDateiUrl];
+                        await setDoc(doc(db, "projekte", projektName), projekt);
+                    } catch (uploadError) {
+                        console.warn("Originalauftrag konnte nicht hochgeladen werden:", uploadError);
+                        kiScanStatus("Baustelle angelegt – Originalauftrag konnte nicht hochgeladen werden.", "⚠️");
+                    }
+                }
+
+                // Globale Daten/Benachrichtigung aktualisieren.
+                if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
+                const datum = new Date().toLocaleDateString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                globalDaten.benachrichtigungen.unshift({
+                    von: `🤖 KI-Auftragserkennung (${eingeloggterMitarbeiter || 'Benutzer'})`,
+                    empfaenger: 'Chef/Techniker/Zugewiesen',
+                    text: `Neue Baustelle "${sichtbarerTitel}" aus Auftrag automatisch angelegt.`,
+                    datum,
+                    gelesenVon: [eingeloggterMitarbeiter || 'Benutzer'],
+                    geloeschtVon: [],
+                    projekt: projektName
+                });
+
+                await globalGlobalSpeichern();
+
+                // UI sofort aktualisieren, ohne auf den Firestore-Snapshot zu warten.
+                aktuellesProjekt = projektName;
+                allesAktualisieren();
+
+                document.getElementById('projekt-ki-modal')?.classList.add('hidden');
+                document.getElementById('ki-ergebnis-bereich')?.classList.add('hidden');
+                kiScanStatus("Foto / PDF / Auftragsbild antippen oder hierher ziehen", "👁️‍🗨️");
+
+                // Baustelle direkt öffnen.
+                try {
+                    projektLaden(projektName);
+                } catch (loadError) {
+                    console.warn("Baustelle konnte nicht direkt geöffnet werden:", loadError);
+                }
+
+                alert(`✅ Baustelle "${sichtbarerTitel}" wurde erfolgreich angelegt.`);
+
+            } catch (error) {
+                console.error("FEHLER BEIM ANLEGEN DER KI-BAUSTELLE:", error);
+                alert(
+                    "❌ Die Baustelle konnte nicht angelegt werden.\n\n" +
+                    "Fehler: " + (error?.message || error || "Unbekannter Fehler") +
+                    "\n\nBitte erneut versuchen."
+                );
+                kiScanStatus("Baustelle konnte nicht angelegt werden.", "❌");
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = originalButtonText || '🚀 Baustelle anlegen';
+                }
             }
-
-            globalDaten.projekte[projektName] = {
-                adresse: adresse || 'Adresse im Auftrag nicht erkannt',
-                status: 'Anstehend',
-                anweisung: anweisung || 'Arbeitsauftrag aus dem eingescannten Auftrag.',
-                kunde: letzterKiScan.kunde || '',
-                auftragsnummer: letzterKiScan.auftragsnummer || '',
-                termin: letzterKiScan.termin || '',
-                flaeche: letzterKiScan.flaeche || '',
-                belag: letzterKiScan.belag || '',
-                arbeiten: letzterKiScan.arbeiten || [],
-                ansprechpartner: letzterKiScan.ansprechpartner || '',
-                telefon: letzterKiScan.telefon || '',
-                email: letzterKiScan.email || '',
-                auftragssprache: letzterKiScan.sprache || 'Unklar',
-                kiUnsicher: letzterKiScan.unsicher || [],
-                plaene: auftragsDateiUrl ? [auftragsDateiUrl] : [],
-                aktiverPlanIndex: 0,
-                pins: [],
-                material,
-                kiScan: true,
-                kiScanDatum: new Date().toISOString(),
-                kiOriginalText: letzterKiScan.roherText || ''
-            };
-
-            projektSpeichern(projektName);
-            document.getElementById('projekt-ki-modal').classList.add('hidden');
-            document.getElementById('ki-ergebnis-bereich')?.classList.add('hidden');
-            projektLaden(projektName);
-            kiScanStatus("Foto / PDF / Auftragsbild antippen oder hierher ziehen", "👁️‍🗨️");
-
-            if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
-            const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            globalDaten.benachrichtigungen.unshift({
-                von: `🤖 KI-Auftragserkennung (${eingeloggterMitarbeiter})`,
-                empfaenger: 'Chef/Techniker/Zugewiesen',
-                text: `Neue Baustelle "${projektName}" aus Auftrag automatisch angelegt – inklusive erkannter Materialien.`,
-                datum,
-                gelesenVon: [eingeloggterMitarbeiter],
-                geloeschtVon: [],
-                projekt: projektName
-            });
-            globalGlobalSpeichern();
         }
 
         window.planEinlesenDrop = function(event) {
