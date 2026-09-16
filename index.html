@@ -1433,6 +1433,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
+                // Wochenplanung aus Firestore laden, damit sie nach einem Refresh erhalten bleibt.
+                globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
                 globalDaten.resturlaub = cloudDaten.resturlaub || {};
                 allesAktualisieren();
@@ -1490,8 +1492,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     zeiterfassung: globalDaten.zeiterfassung,
                     resturlaub: globalDaten.resturlaub
                 });
+                return true;
             } catch(e) {
                 console.error("Fehler beim Speichern global:", e);
+                alert(`⚠️ Wochenplanung konnte nicht gespeichert werden. ${e.message || "Bitte Firebase-Verbindung und Regeln prüfen."}`);
+                return false;
             }
         }
 
@@ -2109,10 +2114,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.wochenTagBaustelleHinzufuegen=async function(select,name,key){
             if(!kalenderIstChef() || !select.value) { if(select) select.value=''; return; }
             const vals=wochenplanungDaten(name,key); if(!vals.includes(select.value)) vals.push(select.value);
-            await globalGlobalSpeichern(); select.value=''; wochenplanungAnzeigen(); startseiteAktualisieren();
+            const gespeichert = await globalGlobalSpeichern();
+            if(gespeichert === false) return;
+            select.value=''; wochenplanungAnzeigen(); startseiteAktualisieren();
         };
         window.wochenTagBaustelleEntfernen=async function(name,key,index){
-            if(!kalenderIstChef()) return; const vals=wochenplanungDaten(name,key); vals.splice(index,1); await globalGlobalSpeichern(); wochenplanungAnzeigen(); startseiteAktualisieren();
+            if(!kalenderIstChef()) return; const vals=wochenplanungDaten(name,key); const entfernt=vals.splice(index,1)[0]; const gespeichert=await globalGlobalSpeichern(); if(gespeichert===false){ vals.splice(index,0,entfernt); wochenplanungAnzeigen(); return; } wochenplanungAnzeigen(); startseiteAktualisieren();
         };
         window.wochenplanungVorherigeWoche=function(){wochenplanungOffset--;wochenplanungAnzeigen();};
         window.wochenplanungNaechsteWoche=function(){wochenplanungOffset++;wochenplanungAnzeigen();};
@@ -3729,6 +3736,16 @@ window.zeigeVerlegerPlanungAufStartseite=function(){
   montag.setDate(montag.getDate()-wd+1);
   const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   const jobs={1:[],2:[],3:[],4:[],5:[]};
+
+  // Mitarbeiter-Zentrale: Die Tagesplanung wird in portal/global.wochenplanung gespeichert.
+  const wochenplanung=(window.globalDaten && window.globalDaten.wochenplanung) || {};
+  const meineWoche=wochenplanung[name] || {};
+  tage.forEach((t,i)=>{
+    const d=new Date(montag); d.setDate(montag.getDate()+i);
+    const vals=meineWoche[key(d)];
+    const liste=Array.isArray(vals) ? vals : (typeof vals==='string' && vals ? [vals] : []);
+    liste.forEach(j=>{ if(j) jobs[t.nr].push(String(j)); });
+  });
 
   // Alte Baustellen-Kalenderstruktur: projekt.planung.verleger[name].tage[datum]
   Object.keys(projekte).forEach(projekt=>{
