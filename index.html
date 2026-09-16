@@ -701,6 +701,15 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 </div>
             </div>
 
+            <div id="verleger-planung-startseite" class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+                    <div><h2 class="text-lg font-black text-slate-900">📅 Meine Wochenplanung</h2><p id="verleger-planung-start-subtitle" class="text-xs text-slate-500">Deine heutigen und geplanten Einsätze</p></div>
+                    <span class="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full">Diese Woche</span>
+                </div>
+                <div id="verleger-planung-start-heute" class="mb-5"></div>
+                <div id="verleger-planung-start-liste" class="space-y-2"></div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-4 flex flex-col justify-between hover:shadow-md transition">
                     <div class="space-y-2">
@@ -2697,10 +2706,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const p=globalDaten.projekte[projekt]; if(!p) return; const plan=planungFuerProjekt(p); plan.verleger[name]=plan.verleger[name]||{tage:{}}; plan.verleger[name].tage=plan.verleger[name].tage||{};
             if(plan.verleger[name].tage[key]?.baustelle===projekt) delete plan.verleger[name].tage[key];
             else plan.verleger[name].tage[key]={baustelle:projekt,status:'Geplant'};
-            await projektSpeichern(projekt); kalenderAnzeigen();
+            await projektSpeichern(projekt); kalenderAnzeigen(); if(typeof window.zeigeVerlegerPlanungAufStartseite==="function") window.zeigeVerlegerPlanungAufStartseite();
         };
         window.kalenderTagAendern = async function(projekt,name,key,status){
-            if(!kalenderIstChef()) return; const p=globalDaten.projekte[projekt]; if(!p) return; const plan=planungFuerProjekt(p); const v=plan.verleger[name]?.tage?.[key]; if(!v) return; v.status=status; await projektSpeichern(projekt); kalenderAnzeigen();
+            if(!kalenderIstChef()) return; const p=globalDaten.projekte[projekt]; if(!p) return; const plan=planungFuerProjekt(p); const v=plan.verleger[name]?.tage?.[key]; if(!v) return; v.status=status; await projektSpeichern(projekt); kalenderAnzeigen(); if(typeof window.zeigeVerlegerPlanungAufStartseite==="function") window.zeigeVerlegerPlanungAufStartseite();
         };
         function isChefOrPrivileged(){ return eingeloggteRolle.includes('Chef')||eingeloggteRolle.includes('Techniker')||eingeloggteRolle.includes('Admin')||eingeloggteRolle.includes('Sekretariat')||eingeloggterMitarbeiter==='Christian Leppin'; }
 
@@ -3683,15 +3692,35 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
 <script>
 window.zeigeVerlegerPlanungAufStartseite=function(){
- const b=document.getElementById('verleger-planung-startseite'),l=document.getElementById('verleger-planung-start-liste'),sub=document.getElementById('verleger-planung-start-subtitle');
- if(!b||!l)return; const name=typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:''; if(!name){b.style.display='none';return;}
- const tage=wochenTage(0), heuteKey=lokalesDatumKey(new Date());
- const alle=tage.flatMap(t=>wochenplanungDaten(name,t.key).map(p=>({datum:t,baustelle:p}))); b.style.display='block';
- sub.textContent='Deine Einsatzplanung für heute und die ganze Woche';
- const heute=alle.filter(x=>x.datum.key===heuteKey), rest=alle.filter(x=>x.datum.key!==heuteKey);
- const block=(title,items,cls)=>`<div class="mb-3"><div style="font-weight:800;font-size:12px;margin-bottom:6px">${title}</div>${items.length?items.map(x=>{const p=globalDaten.projekte[x.baustelle]||{};return `<div style="display:grid;grid-template-columns:105px 1fr;gap:10px;padding:9px 4px;border-bottom:1px solid #eee" class="${cls||''}"><strong>${x.datum.key===heuteKey?'Heute':escapeHtml(x.datum.label)}</strong><div><strong>${escapeHtml(x.baustelle)}</strong><div style="color:#666;font-size:11px">${escapeHtml(p.adresse||'Keine Adresse hinterlegt')}</div></div></div>`}).join(''):'<div style="padding:10px;border-radius:8px;background:#f6f6f6;color:#666">Keine Baustelle eingeteilt.</div>'}</div>`;
- l.innerHTML=block('📍 HEUTE',heute,'')+block('📅 DIESE WOCHE',rest,'');
-};document.addEventListener('DOMContentLoaded',()=>setTimeout(window.zeigeVerlegerPlanungAufStartseite,500));
+  const b=document.getElementById('verleger-planung-startseite');
+  const l=document.getElementById('verleger-planung-start-liste');
+  const h=document.getElementById('verleger-planung-start-heute');
+  const sub=document.getElementById('verleger-planung-start-subtitle');
+  if(!b||!l||!h)return;
+  const name=typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:'';
+  const rolle=typeof eingeloggteRolle!=='undefined'?eingeloggteRolle:'';
+  if(!name || rolle!=='Verleger'){b.classList.add('hidden');return;}
+  const g=window.globalDaten||{};
+  const projekte=g.projekte||{};
+  const zugewiesen=(g.zuweisungen&&Array.isArray(g.zuweisungen[name]))?g.zuweisungen[name]:[];
+  const heute=new Date(); heute.setHours(0,0,0,0);
+  const montag=new Date(heute); const tag=montag.getDay()||7; montag.setDate(montag.getDate()-tag+1);
+  const tage=[]; for(let i=0;i<7;i++){const d=new Date(montag);d.setDate(montag.getDate()+i);tage.push(d);}
+  const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const kurz=['So','Mo','Di','Mi','Do','Fr','Sa'];
+  const einsaetze=[];
+  zugewiesen.forEach(projekt=>{
+    const p=projekte[projekt]; if(!p)return;
+    const plan=p.planung&&p.planung.verleger&&p.planung.verleger[name];
+    const daten=plan&&plan.tage||{};
+    tage.forEach(d=>{const v=daten[key(d)]; if(v&&v.baustelle===projekt)einsaetze.push({d,v,p,projekt});});
+  });
+  b.classList.remove('hidden');
+  sub.textContent='Deine Einsätze für heute und die ganze Woche';
+  const heuteJobs=einsaetze.filter(x=>key(x.d)===key(heute));
+  h.innerHTML=heuteJobs.length?`<div class="rounded-2xl border border-blue-200 bg-blue-50 p-4"><div class="text-xs font-black uppercase tracking-wider text-blue-700 mb-2">📍 Heute · ${heute.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit'})}</div>${heuteJobs.map(x=>`<div class="bg-white rounded-xl p-3 mb-2 last:mb-0"><div class="font-bold text-slate-900">${String(x.projekt).replace(/[<>]/g,'')}</div><div class="text-xs text-slate-500">📍 ${String(x.p.adresse||'Keine Adresse').replace(/[<>]/g,'')}${x.v.von||x.v.bis?` · ⏰ ${x.v.von||''}${x.v.bis?' – '+x.v.bis:''}`:''}</div>${x.v.notiz?`<div class="text-xs text-slate-600 mt-1">📝 ${String(x.v.notiz).replace(/[<>]/g,'')}</div>`:''}</div>`).join('')}</div>`:'<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">Heute ist keine Baustelle eingeteilt.</div>';
+  l.innerHTML=tage.map(d=>{const jobs=einsaetze.filter(x=>key(x.d)===key(d));const istHeute=key(d)===key(heute);return `<div class="rounded-xl border ${istHeute?'border-blue-300 bg-blue-50/40':'border-slate-200 bg-white'} p-3"><div class="flex items-center justify-between gap-2 mb-2"><strong class="text-sm text-slate-900">${kurz[d.getDay()]} · ${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</strong><span class="text-[10px] font-bold ${jobs.length?'text-blue-700':'text-slate-400'}">${jobs.length?jobs.length+' Baustelle'+(jobs.length>1?'n':''):'frei'}</span></div>${jobs.length?jobs.map(x=>`<div class="border-t border-slate-200 pt-2 mt-2"><div class="font-semibold text-sm">${String(x.projekt).replace(/[<>]/g,'')}</div><div class="text-xs text-slate-500">📍 ${String(x.p.adresse||'Keine Adresse').replace(/[<>]/g,'')}${x.v.von||x.v.bis?` · ${x.v.von||''}${x.v.bis?' – '+x.v.bis:''}`:''}</div></div>`).join(''):'<div class="text-xs text-slate-400">Keine Baustelle eingeteilt</div>'}</div>`;}).join('');
+};
 </script>
 
 <script id="KI_VOLLSTAENDIGE_AUFTRAGSERKENNUNG_V2">
