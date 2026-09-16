@@ -1684,6 +1684,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             try { wetterLaden(); } catch(e) { console.warn('Wetter-Start fehlgeschlagen:', e); }
             try { startseiteAktualisieren(); } catch(e) { console.warn('Startseite konnte nicht aktualisiert werden:', e); }
+            try { if (typeof window.zeigeVerlegerPlanungAufStartseite === 'function') window.zeigeVerlegerPlanungAufStartseite(); } catch(e) { console.warn('Wochenplanung konnte beim Login nicht geladen werden:', e); }
             try { zeiterfassungAnzeigen(); } catch(e) { console.warn('Zeiterfassung konnte nicht aktualisiert werden:', e); }
             try { wechselnTab('startseite'); } catch(e) { console.warn('Startseite konnte nicht geöffnet werden:', e); }
         }
@@ -3678,6 +3679,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (tabName === 'startseite') {
                 wetterLaden();
                 startseiteAktualisieren();
+                try { if (typeof window.zeigeVerlegerPlanungAufStartseite === 'function') window.zeigeVerlegerPlanungAufStartseite(); } catch(e) { console.warn('Wochenplanung:', e); }
             }
             if (tabName === 'urlaub') {
                 zeiterfassungAnzeigen();
