@@ -208,7 +208,7 @@ function kiKurzbeschreibungAuswerten(){
   const raumHtml=daten.map(r=>`<div class="rounded-lg bg-slate-50 border border-slate-200 p-3 mb-2"><div class="font-bold text-slate-900">${kiEsc(r.name)}${r.qm!=null?' – '+r.qm.toLocaleString('de-DE',{maximumFractionDigits:2})+' m²':''}</div><div class="text-xs text-slate-600 mt-1">${kiEsc([r.belag,r.schwimmend?'schwimmend':'',r.voll?'vollflächig verklebt':'',r.unterlageMm?r.unterlageMm+' mm Unterlage':'',r.spachtelProdukt?(r.spachtelProdukt+(r.schichtdicke?' – '+r.schichtdicke+' mm':'')):'',...r.products.filter(p=>p!==r.spachtelProdukt)].filter(Boolean).join(' · '))}</div></div>`).join('');
   preview.innerHTML=`<div class="bg-white border border-slate-200 rounded-xl p-4"><div class="font-bold text-slate-900 mb-3">🧮 Materialberechnung</div><div class="text-sm mb-3">Erkannte Räume: <b>${daten.length}</b> · Erkannte Gesamtfläche: <b>${total?total.toLocaleString('de-DE',{maximumFractionDigits:2})+' m²':'prüfen'}</b></div><div class="mb-4"><div class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Raumaufteilung</div>${raumHtml}</div><div class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Materialliste</div><div class="space-y-2">${material.map(x=>`<div class="flex justify-between gap-3 border-b pb-2 text-sm"><span class="font-semibold">${kiEsc(x.split('|')[0])}</span><span class="font-bold text-right">${kiEsc(x.split('|').slice(1).join(' | '))}</span></div>`).join('')}</div>${unsicher.length?`<div class="mt-4 p-3 rounded-lg bg-amber-50 text-amber-800 text-sm"><b>⚠️ Prüfen:</b><br>${unsicher.map(x=>'• '+kiEsc(x)).join('<br>')}</div>`:''}<div class="mt-4 text-xs text-slate-500">${reserve?'10 % Reserve berücksichtigt. ':''}Nur hinterlegte Hersteller-Verbrauchswerte werden berechnet. Produktwahl, Zahnung, Untergrund und tatsächliche Verarbeitung können den Verbrauch beeinflussen.</div></div>`;
 }
- letzterKiScan={kunde:'',auftragsnummer:'',termin:'',flaeche:String(total||''),belag:[...new Set(daten.map(r=>r.belag).filter(Boolean))].join(', '),arbeiten:[],ansprechpartner:'',telefon:'',email:'',sprache:'Deutsch',unsicher,roherText:text,originalDatei:null,raeume:daten,materialBerechnung:material};
+ window.letzterKiScan={kunde:'',auftragsnummer:'',termin:'',flaeche:String(total||''),belag:[...new Set(daten.map(r=>r.belag).filter(Boolean))].join(', '),arbeiten:[],ansprechpartner:'',telefon:'',email:'',sprache:'Deutsch',unsicher,roherText:text,originalDatei:null,raeume:daten,materialBerechnung:material};
  const bereich=document.getElementById('ki-ergebnis-bereich');if(bereich)bereich.classList.remove('hidden');
 }
 </script>
@@ -594,7 +594,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         </div>
                         <div class="grid md:grid-cols-2 gap-3">
                             <div><label class="block text-[10px] font-bold uppercase text-slate-500">Projekt / Baustelle</label><input id="ki-ergebnis-projekt" class="w-full px-2 py-2 border rounded-lg text-sm bg-white"></div>
-                            <div><label class="block text-[10px] font-bold uppercase text-slate-500">Baustellenadresse</label><input id="ki-ergebnis-adresse" class="w-full px-2 py-2 border rounded-lg text-sm bg-white"></div>
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase text-slate-500">Baustellenadresse</label>
+                                <div class="flex gap-2">
+                                    <input id="ki-ergebnis-adresse" class="flex-1 min-w-0 px-2 py-2 border rounded-lg text-sm bg-white" placeholder="Adresse eingeben oder in Google Maps suchen">
+                                    <button type="button" onclick="kiGoogleMapsAdresseSuchen()" class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold" title="Adresse in Google Maps suchen">📍 Maps</button>
+                                </div>
+                                <div class="text-[10px] text-slate-500 mt-1">Adresse in Google Maps auswählen/kopieren und hier eintragen. Der Maps-Button öffnet die Suche direkt.</div>
+                            </div>
                         </div>
                         <div><label class="block text-[10px] font-bold uppercase text-slate-500">Arbeitsauftrag / Anweisung</label><textarea id="ki-ergebnis-anweisung" rows="6" class="w-full px-2 py-2 border rounded-lg text-sm bg-white"></textarea></div>
                         <div><label class="block text-[10px] font-bold uppercase text-slate-500">Erkanntes Material</label><textarea id="ki-ergebnis-material" rows="6" class="w-full px-2 py-2 border rounded-lg text-sm bg-white" placeholder="Produkt | Menge"></textarea></div>
@@ -3095,10 +3102,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             map.invalidateSize();
         }
 
-        let letzterKiScan = null;
+        window.letzterKiScan = null;
+
+        window.kiGoogleMapsAdresseSuchen = function() {
+            const input = document.getElementById('ki-ergebnis-adresse');
+            const query = input ? input.value.trim() : '';
+            const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query || 'Baustellenadresse');
+            window.open(url, '_blank', 'noopener,noreferrer');
+        };
 
         function kiAuftragZuruecksetzen() {
-            letzterKiScan = null;
+            window.letzterKiScan = null;
             document.getElementById('ki-ergebnis-bereich')?.classList.add('hidden');
             const preview = document.getElementById('ki-material-vorschau');
             if (preview) {
@@ -3112,7 +3126,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const originalButtonText = button ? button.innerHTML : '';
 
             try {
-                if (!letzterKiScan) {
+                if (!window.letzterKiScan) {
                     alert('Es liegt kein KI-Auftrag zum Speichern vor. Bitte zuerst den Auftragstext auswerten.');
                     return;
                 }
@@ -3181,17 +3195,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     adresse: adresse || 'Adresse im Auftrag nicht erkannt',
                     status: 'Anstehend',
                     anweisung: anweisung || 'Arbeitsauftrag aus dem KI-Auftrag.',
-                    kunde: letzterKiScan.kunde || '',
-                    auftragsnummer: letzterKiScan.auftragsnummer || '',
-                    termin: letzterKiScan.termin || '',
-                    flaeche: letzterKiScan.flaeche || '',
-                    belag: letzterKiScan.belag || '',
-                    arbeiten: Array.isArray(letzterKiScan.arbeiten) ? letzterKiScan.arbeiten : [],
-                    ansprechpartner: letzterKiScan.ansprechpartner || '',
-                    telefon: letzterKiScan.telefon || '',
-                    email: letzterKiScan.email || '',
-                    auftragssprache: letzterKiScan.sprache || 'Unklar',
-                    kiUnsicher: Array.isArray(letzterKiScan.unsicher) ? letzterKiScan.unsicher : [],
+                    kunde: window.letzterKiScan.kunde || '',
+                    auftragsnummer: window.letzterKiScan.auftragsnummer || '',
+                    termin: window.letzterKiScan.termin || '',
+                    flaeche: window.letzterKiScan.flaeche || '',
+                    belag: window.letzterKiScan.belag || '',
+                    arbeiten: Array.isArray(window.letzterKiScan.arbeiten) ? window.letzterKiScan.arbeiten : [],
+                    ansprechpartner: window.letzterKiScan.ansprechpartner || '',
+                    telefon: window.letzterKiScan.telefon || '',
+                    email: window.letzterKiScan.email || '',
+                    auftragssprache: window.letzterKiScan.sprache || 'Unklar',
+                    kiUnsicher: Array.isArray(window.letzterKiScan.unsicher) ? window.letzterKiScan.unsicher : [],
                     originalBaustellenName: sichtbarerTitel,
                     plaene: [],
                     aktiverPlanIndex: 0,
@@ -3199,7 +3213,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     material,
                     kiAuftrag: true,
                     kiAuftragDatum: new Date().toISOString(),
-                    kiAuftragText: letzterKiScan.roherText || ''
+                    kiAuftragText: window.letzterKiScan.roherText || ''
                 };
 
                 globalDaten.projekte[projektName] = projekt;
