@@ -15,6 +15,258 @@
     <!-- Tesseract.js für echte Texterkennung (OCR) -->
     <script src='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js'></script>
 
+
+<script>
+/* ===== KI-KURZBESCHREIBUNG + MATERIALRECHNER =====
+   Herstellerwerte werden als Verbrauchsbereiche geführt.
+   Fehlende Schichtdicken werden NICHT erfunden.
+*/
+const KI_MATERIALDATEN = {
+    "UZIN NC 160": {
+        hersteller: "UZIN", typ: "Ausgleichsmasse", einheit: "kg",
+        packung: 25, faktor: 1.5, faktorEinheit: "kg/m²/mm",
+        hinweis: "ca. 1,5 kg/m²/mm"
+    },
+    "UZIN NC 145": {
+        hersteller: "UZIN", typ: "Ausgleichsmasse", einheit: "kg",
+        packung: 25, faktor: 1.5, faktorEinheit: "kg/m²/mm",
+        hinweis: "ca. 1,5 kg/m²/mm"
+    },
+    "WAKOL Z 615": {
+        hersteller: "WAKOL", typ: "Ausgleichsmasse", einheit: "kg",
+        packung: 25, faktor: 1.5, faktorEinheit: "kg/m²/mm",
+        hinweis: "ca. 1,5 kg/m²/mm bei ungestreckter Verarbeitung"
+    },
+    "WAKOL D 3318": {
+        hersteller: "WAKOL", typ: "Klebstoff", einheit: "kg",
+        min: 0.290, max: 0.350, packung: 14, faktorEinheit: "kg/m²",
+        hinweis: "ca. 290–350 g/m²"
+    },
+    "WAKOL D 3304": {
+        hersteller: "WAKOL", typ: "Klebstoff", einheit: "kg",
+        min: 0.375, max: 0.500, packung: 14, faktorEinheit: "kg/m²",
+        hinweis: "ca. 375–500 g/m²"
+    },
+    "UZIN WK 222": {
+        hersteller: "UZIN", typ: "Kontaktklebstoff", einheit: "kg",
+        min: 0.300, max: 0.550, packung: 12, faktorEinheit: "kg/m²",
+        hinweis: "300–550 g/m² Gesamtmenge"
+    }
+};
+
+function kiZahl(s) {
+    if (s == null) return null;
+    const m = String(s).replace(',', '.').match(/(\d+(?:\.\d+)?)/);
+    return m ? parseFloat(m[1]) : null;
+}
+
+function kiFlaecheErkennen(text) {
+    const m = text.match(/(\d+(?:[.,]\d+)?)\s*(?:m²|m2|qm|m2\b|mètres?\s*carrés?)/i);
+    return m ? parseFloat(m[1].replace(',', '.')) : null;
+}
+
+function kiDickeErkennen(text) {
+    const m = text.match(/(?:ca\.?\s*)?(\d+(?:[.,]\d+)?)\s*(?:mm|millimeter|millimètres?)/i);
+    return m ? parseFloat(m[1].replace(',', '.')) : null;
+}
+
+function kiBelagErkennen(text) {
+    const t = text.toLowerCase();
+    if (/linoleum|lino\b/.test(t)) return "Linoleum";
+    if (/lvt|designbelag|designbeläge|vinyl|pvc/.test(t)) return "Vinyl / PVC / LVT";
+    if (/teppich|teppichboden|textil/.test(t)) return "Teppich";
+    if (/parkett|parquet/.test(t)) return "Parkett";
+    if (/kautschuk|gummi/.test(t)) return "Kautschuk";
+    return "";
+}
+
+function kiHerstellerErkennen(text) {
+    if (/\bwakol\b/i.test(text)) return "WAKOL";
+    if (/\buzin\b/i.test(text)) return "UZIN";
+    return "";
+}
+
+function kiProduktErkennen(text, belag, hersteller) {
+    const t = text.toLowerCase();
+    if (/nc\s*160/.test(t)) return "UZIN NC 160";
+    if (/nc\s*145/.test(t)) return "UZIN NC 145";
+    if (/z\s*615/.test(t)) return "WAKOL Z 615";
+    if (/d\s*3318/.test(t)) return "WAKOL D 3318";
+    if (/d\s*3304/.test(t)) return "WAKOL D 3304";
+    if (/wk\s*222/.test(t)) return "UZIN WK 222";
+
+    // Bei ausdrücklich gewünschter Ausgleichsmasse + Hersteller:
+    if (/spachtel|spachteln|ausgleich|nivell|egal/.test(t)) {
+        if (hersteller === "WAKOL") return "WAKOL Z 615";
+        if (hersteller === "UZIN") return "UZIN NC 160";
+    }
+
+    // Kleber für Linoleum ohne konkretes Produkt:
+    if (/kleben|kleber|verkleben|coller|colle/.test(t) && belag === "Linoleum") {
+        if (hersteller === "WAKOL") return "WAKOL D 3318";
+        if (hersteller === "UZIN") return null; // Produkt muss gewählt/geprüft werden.
+    }
+    return null;
+}
+
+function kiMengeBerechnen(productName, qm, dicke, reserve) {
+    const p = KI_MATERIALDATEN[productName];
+    if (!p || !qm) return null;
+
+    let minKg, maxKg;
+    if (p.faktor != null) {
+        if (!dicke) return { status: "dicke-fehlt", produkt: productName, packung: p.packung };
+        minKg = maxKg = qm * dicke * p.faktor;
+    } else {
+        minKg = qm * p.min;
+        maxKg = qm * p.max;
+    }
+
+    if (reserve) {
+        minKg *= 1.10;
+        maxKg *= 1.10;
+    }
+
+    return {
+        produkt: productName,
+        minKg,
+        maxKg,
+        packung: p.packung,
+        gebindeMin: Math.ceil(minKg / p.packung),
+        gebindeMax: Math.ceil(maxKg / p.packung),
+        hinweis: p.hinweis
+    };
+}
+
+function kiKurzbeschreibungAuswerten() {
+    const text = (document.getElementById("ki-kurzbeschreibung")?.value || "").trim();
+    const qmInput = kiZahl(document.getElementById("ki-qm-direkt")?.value);
+    const belagSelect = document.getElementById("ki-belag-direkt")?.value || "";
+    const herstellerSelect = document.getElementById("ki-hersteller-direkt")?.value || "";
+    const reserve = document.getElementById("ki-reserve-10")?.checked !== false;
+
+    if (!text && !qmInput) {
+        alert("Bitte kurz beschreiben, was auf der Baustelle gemacht werden soll – z. B. „170 m² Linoleum, Estrich reinigen, grundieren, 3 mm spachteln, verkleben, UZIN“.");
+        return;
+    }
+
+    const qm = qmInput || kiFlaecheErkennen(text);
+    const belag = belagSelect || kiBelagErkennen(text);
+    const hersteller = herstellerSelect || kiHerstellerErkennen(text);
+    const dicke = kiDickeErkennen(text);
+    const produkt = kiProduktErkennen(text, belag, hersteller);
+
+    const arbeiten = [];
+    const t = text.toLowerCase();
+    if (/reinigen|nettoyer/.test(t)) arbeiten.push("Untergrund reinigen");
+    if (/grundieren|grundierung|primer|vorstrich|primaire/.test(t)) arbeiten.push("Grundieren");
+    if (/spachtel|spachteln|ausgleich|nivell|egal|ragréage/.test(t)) arbeiten.push("Spachteln / Ausgleichen");
+    if (/kleben|verkleben|kleber|coller|colle/.test(t)) arbeiten.push("Belag verkleben");
+    if (/verlegen|verlegung|pose/.test(t)) arbeiten.push("Belag verlegen");
+
+    // Projektname: erste sinnvolle Textzeile, sonst generisch.
+    const projekt = (text.split(/[.!?\n]/).map(x => x.trim()).find(x => x.length >= 4) || "Neue Baustelle").slice(0, 90);
+
+    // Ergebnis in die vorhandenen KI-Felder schreiben.
+    const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el && value != null) el.value = value;
+    };
+
+    set("ki-ergebnis-projekt", projekt);
+    set("ki-ergebnis-adresse", "");
+    set("ki-ergebnis-anweisung",
+        (arbeiten.length ? arbeiten.join(", ") + ". " : "") +
+        (belag ? "Belag: " + belag + ". " : "") +
+        (text ? text : "")
+    );
+
+    const unsicher = [];
+    if (!qm) unsicher.push("Fläche (m²) fehlt");
+    if (!belag) unsicher.push("Bodenbelag fehlt");
+    if (arbeiten.length === 0) unsicher.push("Arbeitsumfang prüfen");
+    if (/spachtel|ausgleich|nivell|ragréage/i.test(text) && !dicke) {
+        unsicher.push("Schichtdicke der Ausgleichsmasse fehlt");
+    }
+    if (/kleben|verkleben|kleber|colle/i.test(text) && !produkt) {
+        unsicher.push("konkreten Klebstoff prüfen");
+    }
+
+    let materialLines = [];
+    const materialResults = [];
+
+    if (qm && produkt) {
+        const calc = kiMengeBerechnen(produkt, qm, dicke, reserve);
+        if (calc?.status === "dicke-fehlt") {
+            materialLines.push(`${produkt} | Schichtdicke prüfen | Ausgleichsmasse`);
+        } else if (calc) {
+            const menge = calc.minKg === calc.maxKg
+                ? `${calc.minKg.toFixed(1)} kg / ${calc.gebindeMin} x ${calc.packung} kg`
+                : `${calc.minKg.toFixed(1)}–${calc.maxKg.toFixed(1)} kg / ${calc.gebindeMin}–${calc.gebindeMax} x ${calc.packung} kg`;
+            materialLines.push(`${produkt} | ${menge} | ${KI_MATERIALDATEN[produkt].typ}`);
+            materialResults.push(calc);
+        }
+    } else if (qm && /spachtel|ausgleich|nivell|ragréage/i.test(text)) {
+        materialLines.push(`Ausgleichsmasse | Schichtdicke prüfen | Ausgleichsmasse`);
+    }
+
+    if (qm && /kleben|verkleben|kleber|colle/i.test(text) && !produkt) {
+        materialLines.push(`Klebstoff | Produkt/Zahnung prüfen | Klebstoff`);
+    }
+
+    set("ki-ergebnis-material", materialLines.join("\n"));
+
+    // Falls die normale KI-Ergebnisanzeige existiert, nutzen.
+    const bereich = document.getElementById("ki-ergebnis-bereich");
+    if (bereich) bereich.classList.remove("hidden");
+
+    const preview = document.getElementById("ki-material-vorschau");
+    if (preview) {
+        preview.classList.remove("hidden");
+        preview.innerHTML = `
+            <div class="bg-white border border-slate-200 rounded-xl p-4">
+                <div class="font-bold text-slate-900 mb-2">🧮 Materialberechnung</div>
+                <div class="text-sm text-slate-700 mb-3">
+                    Fläche: <b>${qm ? qm + " m²" : "prüfen"}</b> ·
+                    Belag: <b>${belag || "prüfen"}</b> ·
+                    Hersteller: <b>${hersteller || "prüfen"}</b>
+                    ${dicke ? ` · Schichtdicke: <b>${dicke} mm</b>` : ""}
+                </div>
+                ${materialResults.length ? materialResults.map(r => `
+                    <div class="border-t pt-3 mt-3">
+                        <b>${r.produkt}</b><br>
+                        Bedarf: <b>${r.minKg === r.maxKg ? r.minKg.toFixed(1) + " kg" : r.minKg.toFixed(1) + "–" + r.maxKg.toFixed(1) + " kg"}</b><br>
+                        Gebinde: <b>${r.gebindeMin === r.gebindeMax ? r.gebindeMin : r.gebindeMin + "–" + r.gebindeMax} × ${r.packung} kg</b><br>
+                        <span class="text-xs text-slate-500">${r.hinweis}${reserve ? " · +10 % Reserve eingerechnet" : ""}</span>
+                    </div>
+                `).join("") : `<div class="text-amber-700 font-semibold">Noch keine belastbare Menge berechnet – fehlende Angaben bitte prüfen.</div>`}
+                ${unsicher.length ? `<div class="mt-4 p-3 rounded-lg bg-amber-50 text-amber-800 text-sm"><b>⚠️ Prüfen:</b><br>${unsicher.map(x => "• " + x).join("<br>")}</div>` : ""}
+            </div>
+        `;
+    }
+
+    // Existing save function reads letzterKiScan.
+    letzterKiScan = {
+        kunde: "",
+        auftragsnummer: "",
+        termin: "",
+        flaeche: qm ? String(qm) : "",
+        belag,
+        arbeiten,
+        ansprechpartner: "",
+        telefon: "",
+        email: "",
+        sprache: "Deutsch",
+        unsicher,
+        roherText: text,
+        originalDatei: null
+    };
+
+    // Show a concise confirmation.
+    const status = document.getElementById("ki-scan-status");
+    if (status) status.textContent = "✅ Kurzbeschreibung ausgewertet – Daten prüfen und Baustelle anlegen.";
+}
+</script>
 <script>
 /* ===== ROBUSTE BILD-OCR: automatische Konvertierung + Bildoptimierung ===== */
 async function kiBildFuerOCRVorbereiten(file) {
@@ -481,6 +733,50 @@ window.kiErkenneBildTextRobust = async function(file, statusCallback) {
         <div class="bg-white w-full h-full min-h-screen flex flex-col overflow-hidden">
             <div class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
                 <div class="w-full max-w-6xl mx-auto space-y-6">
+                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 sm:p-6">
+                    <div class="flex items-start justify-between gap-4 mb-4">
+                        <div>
+                            <h4 class="text-xl font-bold text-slate-900">🧑‍💼 Chef: Baustelle kurz beschreiben</h4>
+                            <p class="text-sm text-slate-600 mt-1">
+                                Keine langen Aufträge nötig. Einfach Baustelle, Fläche, Belag und gewünschte Arbeiten schreiben.
+                            </p>
+                        </div>
+                    </div>
+                    <textarea id="ki-kurzbeschreibung"
+                        rows="5"
+                        class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Beispiel: Krankenhaus Trier, 170 m² Linoleum. Estrich reinigen, grundieren und ca. 3 mm spachteln. Danach Linoleum verkleben. UZIN Produkte verwenden."></textarea>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                        <input id="ki-qm-direkt" type="number" min="0" step="0.01" placeholder="Fläche z. B. 170 m²"
+                            class="rounded-xl border border-slate-300 px-4 py-3 text-sm">
+                        <select id="ki-belag-direkt" class="rounded-xl border border-slate-300 px-4 py-3 text-sm">
+                            <option value="">Belag automatisch erkennen</option>
+                            <option>Linoleum</option>
+                            <option>Vinyl / PVC / LVT</option>
+                            <option>Teppich</option>
+                            <option>Parkett</option>
+                            <option>Kautschuk</option>
+                            <option>Designbelag</option>
+                        </select>
+                        <select id="ki-hersteller-direkt" class="rounded-xl border border-slate-300 px-4 py-3 text-sm">
+                            <option value="">Hersteller automatisch</option>
+                            <option>UZIN</option>
+                            <option>WAKOL</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-wrap gap-3 mt-4">
+                        <button type="button" onclick="kiKurzbeschreibungAuswerten()"
+                            class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 rounded-xl">
+                            🤖 Baustelle aus Kurzbeschreibung erstellen
+                        </button>
+                        <label class="flex items-center gap-2 text-sm text-slate-700 px-2">
+                            <input id="ki-reserve-10" type="checkbox" checked class="w-4 h-4">
+                            10 % Reserve berechnen
+                        </label>
+                    </div>
+                    <div id="ki-material-vorschau" class="hidden mt-5"></div>
+                </div>
+
             <div class="flex justify-between items-center border-b pb-3">
                 <div>
                     <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">🤖 KI-Auftragserkennung & Baustelle anlegen</h3>
