@@ -79,16 +79,24 @@ function kiCalc(name,qm,dicke,reserve){
 
 /* Erkennt auch Schreibweisen wie „1 Raum 69m2 ... 2raum 35m2 ...“ */
 function kiRaeumeErkennen(text){
- const raw=String(text||'').trim();
+ const raw=String(text||'').replace(/\r/g,'').trim();
  if(!raw)return [];
- const re=/(?:^|\s)(\d+)\s*(?:raum|zimmer|bereich)\b/gi;
- const hits=[];let m;while((m=re.exec(raw)))hits.push({num:m[1],start:m.index+(m[0].startsWith(' ')?1:0),end:re.lastIndex});
+ /* Erkennt auch: 1 Raum, 1:Raum, 1: Raum, 1-Raum, 1. Raum, 2raum, 2 Raum */
+ const re=/(?:^|[\s;,.!?])([0-9]+)\s*[:.)\-]?\s*(?:raum|zimmer|bereich)\b/gi;
+ const hits=[]; let m;
+ while((m=re.exec(raw))){
+   const whole=m[0];
+   const markerStart=m.index + (whole.length - whole.trimStart().length);
+   hits.push({num:m[1],start:markerStart,end:re.lastIndex});
+ }
  if(hits.length){
    const rooms=[];
    for(let i=0;i<hits.length;i++){
      const a=hits[i].start,b=i+1<hits.length?hits[i+1].start:raw.length;
      let chunk=raw.slice(a,b).trim();
-     chunk=chunk.replace(/^\d+\s*(?:raum|zimmer|bereich)\b\s*/i,'').trim();
+     chunk=chunk.replace(/^[0-9]+\s*[:.)\-]?\s*(?:raum|zimmer|bereich)\b\s*/i,'').trim();
+     /* Globale Anweisung am Ende gehört nicht zum letzten Raumtext. */
+     chunk=chunk.replace(/\s+(?:in|für)\s+alle\s+r(?:ä|ae)ume\b.*$/i,'').trim();
      rooms.push({name:'Raum '+hits[i].num,text:chunk});
    }
    return rooms;
@@ -99,10 +107,14 @@ function kiRaeumeErkennen(text){
 function kiGlobalInfo(text){
  const t=String(text||'');
  const all=/\bin\s+alle\s+r(?:ä|ae)ume\b|\bfür\s+alle\s+r(?:ä|ae)ume\b|\bsämtliche\s+r(?:ä|ae)ume\b|\bin\s+jeden\s+raum\b/i.test(t);
- // Nur Angaben im Abschnitt unmittelbar vor „in alle Räume“ werden global übernommen.
  const idx=t.search(/\bin\s+alle\s+r(?:ä|ae)ume\b|\bfür\s+alle\s+r(?:ä|ae)ume\b|\bsämtliche\s+r(?:ä|ae)ume\b|\bin\s+jeden\s+raum\b/i);
- const globalSegment=idx>=0?t.slice(Math.max(0,idx-100),idx):'';
- const products=idx>=0?kiAlleProdukte(globalSegment).filter(p=>/MK|KE |WK |WAKOL D/.test(p)):[];
+ /* Bei „... Parkett verkleben mit UZIN MK 200 in alle Räume“ steht der globale
+    Kleber direkt VOR dem globalen Marker. Deshalb den gesamten Abschnitt seit
+    dem letzten Raum-Marker betrachten, nicht nur die letzten 100 Zeichen. */
+ const beforeAll=idx>=0?t.slice(0,idx):'';
+ const lastRoom=beforeAll.match(/(?:^|[\s;,.!?])([0-9]+)\s*[:.)\-]?\s*(?:raum|zimmer|bereich)\b/gi);
+ const segment=lastRoom&&lastRoom.length?beforeAll.slice(beforeAll.lastIndexOf(lastRoom[lastRoom.length-1])):beforeAll;
+ const products=idx>=0?kiAlleProdukte(segment).filter(p=>/MK|KE |WK |WAKOL D/.test(p)):[];
  const foot=/fu(?:ß|ss)leisten?\b[^.\n]*/i.exec(t);
  return {all,products,footleisten:foot?foot[0].trim():''};
 }
@@ -193,7 +205,11 @@ function kiKurzbeschreibungAuswerten(){
  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v??'';};
  set('ki-ergebnis-projekt',projekt);set('ki-ergebnis-adresse','');set('ki-ergebnis-anweisung',anweisung);set('ki-ergebnis-material',material.join('\n'));
  const preview=document.getElementById('ki-material-vorschau');
- if(preview){preview.classList.remove('hidden');preview.innerHTML=`<div class="bg-white border border-slate-200 rounded-xl p-4"><div class="font-bold text-slate-900 mb-3">🧮 Materialberechnung</div><div class="text-sm mb-3">Erkannte Gesamtfläche: <b>${total?total.toLocaleString('de-DE',{maximumFractionDigits:2})+' m²':'prüfen'}</b></div><div class="space-y-2">${material.map(x=>`<div class="flex justify-between gap-3 border-b pb-2 text-sm"><span class="font-semibold">${kiEsc(x.split('|')[0])}</span><span class="font-bold text-right">${kiEsc(x.split('|').slice(1).join(' | '))}</span></div>`).join('')}</div>${unsicher.length?`<div class="mt-4 p-3 rounded-lg bg-amber-50 text-amber-800 text-sm"><b>⚠️ Prüfen:</b><br>${unsicher.map(x=>'• '+kiEsc(x)).join('<br>')}</div>`:''}<div class="mt-4 text-xs text-slate-500">${reserve?'10 % Reserve berücksichtigt. ':''}Nur hinterlegte Hersteller-Verbrauchswerte werden berechnet. Produktwahl, Zahnung, Untergrund und tatsächliche Verarbeitung können den Verbrauch beeinflussen.</div></div>`;}
+ if(preview){
+  preview.classList.remove('hidden');
+  const raumHtml=daten.map(r=>`<div class="rounded-lg bg-slate-50 border border-slate-200 p-3 mb-2"><div class="font-bold text-slate-900">${kiEsc(r.name)}${r.qm!=null?' – '+r.qm.toLocaleString('de-DE',{maximumFractionDigits:2})+' m²':''}</div><div class="text-xs text-slate-600 mt-1">${kiEsc([r.belag,r.schwimmend?'schwimmend':'',r.voll?'vollflächig verklebt':'',r.unterlageMm?r.unterlageMm+' mm Unterlage':'',r.spachtelProdukt?(r.spachtelProdukt+(r.schichtdicke?' – '+r.schichtdicke+' mm':'')):'',...r.products.filter(p=>p!==r.spachtelProdukt)].filter(Boolean).join(' · '))}</div></div>`).join('');
+  preview.innerHTML=`<div class="bg-white border border-slate-200 rounded-xl p-4"><div class="font-bold text-slate-900 mb-3">🧮 Materialberechnung</div><div class="text-sm mb-3">Erkannte Räume: <b>${daten.length}</b> · Erkannte Gesamtfläche: <b>${total?total.toLocaleString('de-DE',{maximumFractionDigits:2})+' m²':'prüfen'}</b></div><div class="mb-4"><div class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Raumaufteilung</div>${raumHtml}</div><div class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Materialliste</div><div class="space-y-2">${material.map(x=>`<div class="flex justify-between gap-3 border-b pb-2 text-sm"><span class="font-semibold">${kiEsc(x.split('|')[0])}</span><span class="font-bold text-right">${kiEsc(x.split('|').slice(1).join(' | '))}</span></div>`).join('')}</div>${unsicher.length?`<div class="mt-4 p-3 rounded-lg bg-amber-50 text-amber-800 text-sm"><b>⚠️ Prüfen:</b><br>${unsicher.map(x=>'• '+kiEsc(x)).join('<br>')}</div>`:''}<div class="mt-4 text-xs text-slate-500">${reserve?'10 % Reserve berücksichtigt. ':''}Nur hinterlegte Hersteller-Verbrauchswerte werden berechnet. Produktwahl, Zahnung, Untergrund und tatsächliche Verarbeitung können den Verbrauch beeinflussen.</div></div>`;
+}
  letzterKiScan={kunde:'',auftragsnummer:'',termin:'',flaeche:String(total||''),belag:[...new Set(daten.map(r=>r.belag).filter(Boolean))].join(', '),arbeiten:[],ansprechpartner:'',telefon:'',email:'',sprache:'Deutsch',unsicher,roherText:text,originalDatei:null,raeume:daten,materialBerechnung:material};
  const bereich=document.getElementById('ki-ergebnis-bereich');if(bereich)bereich.classList.remove('hidden');
  const status=document.getElementById('ki-scan-status');if(status)status.textContent='✅ Räume, Flächen, Produkte und Mengen wurden erkannt. Ergebnis bitte prüfen.';
