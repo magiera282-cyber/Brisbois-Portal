@@ -176,7 +176,7 @@ function kiMaterialZeilen(daten,globalInfo,reserve){
  }
  const lines=[];
  for(const c of map.values()){
-   if(c.minKg!=null){const kg=c.minKg===c.maxKg?c.minKg.toFixed(1):`${c.minKg.toFixed(1)}–${c.maxKg.toFixed(1)}`;const packs=c.gebindeMin===c.gebindeMax?String(c.gebindeMin):`${c.gebindeMin}–${c.gebindeMax}`;lines.push(`${c.produkt} | ${kg} kg | ${packs} × ${c.packung} kg`);}
+   if(c.minKg!=null){const packs=c.gebindeMin===c.gebindeMax?String(c.gebindeMin):`${c.gebindeMin}–${c.gebindeMax}`;lines.push(`${c.produkt} | ${packs} × ${c.packung} kg`);}
    else if(c.m2!=null)lines.push(`${c.produkt} | ${c.m2.toFixed(1)} ${c.unit||'m²'}`);
    else lines.push(`${c.produkt} | Menge prüfen`);
  }
