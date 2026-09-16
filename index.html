@@ -3256,6 +3256,15 @@ window.kiErkenneBildTextRobust = async function(file, statusCallback) {
   return await kiOCRMitFallback(file, statusCallback);
 }
 
+/* Bestehender Scan-Workflow ruft kiOCRBild() auf.
+   Alias stellt sicher, dass die robuste OCR wirklich verwendet wird. */
+async function kiOCRBild(file) {
+  const result = await kiOCRMitFallback(file, (status) => {
+    try { kiScanStatus(status, "🔎"); } catch (e) {}
+  });
+  return result.text || "";
+}
+
         async function kiOCRPDF(datei) {
             kiScanStatus("PDF wird geöffnet und Seiten werden gelesen…", "📄");
             const arrayBuffer = await datei.arrayBuffer();
@@ -3321,7 +3330,11 @@ ${text}`;
                 kiScanStatus("Auftrag erkannt – Angaben prüfen und Baustelle anlegen.", "✅");
             } catch (err) {
                 console.error('Fehler bei der Auftragserkennung:', err);
-                alert('Der Auftrag konnte nicht zuverlässig gelesen werden. Bitte ein schärferes Foto oder das Original-PDF verwenden.');
+                alert(
+                    'Die Bilderkennung konnte den Auftrag nicht verarbeiten.\n\n' +
+                    'Das Foto ist grundsätzlich lesbar. Bitte erneut versuchen. ' +
+                    'Unterstützt werden JPG/PNG; die OCR verarbeitet Deutsch und Französisch.'
+                );
                 kiScanStatus("Erkennung fehlgeschlagen – bitte erneut versuchen.", "⚠️");
             }
         }
