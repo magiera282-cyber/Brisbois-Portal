@@ -86,51 +86,70 @@ async function kiBildFuerOCRVorbereiten(file) {
 }
 
 async function kiOCRMitFallback(file, statusCallback) {
-  if (!window.Tesseract) throw new Error("OCR-Bibliothek ist noch nicht geladen. Bitte Seite neu laden.");
+  if (!window.Tesseract) {
+    throw new Error("Tesseract.js ist nicht geladen. Prüfe die Internetverbindung und lade die Seite neu.");
+  }
 
   const setStatus = (s) => {
     try { if (typeof statusCallback === "function") statusCallback(s); } catch(e) {}
   };
 
-  setStatus("Bild wird vorbereitet …");
-  const vorbereitet = await kiBildFuerOCRVorbereiten(file);
+  let vorbereitet = null;
+  try {
+    setStatus("Foto wird für die Texterkennung vorbereitet …");
+    vorbereitet = await kiBildFuerOCRVorbereiten(file);
+  } catch (prepErr) {
+    console.warn("Bildvorbereitung fehlgeschlagen – Originalbild wird versucht:", prepErr);
+    vorbereitet = file;
+  }
 
-  let bestText = "";
-  let bestConfidence = 0;
+  const versuche = [
+    { bild: vorbereitet, sprache: "deu+fra+eng", name: "Deutsch / Französisch / Englisch" },
+    { bild: vorbereitet, sprache: "deu", name: "Deutsch" },
+    { bild: file, sprache: "fra", name: "Französisch" },
+    { bild: file, sprache: "eng", name: "Englisch" }
+  ];
 
-  // Erster Versuch: Deutsch + Französisch + Englisch.
-  setStatus("Text wird erkannt (Deutsch / Französisch / Englisch) …");
-  const r1 = await Tesseract.recognize(
-    vorbereitet,
-    "deu+fra+eng",
-    {
-      logger: m => {
-        if (m && m.status === "recognizing text" && typeof m.progress === "number") {
-          setStatus("Text wird erkannt … " + Math.round(m.progress * 100) + "%");
+  let besterText = "";
+  let besteConfidence = 0;
+  let letzterFehler = null;
+
+  for (const v of versuche) {
+    try {
+      setStatus(`Text wird erkannt (${v.name}) …`);
+      const r = await Tesseract.recognize(v.bild, v.sprache, {
+        logger: m => {
+          if (m && m.status === "recognizing text" && typeof m.progress === "number") {
+            setStatus(`Text wird erkannt … ${Math.round(m.progress * 100)}%`);
+          }
         }
+      });
+
+      const text = (r && r.data && r.data.text) ? r.data.text : "";
+      const confidence = (r && r.data && Number(r.data.confidence)) || 0;
+
+      if (text.trim().length > besterText.trim().length ||
+          (text.trim().length === besterText.trim().length && confidence > besteConfidence)) {
+        besterText = text;
+        besteConfidence = confidence;
       }
-    }
-  );
-  bestText = (r1 && r1.data && r1.data.text) ? r1.data.text : "";
-  bestConfidence = (r1 && r1.data && Number(r1.data.confidence)) || 0;
 
-  // Fallback: Falls sehr wenig Text erkannt wurde, noch einmal nur mit Deutsch.
-  if (bestText.trim().length < 20) {
-    setStatus("Zweiter Erkennungsversuch …");
-    const r2 = await Tesseract.recognize(vorbereitet, "deu", {});
-    const t2 = (r2 && r2.data && r2.data.text) ? r2.data.text : "";
-    const c2 = (r2 && r2.data && Number(r2.data.confidence)) || 0;
-    if (t2.trim().length > bestText.trim().length || c2 > bestConfidence + 8) {
-      bestText = t2;
-      bestConfidence = c2;
+      // Sobald ein brauchbarer Auftragstext gefunden wurde, nicht weiter warten.
+      if (besterText.trim().length >= 80) break;
+    } catch (err) {
+      letzterFehler = err;
+      console.warn(`OCR-Versuch ${v.sprache} fehlgeschlagen:`, err);
     }
   }
 
-  if (!bestText.trim()) {
-    throw new Error("Auf dem Bild wurde kein lesbarer Text erkannt. Bitte ein schärferes Foto oder einen Scan hochladen.");
+  if (!besterText.trim()) {
+    const detail = letzterFehler && letzterFehler.message
+      ? ` (${letzterFehler.message})`
+      : "";
+    throw new Error("Es konnte kein Text aus dem Bild gelesen werden." + detail);
   }
 
-  return { text: bestText, confidence: bestConfidence };
+  return { text: besterText, confidence: besteConfidence };
 }
 </script>
 
@@ -3330,10 +3349,11 @@ ${text}`;
                 kiScanStatus("Auftrag erkannt – Angaben prüfen und Baustelle anlegen.", "✅");
             } catch (err) {
                 console.error('Fehler bei der Auftragserkennung:', err);
+                const fehlerText = err && err.message ? err.message : "Unbekannter Fehler";
                 alert(
-                    'Die Bilderkennung konnte den Auftrag nicht verarbeiten.\n\n' +
-                    'Das Foto ist grundsätzlich lesbar. Bitte erneut versuchen. ' +
-                    'Unterstützt werden JPG/PNG; die OCR verarbeitet Deutsch und Französisch.'
+                    'Die Auftragserkennung ist abgebrochen.\n\n' +
+                    'Fehler: ' + fehlerText + '\n\n' +
+                    'Das Foto kann erneut versucht werden. JPG und PNG werden unterstützt.'
                 );
                 kiScanStatus("Erkennung fehlgeschlagen – bitte erneut versuchen.", "⚠️");
             }
