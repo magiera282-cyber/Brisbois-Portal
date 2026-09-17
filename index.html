@@ -700,6 +700,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 </div>
             </div>
 
+            <div class="mt-5">
+                <button type="button" onclick="krankmeldungModalOeffnen()" class="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-3 rounded-2xl shadow-lg transition">
+                    🤒 Krankmeldung einreichen
+                </button>
+            </div>
+
             <div id="verleger-planung-startseite" class="hidden" aria-hidden="true">
                 <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
                     <div><h2 class="text-lg font-black text-slate-900">📅 Meine Wochenplanung</h2><p id="verleger-planung-start-subtitle" class="text-xs text-slate-500">Deine heutigen und geplanten Einsätze</p></div>
@@ -734,6 +740,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                             <div>
                                 <div class="text-2xl font-black text-slate-900" id="start-resturlaub">14 Tage</div>
                                 <div class="text-[11px] text-slate-500">Resturlaub 2026</div>
+                                <div class="text-[11px] text-red-600 font-bold mt-1">🤒 Krankheitstage: <span id="start-krankheitstage">0</span></div>
                             </div>
                             <div class="text-right">
                                 <div class="text-sm font-bold text-amber-600" id="start-naechster-urlaub">14.10. – 21.10.</div>
@@ -1228,6 +1235,23 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
     </div>
 
     <!-- MODAL: WOCHENPLANUNG EINTRAG -->
+    <div id="krankmeldung-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[140] hidden items-center justify-center p-4">
+      <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
+        <div class="p-5 border-b flex items-center justify-between">
+          <div><h3 class="text-lg font-black text-slate-900">🤒 Krankmeldung</h3><p class="text-xs text-slate-500 mt-1">Zeitraum und Krankmeldung hinterlegen</p></div>
+          <button type="button" onclick="krankmeldungModalSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+        </div>
+        <form id="krankmeldung-form" onsubmit="krankmeldungSpeichern(event)" class="p-5 space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Von</label><input id="krank-von" type="date" required class="w-full px-3 py-3 border rounded-xl"></div>
+            <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Bis</label><input id="krank-bis" type="date" required class="w-full px-3 py-3 border rounded-xl"></div>
+          </div>
+          <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Krankmeldung / Attest</label><input id="krank-foto" type="file" accept="image/*,application/pdf" required class="w-full px-3 py-3 border rounded-xl bg-white text-sm"><p class="text-[11px] text-slate-400 mt-1">Foto oder PDF der Krankmeldung.</p></div>
+          <div class="flex gap-2 pt-2"><button type="submit" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl">💾 Krankmeldung speichern</button><button type="button" onclick="krankmeldungModalSchliessen()" class="px-5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold">Abbrechen</button></div>
+        </form>
+      </div>
+    </div>
+
     <div id="wochenplanung-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[120] hidden items-center justify-center p-4">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5">
         <div class="flex items-center justify-between border-b pb-3">
@@ -1377,6 +1401,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             wochenplanung: {},
             abwesenheiten: {},
             probleme: [],
+            krankmeldungen: [],
             zeiterfassung: {},
             resturlaub: {}
         };
@@ -1511,6 +1536,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     wochenplanung: globalDaten.wochenplanung,
                     abwesenheiten: globalDaten.abwesenheiten,
                     probleme: globalDaten.probleme || [],
+                    krankmeldungen: globalDaten.krankmeldungen || [],
                     zeiterfassung: globalDaten.zeiterfassung,
                     resturlaub: globalDaten.resturlaub
                 });
@@ -1821,6 +1847,68 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             projektModuleAktualisieren();
         }
 
+        function krankmeldungModalOeffnen() {
+            if(!eingeloggterMitarbeiter) { alert('Bitte zuerst anmelden.'); return; }
+            const modal=document.getElementById('krankmeldung-modal');
+            const heute=new Date().toISOString().split('T')[0];
+            const von=document.getElementById('krank-von'), bis=document.getElementById('krank-bis');
+            if(von && !von.value) von.value=heute;
+            if(bis && !bis.value) bis.value=heute;
+            if(modal){ modal.classList.remove('hidden'); modal.classList.add('flex'); }
+        }
+        window.krankmeldungModalOeffnen=krankmeldungModalOeffnen;
+        function krankmeldungModalSchliessen(){ const m=document.getElementById('krankmeldung-modal'); if(m){m.classList.add('hidden');m.classList.remove('flex');} }
+        window.krankmeldungModalSchliessen=krankmeldungModalSchliessen;
+
+        async function krankmeldungSpeichern(event){
+            event.preventDefault();
+            if(!eingeloggterMitarbeiter) return;
+            const von=document.getElementById('krank-von')?.value;
+            const bis=document.getElementById('krank-bis')?.value;
+            const datei=document.getElementById('krank-foto')?.files?.[0];
+            if(!von||!bis||!datei){ alert('Bitte Von, Bis und die Krankmeldung angeben.'); return; }
+            if(von>bis){ alert('Das Bis-Datum darf nicht vor dem Von-Datum liegen.'); return; }
+            if(datei.size>15*1024*1024){ alert('Die Datei darf maximal 15 MB groß sein.'); return; }
+            try{
+                let url='';
+                if(storage){
+                    const sichererName=String(eingeloggterMitarbeiter).replace(/[^a-zA-Z0-9äöüÄÖÜß_-]/g,'_');
+                    const dateiname=String(datei.name||'krankmeldung').replace(/[^a-zA-Z0-9äöüÄÖÜß._ -]/g,'_');
+                    const ziel=storageRef(storage,`krankmeldungen/${sichererName}/${Date.now()}_${dateiname}`);
+                    await uploadBytes(ziel,datei,{contentType:datei.type||'application/octet-stream'});
+                    url=await getDownloadURL(ziel);
+                } else {
+                    if(!String(datei.type||'').startsWith('image/')) throw new Error('Für PDF-Krankmeldungen muss Firebase Storage verfügbar sein.');
+                    const uploadDatei=await planBildKomprimieren(datei,1200,0.72);
+                    const reader=new FileReader();
+                    url=await new Promise((resolve,reject)=>{reader.onerror=()=>reject(new Error('Foto konnte nicht gelesen werden.'));reader.onload=()=>resolve(String(reader.result||''));reader.readAsDataURL(uploadDatei);});
+                    if(url.length>800000) throw new Error('Das Foto ist zu groß. Bitte ein kleineres Bild wählen.');
+                }
+                globalDaten.krankmeldungen=globalDaten.krankmeldungen||[];
+                const id='KM_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+                globalDaten.krankmeldungen.push({id,mitarbeiter:eingeloggterMitarbeiter,von,bis,dateiUrl:url,dateiname:datei.name,dateityp:datei.type,erstelltAm:new Date().toISOString()});
+                globalDaten.zeiterfassung=globalDaten.zeiterfassung||{};
+                globalDaten.zeiterfassung[eingeloggterMitarbeiter]=globalDaten.zeiterfassung[eingeloggterMitarbeiter]||{};
+                globalDaten.abwesenheiten=globalDaten.abwesenheiten||{};
+                globalDaten.abwesenheiten[eingeloggterMitarbeiter]=globalDaten.abwesenheiten[eingeloggterMitarbeiter]||{};
+                const start=new Date(von+'T00:00:00'), end=new Date(bis+'T00:00:00');
+                for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
+                    const key=d.toISOString().split('T')[0];
+                    globalDaten.zeiterfassung[eingeloggterMitarbeiter][key]={datum:key,status:'Krank',krankmeldungId:id,krankheitstage:true,nettoStunden:'00:00'};
+                    globalDaten.abwesenheiten[eingeloggterMitarbeiter][key]={status:'krank',krankmeldungId:id};
+                    if(globalDaten.wochenplanung?.[eingeloggterMitarbeiter]) delete globalDaten.wochenplanung[eingeloggterMitarbeiter][key];
+                }
+                await globalGlobalSpeichern();
+                krankmeldungModalSchliessen();
+                document.getElementById('krankmeldung-form')?.reset();
+                zeiterfassungAnzeigen();
+                if(typeof wochenplanungAnzeigen==='function') wochenplanungAnzeigen();
+                startseiteAktualisieren();
+                alert(`✅ Krankmeldung vom ${von} bis ${bis} gespeichert.`);
+            }catch(e){ console.error('Krankmeldung:',e); alert('❌ Krankmeldung konnte nicht gespeichert werden.\n\n'+(e?.message||e)); }
+        }
+        window.krankmeldungSpeichern=krankmeldungSpeichern;
+
         function zeiterfassungAnzeigen() {
             if(!eingeloggterMitarbeiter) return;
             const heute = new Date().toISOString().split('T')[0];
@@ -1829,6 +1917,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const aktuellerResturlaub = globalDaten.resturlaub[eingeloggterMitarbeiter] !== undefined ? globalDaten.resturlaub[eingeloggterMitarbeiter] : 14;
             const restInput = document.getElementById('input-resturlaub');
             if(restInput) restInput.value = aktuellerResturlaub;
+            const kranktageEl = document.getElementById('start-krankheitstage');
+            if(kranktageEl) {
+                const userZeitenCount = globalDaten.zeiterfassung[eingeloggterMitarbeiter] || {};
+                const kranktage = Object.values(userZeitenCount).filter(x => x && x.status === 'Krank').length;
+                kranktageEl.innerText = kranktage;
+            }
 
             const startBtn = document.getElementById('btn-start-zeit');
             const pauseBtn = document.getElementById('btn-pause-zeit');
@@ -1861,6 +1955,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     if(statusBadge) { statusBadge.innerText = "☕ In Pause"; statusBadge.className = "bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-bold animate-pulse"; }
                     if(zeitenInfo) zeitenInfo.innerText = `Start: ${eintrag.start} | Aktuell in Pause`;
                     if(anzeigeHeutig) anzeigeHeutig.innerText = "Pause...";
+                } else if(eintrag.status === "Krank") {
+                    if(startBtn) startBtn.disabled = true;
+                    if(pauseBtn) pauseBtn.disabled = true;
+                    if(feierabendBtn) feierabendBtn.disabled = true;
+                    if(statusBadge) { statusBadge.innerText = "🤒 Krank"; statusBadge.className = "bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-full font-bold"; }
+                    if(zeitenInfo) zeitenInfo.innerText = "Dieser Tag ist als Krankheitstag erfasst.";
+                    if(anzeigeHeutig) anzeigeHeutig.innerText = "Krank";
                 } else if(eintrag.status === "Fertig") {
                     if(startBtn) { startBtn.disabled = false; startBtn.innerText = "▶ Erneut starten"; }
                     if(pauseBtn) pauseBtn.disabled = true;
@@ -1882,13 +1983,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 } else {
                     datenTage.forEach(tag => {
                         const d = userZeiten[tag];
+                        const istKrank = d.status === 'Krank';
                         tbody.innerHTML += `
                             <tr>
                                 <td class="p-3 font-semibold text-slate-900">${d.datum}</td>
-                                <td class="p-3 font-mono text-slate-600">${d.start || '--:--'}</td>
-                                <td class="p-3 font-mono text-slate-600">${d.pauseMinuten || 0} Min</td>
-                                <td class="p-3 font-mono text-slate-600">${d.feierabend || 'Offen'}</td>
-                                <td class="p-3 font-mono text-right font-bold text-blue-700">${d.nettoStunden || 'Laufend'}</td>
+                                <td class="p-3 font-mono text-slate-600">${istKrank ? '🤒 Krank' : (d.start || '--:--')}</td>
+                                <td class="p-3 font-mono text-slate-600">${istKrank ? '—' : ((d.pauseMinuten || 0) + ' Min')}</td>
+                                <td class="p-3 font-mono text-slate-600">${istKrank ? '—' : (d.feierabend || 'Offen')}</td>
+                                <td class="p-3 font-mono text-right font-bold ${istKrank ? 'text-red-700' : 'text-blue-700'}">${istKrank ? 'Krankheitstag' : (d.nettoStunden || 'Laufend')}</td>
                             </tr>
                         `;
                     });
