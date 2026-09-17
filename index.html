@@ -1222,7 +1222,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Baustelle</label><select id="wochenplanung-modal-baustelle" class="w-full px-3 py-3 border rounded-xl bg-white text-sm font-semibold"><option value="">Baustelle auswählen...</option></select></div>
         <div><label class="block text-xs font-bold uppercase text-slate-500 mb-2">Abwesenheit für diesen Tag</label><div class="grid grid-cols-3 gap-2"><button type="button" onclick="wochenplanungAbwesenheitSetzen('urlaub')" class="py-2.5 rounded-xl bg-amber-100 text-amber-800 font-bold hover:bg-amber-200">🏖️ Urlaub</button><button type="button" onclick="wochenplanungAbwesenheitSetzen('krank')" class="py-2.5 rounded-xl bg-red-100 text-red-800 font-bold hover:bg-red-200">🤒 Krank</button><button type="button" onclick="wochenplanungAbwesenheitSetzen('frei')" class="py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200">↩️ Löschen</button></div></div>
         <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Notiz (optional)</label><input id="wochenplanung-modal-notiz" type="text" placeholder="z. B. Material mitbringen" class="w-full px-3 py-3 border rounded-xl text-sm"></div>
-        <div class="flex gap-2 pt-2"><button type="button" onclick="wochenplanungEintragSpeichern()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">💾 Baustelle speichern</button><button type="button" onclick="wochenplanungModalSchliessen()" class="px-5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold">Abbrechen</button></div>
+        <div class="flex gap-2 pt-2"><button type="button" onclick="wochenplanungEintragSpeichern()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">💾 Speichern</button><button type="button" onclick="wochenplanungTagLoeschen()" class="px-4 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl font-bold">🗑️</button><button type="button" onclick="wochenplanungModalSchliessen()" class="px-5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold">Abbrechen</button></div>
       </div>
     </div>
 
@@ -2094,24 +2094,101 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function wochenTage(offset=0){ const mon=wochenMontag(offset),out=[]; for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);out.push({key:lokalesDatumKey(d),date:d,label:d.toLocaleDateString('de-DE',{weekday:'short'}),voll:d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})});} return out; }
         function planungsBaustellenFuerMitarbeiter(name){ return Object.keys(globalDaten.projekte||{}); }
         function wochenplanungDaten(name,key){ globalDaten.wochenplanung=globalDaten.wochenplanung||{};globalDaten.wochenplanung[name]=globalDaten.wochenplanung[name]||{};const v=globalDaten.wochenplanung[name][key];if(Array.isArray(v))return v;if(typeof v==='string'&&v)return [v];globalDaten.wochenplanung[name][key]=[];return globalDaten.wochenplanung[name][key]; }
-        function wochenplanungIstBerechtigt(){ const r=String(eingeloggteRolle||'').toLowerCase(); return r.includes('chef') || r.includes('admin') || r.includes('techniker') || r.includes('sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin'; }
+        function wochenplanungIstBerechtigt(){ const r=String(eingeloggteRolle||'').toLowerCase(); return r.includes('chef') || r.includes('admin') || r.includes('techniker') || r.includes('sekretariat') || r.includes('büro') || r.includes('buero') || eingeloggterMitarbeiter === 'Christian Leppin'; }
         function wochenplanungIstChef(){ return wochenplanungIstBerechtigt(); }
         function abwesenheitDaten(name,key){ globalDaten.abwesenheiten=globalDaten.abwesenheiten||{};globalDaten.abwesenheiten[name]=globalDaten.abwesenheiten[name]||{};return globalDaten.abwesenheiten[name][key]||null; }
         window.wochenplanungAnzeigen=function(){
-          const box=document.getElementById('mitarbeiter-wochenplanung');if(!box)return;const tage=wochenTage(wochenplanungOffset);const sichtbar=(globalDaten.mitarbeiterListe||[]).filter(m=>m.rolle==='Verleger');
-          const mon=tage[0].date,fre=tage[4].date;const titleEl=document.getElementById('wochenplanung-titel');if(titleEl)titleEl.textContent=`${mon.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} – ${fre.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
+          const box=document.getElementById('mitarbeiter-wochenplanung');if(!box)return;
+          const tage=wochenTage(wochenplanungOffset);
+          const sichtbar=(globalDaten.mitarbeiterListe||[]).filter(m=>String(m.rolle||'').toLowerCase().includes('verleger'));
+          const mon=tage[0].date,fre=tage[4].date;
+          const titleEl=document.getElementById('wochenplanung-titel');
+          if(titleEl)titleEl.textContent=`${mon.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} – ${fre.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
           if(!sichtbar.length){box.innerHTML='<div class="p-5 rounded-xl bg-slate-50 text-sm text-slate-500">Keine Verleger gefunden.</div>';return;}
-          const chef=wochenplanungIstChef();
-          box.innerHTML=`<div class="overflow-x-auto"><table class="w-full min-w-[900px] border-separate border-spacing-0"><thead><tr><th class="p-3 text-left bg-slate-100 rounded-tl-xl w-48">Verleger</th>${tage.map(t=>`<th class="p-3 text-center bg-slate-100">${t.label}<div class="text-[10px] font-normal text-slate-500">${t.date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></th>`).join('')}<th class="bg-slate-100 rounded-tr-xl"></th></tr></thead><tbody>${sichtbar.map(m=>`<tr><td class="p-3 border-b border-slate-200 font-bold text-slate-900">👷 ${escapeHtml(m.name)}</td>${tage.map(t=>{const vals=wochenplanungDaten(m.name,t.key),abs=abwesenheitDaten(m.name,t.key),heute=lokalesDatumKey(new Date())===t.key;return `<td class="p-2 border-b border-slate-200 align-top ${heute?'bg-blue-50/50':''}"><div class="min-h-[72px] rounded-xl border ${heute?'border-blue-300':'border-slate-200'} bg-white p-2 cursor-pointer hover:border-blue-400" data-wochenplan-name="${escapeHtml(m.name)}" data-wochenplan-key="${escapeHtml(t.key)}" onclick="wochenplanungTagOeffnen(this.dataset.wochenplanName,this.dataset.wochenplanKey)">${abs?.status==='urlaub'?'<div class="rounded-lg bg-amber-100 border border-amber-200 px-2 py-2 text-[11px] font-bold text-amber-900">🏖️ Urlaub</div>':abs?.status==='krank'?'<div class="rounded-lg bg-red-100 border border-red-200 px-2 py-2 text-[11px] font-bold text-red-900">🤒 Krank</div>':vals.length?vals.map((v,i)=>`<div class="mb-1 rounded-lg bg-blue-50 border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-900 flex gap-1"><span class="truncate flex-1">${escapeHtml(v.baustelle||v)}</span>${chef?`<button type="button" onclick="event.stopPropagation();wochenplanungEintragEntfernen(${JSON.stringify(m.name)},${JSON.stringify(t.key)},${i})" class="text-red-500 font-bold">×</button>`:''}</div>`).join(''):'<span class="text-[10px] text-slate-400">'+(chef?'+ Baustelle':'Keine Baustelle')+'</span>'}</div></td>`}).join('')}<td class="border-b border-slate-200"></td></tr>`).join('')}</tbody></table></div>`;
+          const manager=wochenplanungIstBerechtigt();
+          box.innerHTML=`<div class="overflow-x-auto"><table class="w-full min-w-[900px] border-separate border-spacing-0">
+          <thead><tr><th class="p-3 text-left bg-slate-100 rounded-tl-xl w-48">Verleger</th>${tage.map(t=>`<th class="p-3 text-center bg-slate-100">${t.label}<div class="text-[10px] font-normal text-slate-500">${t.date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></th>`).join('')}<th class="bg-slate-100 rounded-tr-xl"></th></tr></thead>
+          <tbody>${sichtbar.map(m=>`<tr><td class="p-3 border-b border-slate-200 font-bold text-slate-900">👷 ${escapeHtml(m.name)}</td>
+          ${tage.map(t=>{
+            const vals=wochenplanungDaten(m.name,t.key),abs=abwesenheitDaten(m.name,t.key),heute=lokalesDatumKey(new Date())===t.key;
+            let content='';
+            if(abs?.status==='urlaub') content='<div class="rounded-lg bg-amber-100 border border-amber-200 px-2 py-2 text-[11px] font-bold text-amber-900">🏖️ Urlaub</div>';
+            else if(abs?.status==='krank') content='<div class="rounded-lg bg-red-100 border border-red-200 px-2 py-2 text-[11px] font-bold text-red-900">🤒 Krank</div>';
+            else if(vals.length) content=vals.map((v,i)=>`<div class="mb-1 rounded-lg bg-blue-50 border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-900 flex gap-1 items-center">
+              <span class="truncate flex-1">${escapeHtml(v.baustelle||v)}</span>
+              ${manager?`<button type="button" onclick="event.stopPropagation();wochenplanungEintragEntfernen(${JSON.stringify(m.name)},${JSON.stringify(t.key)},${i})" class="text-red-500 font-bold px-1" title="Eintrag löschen">×</button>`:''}
+            </div>`).join('');
+            else content=`<span class="text-[10px] text-slate-400">${manager?'+ Eintrag hinzufügen':'Keine Eintragung'}</span>`;
+            return `<td class="p-2 border-b border-slate-200 align-top ${heute?'bg-blue-50/50':''}">
+              <div class="min-h-[72px] rounded-xl border ${heute?'border-blue-300':'border-slate-200'} bg-white p-2 ${manager?'cursor-pointer hover:border-blue-400':''}"
+                ${manager?`data-wochenplan-name="${escapeHtml(m.name)}" data-wochenplan-key="${escapeHtml(t.key)}" onclick="wochenplanungTagOeffnen(this.dataset.wochenplanName,this.dataset.wochenplanKey)"`:''}>${content}
+              </div></td>`;
+          }).join('')}<td class="border-b border-slate-200"></td></tr>`).join('')}</tbody></table></div>`;
         };
         window.wochenplanungTagOeffnen=function(name,key){
-          try { if(!wochenplanungIstBerechtigt()) { alert('Du hast keine Berechtigung für die Wochenplanung.'); return; } wochenplanungAuswahl={name:String(name||''),key:String(key||'')}; const modal=document.getElementById('wochenplanung-modal'),sel=document.getElementById('wochenplanung-modal-baustelle'); if(!modal||!sel){alert('Das Planungsfenster konnte nicht gefunden werden.');return;} const d=new Date(String(key)+'T12:00:00'); const ver=document.getElementById('wochenplanung-modal-verleger'),dat=document.getElementById('wochenplanung-modal-datum'); if(ver)ver.textContent=String(name||''); if(dat)dat.textContent=isNaN(d.getTime())?String(key):d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}); const baustellen=Object.keys(globalDaten.projekte||{}).filter(Boolean); sel.innerHTML='<option value="">Baustelle auswählen...</option>'; baustellen.forEach(projekt=>{const o=document.createElement('option');o.value=projekt;o.textContent=projekt;sel.appendChild(o);}); if(!baustellen.length){const o=document.createElement('option');o.textContent='Keine Baustellen vorhanden';o.disabled=true;sel.appendChild(o);} sel.value=''; const notiz=document.getElementById('wochenplanung-modal-notiz');if(notiz)notiz.value=''; modal.classList.remove('hidden');modal.classList.add('flex');
+          try {
+            if(!wochenplanungIstBerechtigt()){ alert('Du hast keine Berechtigung für die Wochenplanung.'); return; }
+            wochenplanungAuswahl={name:String(name||''),key:String(key||'')};
+            const modal=document.getElementById('wochenplanung-modal'),sel=document.getElementById('wochenplanung-modal-baustelle');
+            if(!modal||!sel){alert('Das Planungsfenster konnte nicht gefunden werden.');return;}
+            const d=new Date(String(key)+'T12:00:00');
+            const ver=document.getElementById('wochenplanung-modal-verleger'),dat=document.getElementById('wochenplanung-modal-datum');
+            if(ver)ver.textContent=String(name||'');
+            if(dat)dat.textContent=isNaN(d.getTime())?String(key):d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+            const baustellen=Object.keys(globalDaten.projekte||{}).filter(Boolean);
+            sel.innerHTML='<option value="">Baustelle auswählen...</option>';
+            baustellen.forEach(projekt=>{const o=document.createElement('option');o.value=projekt;o.textContent=projekt;sel.appendChild(o);});
+            if(!baustellen.length){const o=document.createElement('option');o.textContent='Keine Baustellen vorhanden';o.disabled=true;sel.appendChild(o);}
+            const vals=wochenplanungDaten(name,key);
+            const first=vals[0];
+            sel.value=first?.baustelle||first||'';
+            const notiz=document.getElementById('wochenplanung-modal-notiz'); if(notiz)notiz.value=first?.notiz||'';
+            const abs=abwesenheitDaten(name,key);
+            const saveBtn=document.querySelector('#wochenplanung-modal button[onclick="wochenplanungEintragSpeichern()"]');
+            if(saveBtn) saveBtn.textContent=vals.length?'💾 Änderungen speichern':'💾 Baustelle speichern';
+            const title=modal.querySelector('h3'); if(title) title.textContent=abs?.status==='urlaub'?'🏖️ Urlaub bearbeiten':abs?.status==='krank'?'🤒 Krank bearbeiten':vals.length?'🏗️ Eintrag bearbeiten':'🏗️ Baustelle einteilen';
+            modal.classList.remove('hidden');modal.classList.add('flex');
           } catch(e){console.error(e);alert('Fehler beim Öffnen der Wochenplanung: '+(e.message||e));}
         };
-        window.wochenplanungAbwesenheitSetzen=async function(status){ if(!wochenplanungIstBerechtigt())return; if(!wochenplanungAuswahl?.name||!wochenplanungAuswahl?.key)return; globalDaten.abwesenheiten=globalDaten.abwesenheiten||{};globalDaten.abwesenheiten[wochenplanungAuswahl.name]=globalDaten.abwesenheiten[wochenplanungAuswahl.name]||{}; if(status==='frei') delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key]; else globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key]={status}; if(status!=='frei') globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key]=[]; await globalGlobalSpeichern(); wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();};
         window.wochenplanungModalSchliessen=function(){const m=document.getElementById('wochenplanung-modal');if(m){m.classList.add('hidden');m.classList.remove('flex');}};
-        window.wochenplanungEintragSpeichern=async function(){if(!wochenplanungIstChef())return;const p=document.getElementById('wochenplanung-modal-baustelle').value;if(!p)return alert('Bitte eine Baustelle auswählen.');const n=document.getElementById('wochenplanung-modal-notiz').value.trim();const vals=wochenplanungDaten(wochenplanungAuswahl.name,wochenplanungAuswahl.key);vals.push({baustelle:p,notiz:n}); if(globalDaten.abwesenheiten?.[wochenplanungAuswahl.name]) delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key]; try{await globalGlobalSpeichern();wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();}catch(e){alert('Wochenplanung konnte nicht gespeichert werden: '+(e.message||e));}};
-        window.wochenplanungEintragEntfernen=async function(name,key,index){if(!wochenplanungIstChef())return;const vals=wochenplanungDaten(name,key);vals.splice(index,1);await globalGlobalSpeichern();wochenplanungAnzeigen();startseiteAktualisieren();};
+        window.wochenplanungEintragSpeichern=async function(){
+          if(!wochenplanungIstBerechtigt())return;
+          if(!wochenplanungAuswahl?.name||!wochenplanungAuswahl?.key)return;
+          const p=document.getElementById('wochenplanung-modal-baustelle').value;
+          if(!p)return alert('Bitte eine Baustelle auswählen.');
+          const n=document.getElementById('wochenplanung-modal-notiz').value.trim();
+          globalDaten.wochenplanung=globalDaten.wochenplanung||{};
+          globalDaten.wochenplanung[wochenplanungAuswahl.name]=globalDaten.wochenplanung[wochenplanungAuswahl.name]||{};
+          const vals=wochenplanungDaten(wochenplanungAuswahl.name,wochenplanungAuswahl.key);
+          if(vals.length) vals[0]={baustelle:p,notiz:n};
+          else globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key]=[{baustelle:p,notiz:n}];
+          if(globalDaten.abwesenheiten?.[wochenplanungAuswahl.name]) delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key];
+          await globalGlobalSpeichern();
+          wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();
+        };
+        window.wochenplanungTagLoeschen=async function(){if(!wochenplanungIstBerechtigt())return;if(!wochenplanungAuswahl?.name||!wochenplanungAuswahl?.key)return; if(globalDaten.wochenplanung?.[wochenplanungAuswahl.name]) delete globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key]; if(globalDaten.abwesenheiten?.[wochenplanungAuswahl.name]) delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key]; await globalGlobalSpeichern();wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();};
+        window.wochenplanungEintragEntfernen=async function(name,key,index){
+          if(!wochenplanungIstBerechtigt())return;
+          const vals=wochenplanungDaten(name,key);
+          vals.splice(index,1);
+          if(!vals.length && globalDaten.wochenplanung?.[name]) delete globalDaten.wochenplanung[name][key];
+          await globalGlobalSpeichern();wochenplanungAnzeigen();startseiteAktualisieren();
+        };
+        window.wochenplanungAbwesenheitSetzen=async function(status){
+          if(!wochenplanungIstBerechtigt()||!wochenplanungAuswahl?.name||!wochenplanungAuswahl?.key)return;
+          globalDaten.abwesenheiten=globalDaten.abwesenheiten||{};
+          globalDaten.abwesenheiten[wochenplanungAuswahl.name]=globalDaten.abwesenheiten[wochenplanungAuswahl.name]||{};
+          if(status==='frei'){
+            delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key];
+          } else {
+            globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key]={status:status};
+            globalDaten.wochenplanung=globalDaten.wochenplanung||{};
+            globalDaten.wochenplanung[wochenplanungAuswahl.name]=globalDaten.wochenplanung[wochenplanungAuswahl.name]||{};
+            delete globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key];
+          }
+          await globalGlobalSpeichern();wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();
+        };
+
         window.wochenplanungVorherigeWoche=function(){wochenplanungOffset--;wochenplanungAnzeigen();};window.wochenplanungNaechsteWoche=function(){wochenplanungOffset++;wochenplanungAnzeigen();};window.wochenplanungHeute=function(){wochenplanungOffset=0;wochenplanungAnzeigen();};
 
         function mitarbeiterZuweisungsTabelleAktualisieren() {
@@ -3681,17 +3758,22 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
 <script>
 window.zeigeVerlegerPlanungAufStartseite=function(){
-  const b=document.getElementById('verleger-planung-startseite'),l=document.getElementById('verleger-planung-start-liste'),h=document.getElementById('verleger-planung-start-heute'),sub=document.getElementById('verleger-planung-start-subtitle');
+  const b=document.getElementById('verleger-planung-startseite'),l=document.getElementById('verleger-planung-start-liste'),h=document.getElementById('verleger-planung-start-heute');
   if(!b||!l||!h)return;
-  const name=typeof eingeloggterMitarbeiter!=='undefined'?String(eingeloggterMitarbeiter||'').trim():'';
-  const rolle=typeof eingeloggteRolle!=='undefined'?String(eingeloggteRolle||'').trim():'';
-  const istVerleger=rolle.toLowerCase()==='verleger' || rolle.toLowerCase().includes('verleger');
-  if(!name||!istVerleger){b.classList.add('hidden');b.style.display='none';return;}
+  const name=String(typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:'').trim();
+  const rolle=String(typeof eingeloggteRolle!=='undefined'?eingeloggteRolle:'').trim().toLowerCase();
+  if(!name||!rolle.includes('verleger')){b.classList.add('hidden');b.style.display='none';return;}
   b.classList.remove('hidden');b.style.display='block';
-  const g=window.globalDaten||{};const wp=g.wochenplanung||{};const plan=wp[name]||{};const heute=new Date();heute.setHours(0,0,0,0);const montag=new Date(heute);const day=montag.getDay()||7;montag.setDate(montag.getDate()-day+1);const tage=[];for(let i=0;i<5;i++){const d=new Date(montag);d.setDate(montag.getDate()+i);tage.push(d);}const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const jobs=d=>Array.isArray(plan[key(d)])?plan[key(d)]:plan[key(d)]?[plan[key(d)]]:[];b.classList.remove('hidden');sub.textContent='Deine Einsätze für heute und die ganze Woche';const heuteJobs=jobs(heute);
-  h.innerHTML=`<div class="rounded-2xl border border-blue-200 bg-blue-50 p-4"><div class="text-xs font-black uppercase tracking-wider text-blue-700 mb-2">📍 Heute · ${heute.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit'})}</div>${heuteJobs.length?heuteJobs.map(x=>`<div class="bg-white rounded-xl p-3 mb-2 last:mb-0"><div class="font-bold text-slate-900">${String(x.baustelle||x).replace(/[<>]/g,'')}</div>${g.projekte?.[x.baustelle]?.adresse?`<div class="text-xs text-slate-500 mt-1">📍 ${String(g.projekte[x.baustelle].adresse).replace(/[<>]/g,'')}</div>`:''}${x.notiz?`<div class="text-xs text-slate-600 mt-1">📝 ${String(x.notiz).replace(/[<>]/g,'')}</div>`:''}</div>`).join(''):'<div class="text-sm text-slate-500">Heute ist keine Baustelle eingeteilt.</div>'}</div>`;
-  l.innerHTML=`<div class="grid grid-cols-1 md:grid-cols-5 gap-2">${tage.map(d=>{const js=jobs(d),ist=key(d)===key(heute);return `<div class="rounded-xl border ${ist?'border-blue-300 bg-blue-50/40':'border-slate-200 bg-white'} p-3 min-h-[130px]"><div class="flex items-center justify-between mb-2"><strong class="text-sm text-slate-900">${d.toLocaleDateString('de-DE',{weekday:'short'})}</strong><span class="text-[10px] text-slate-500">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span></div>${js.length?js.map(x=>`<div class="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-1"><div class="font-semibold text-xs text-blue-900">${String(x.baustelle||x).replace(/[<>]/g,'')}</div>${x.notiz?`<div class="text-[10px] text-slate-600 mt-1">${String(x.notiz).replace(/[<>]/g,'')}</div>`:''}</div>`).join(''):'<div class="text-xs text-slate-400">Frei</div>'}</div>`;}).join('')}</div>`;
+  const g=typeof globalDaten!=='undefined'?globalDaten:{}; const plan=(g.wochenplanung&&g.wochenplanung[name])||{}; const abs=(g.abwesenheiten&&g.abwesenheiten[name])||{};
+  const heute=new Date();heute.setHours(0,0,0,0); const montag=new Date(heute); const day=montag.getDay()||7; montag.setDate(montag.getDate()-day+1);
+  const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const tage=Array.from({length:5},(_,i)=>{const d=new Date(montag);d.setDate(montag.getDate()+i);return d;});
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const jobs=d=>Array.isArray(plan[key(d)])?plan[key(d)]:plan[key(d)]?[plan[key(d)]]:[];
+  const status=d=>abs[key(d)]?.status||'';
+  const renderDay=d=>{const a=status(d),js=jobs(d);if(a==='urlaub')return '<div class="bg-amber-100 border border-amber-200 rounded-xl p-3 font-bold text-amber-900">🏖️ Urlaub</div>';if(a==='krank')return '<div class="bg-red-100 border border-red-200 rounded-xl p-3 font-bold text-red-900">🤒 Krank</div>';if(js.length)return js.map(x=>{const bn=typeof x==='object'?x.baustelle:x;const n=typeof x==='object'?x.notiz:'';const adr=g.projekte?.[bn]?.adresse||'';return `<div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-2"><div class="font-bold text-sm text-blue-900">🏗️ ${esc(bn)}</div>${adr?`<div class="text-xs text-slate-500 mt-1">📍 ${esc(adr)}</div>`:''}${n?`<div class="text-xs text-slate-600 mt-1">📝 ${esc(n)}</div>`:''}</div>`}).join('');return '<div class="text-sm text-slate-400">Keine Eintragung</div>';};
+  h.innerHTML=`<div class="rounded-2xl border border-blue-200 bg-blue-50 p-4"><div class="text-xs font-black uppercase tracking-wider text-blue-700 mb-2">📍 Heute · ${heute.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit'})}</div>${renderDay(heute)}</div>`;
+  l.innerHTML=`<div class="grid grid-cols-1 md:grid-cols-5 gap-3">${tage.map(d=>`<div class="rounded-2xl border ${key(d)===key(heute)?'border-blue-400 bg-blue-50':'border-slate-200 bg-slate-50'} p-4 min-h-[150px]"><div class="flex justify-between mb-3"><b>${d.toLocaleDateString('de-DE',{weekday:'long'})}</b><span class="text-xs text-slate-500">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span></div>${renderDay(d)}</div>`).join('')}</div>`;
 };
 </script>
 
@@ -3913,56 +3995,42 @@ window.zeigeVerlegerPlanungAufStartseite=function(){
 /* WOCHENPLAN STARTSEITE – ROBUSTE VERSION */
 window.verlegerWochenplanOeffnen = function(){
   try {
-    const rolle = String(window.eingeloggteRolle || '').trim().toLowerCase();
-    const name = String(window.eingeloggterMitarbeiter || '').trim();
-    if (!name) return alert('Bitte zuerst anmelden.');
-    if (!rolle.includes('verleger')) return;
-
-    let modal = document.getElementById('verleger-wochenplan-modal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'verleger-wochenplan-modal';
-      modal.className = 'fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-[9999] flex items-center justify-center p-4';
-      modal.innerHTML = `
-        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto p-5 md:p-8">
-          <div class="flex items-center justify-between border-b pb-4 mb-5">
-            <div>
-              <h3 class="text-xl md:text-2xl font-black text-slate-900">📅 Meine Wochenplanung</h3>
-              <p class="text-xs text-slate-500 mt-1">Deine geplanten Baustellen für diese Woche</p>
-            </div>
-            <button type="button" id="verleger-wochenplan-close" class="text-slate-400 hover:text-slate-700 text-2xl font-bold">✕</button>
-          </div>
-          <div id="verleger-wochenplan-inhalt"></div>
-        </div>`;
+    const rolle=String(window.eingeloggteRolle||eingeloggteRolle||'').trim().toLowerCase();
+    const name=String(window.eingeloggterMitarbeiter||eingeloggterMitarbeiter||'').trim();
+    if(!name)return alert('Bitte zuerst anmelden.');
+    if(!rolle.includes('verleger'))return;
+    let modal=document.getElementById('verleger-wochenplan-modal');
+    if(!modal){
+      modal=document.createElement('div'); modal.id='verleger-wochenplan-modal';
+      modal.className='fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-[9999] flex items-center justify-center p-4';
+      modal.innerHTML=`<div class="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto p-5 md:p-8">
+        <div class="flex items-center justify-between border-b pb-4 mb-5"><div><h3 class="text-xl md:text-2xl font-black text-slate-900">📅 Meine Wochenplanung</h3><p class="text-xs text-slate-500 mt-1">Deine Baustellen, Urlaub und Kranktage</p></div>
+        <button type="button" id="verleger-wochenplan-close" class="text-slate-400 hover:text-slate-700 text-2xl font-bold">✕</button></div>
+        <div id="verleger-wochenplan-inhalt"></div></div>`;
       document.body.appendChild(modal);
-      document.getElementById('verleger-wochenplan-close').onclick = window.verlegerWochenplanSchliessen;
-      modal.addEventListener('click', function(e){ if(e.target === modal) window.verlegerWochenplanSchliessen(); });
+      document.getElementById('verleger-wochenplan-close').onclick=window.verlegerWochenplanSchliessen;
+      modal.addEventListener('click',e=>{if(e.target===modal)window.verlegerWochenplanSchliessen();});
     }
-
-    const inhalt = document.getElementById('verleger-wochenplan-inhalt');
-    if (!inhalt) return;
-    const g = window.globalDaten || globalDaten || {};
-    const plan = (g.wochenplanung && g.wochenplanung[name]) || {};
-    const heute = new Date(); heute.setHours(0,0,0,0);
-    const montag = new Date(heute);
-    const tag = montag.getDay() || 7;
-    montag.setDate(montag.getDate() - tag + 1);
-    const key = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    const tage = Array.from({length:5}, (_,i)=>{ const d=new Date(montag); d.setDate(montag.getDate()+i); return d; });
-    const esc = v => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-    inhalt.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-5 gap-3">${tage.map(d=>{
-      const k=key(d), arr=Array.isArray(plan[k])?plan[k]:(plan[k]?[plan[k]]:[]), ist=k===key(heute);
-      return `<div class="rounded-2xl border ${ist?'border-blue-400 bg-blue-50':'border-slate-200 bg-slate-50'} p-4 min-h-[180px]">
-        <div class="flex items-center justify-between mb-3"><div class="font-black text-slate-900">${d.toLocaleDateString('de-DE',{weekday:'long'})}</div><div class="text-xs text-slate-500">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></div>
-        ${(g.abwesenheiten&&g.abwesenheiten[name]&&g.abwesenheiten[name][k]&&g.abwesenheiten[name][k].status==='urlaub') ? `<div class="bg-amber-100 rounded-xl border border-amber-200 p-4 text-amber-900 font-bold">🏖️ Urlaub</div>` : (g.abwesenheiten&&g.abwesenheiten[name]&&g.abwesenheiten[name][k]&&g.abwesenheiten[name][k].status==='krank') ? `<div class="bg-red-100 rounded-xl border border-red-200 p-4 text-red-900 font-bold">🤒 Krank</div>` : (arr.length ? arr.map(item=>{ const b=typeof item==='object'?(item.baustelle||''):item; const n=typeof item==='object'?(item.notiz||''):''; const adr=g.projekte&&g.projekte[b]?g.projekte[b].adresse:''; return `<div class="bg-white rounded-xl border border-blue-200 p-3 mb-2"><div class="font-bold text-sm text-blue-900">🏗️ ${esc(b)}</div>${adr?`<div class="text-xs text-slate-500 mt-1">📍 ${esc(adr)}</div>`:''}${n?`<div class="text-xs text-slate-600 mt-1">📝 ${esc(n)}</div>`:''}</div>`; }).join('') : `<div class="text-sm text-slate-400 pt-3">Keine Baustelle eingeteilt</div>`)}
-      </div>`;
+    const g=window.globalDaten||globalDaten||{};
+    const plan=(g.wochenplanung&&g.wochenplanung[name])||{};
+    const abs=(g.abwesenheiten&&g.abwesenheiten[name])||{};
+    const heute=new Date();heute.setHours(0,0,0,0);
+    const montag=new Date(heute);const tag=montag.getDay()||7;montag.setDate(montag.getDate()-tag+1);
+    const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const tage=Array.from({length:5},(_,i)=>{const d=new Date(montag);d.setDate(montag.getDate()+i);return d;});
+    const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    const inhalt=document.getElementById('verleger-wochenplan-inhalt');
+    inhalt.innerHTML=`<div class="grid grid-cols-1 md:grid-cols-5 gap-3">${tage.map(d=>{
+      const k=key(d),arr=Array.isArray(plan[k])?plan[k]:(plan[k]?[plan[k]]:[]),ist=k===key(heute),a=abs[k];
+      let content='';
+      if(a?.status==='urlaub')content='<div class="bg-amber-100 rounded-xl border border-amber-200 p-4 text-amber-900 font-bold">🏖️ Urlaub</div>';
+      else if(a?.status==='krank')content='<div class="bg-red-100 rounded-xl border border-red-200 p-4 text-red-900 font-bold">🤒 Krank</div>';
+      else if(arr.length)content=arr.map(item=>{const b=typeof item==='object'?(item.baustelle||''):item,n=typeof item==='object'?(item.notiz||''):'',adr=g.projekte&&g.projekte[b]?g.projekte[b].adresse:'';return `<div class="bg-white rounded-xl border border-blue-200 p-3 mb-2"><div class="font-bold text-sm text-blue-900">🏗️ ${esc(b)}</div>${adr?`<div class="text-xs text-slate-500 mt-1">📍 ${esc(adr)}</div>`:''}${n?`<div class="text-xs text-slate-600 mt-1">📝 ${esc(n)}</div>`:''}</div>`}).join('');
+      else content='<div class="text-sm text-slate-400 pt-3">Keine Eintragung</div>';
+      return `<div class="rounded-2xl border ${ist?'border-blue-400 bg-blue-50':'border-slate-200 bg-slate-50'} p-4 min-h-[180px]"><div class="flex items-center justify-between mb-3"><div class="font-black text-slate-900">${d.toLocaleDateString('de-DE',{weekday:'long'})}</div><div class="text-xs text-slate-500">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></div>${content}</div>`;
     }).join('')}</div>`;
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-  } catch (e) {
-    console.error('Wochenplan:', e);
-    alert('Der Wochenplan konnte nicht geöffnet werden.');
-  }
+    modal.classList.remove('hidden');modal.classList.add('flex');
+  }catch(e){console.error('Wochenplan:',e);alert('Der Wochenplan konnte nicht geöffnet werden.');}
 };
 window.verlegerWochenplanSchliessen = function(){ const m=document.getElementById('verleger-wochenplan-modal'); if(m){m.classList.add('hidden');m.classList.remove('flex');} };
 </script>
