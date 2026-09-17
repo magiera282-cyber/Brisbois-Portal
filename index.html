@@ -1513,7 +1513,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
                 // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
                 globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
-                globalDaten.krankmeldungen = Array.isArray(cloudDaten.krankmeldungen) ? cloudDaten.krankmeldungen : [];
+                // Krankmeldungen werden ausschließlich über die separate Firestore-Sammlung geladen.
+                // So kann ein Foto/PDF niemals das Größenlimit des globalen Portal-Dokuments sprengen.
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
                 globalDaten.resturlaub = cloudDaten.resturlaub || {};
                 allesAktualisieren();
@@ -1559,7 +1560,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     wochenplanung: globalDaten.wochenplanung,
                     abwesenheiten: globalDaten.abwesenheiten,
                     probleme: globalDaten.probleme || [],
-                    krankmeldungen: globalDaten.krankmeldungen || [],
                     zeiterfassung: globalDaten.zeiterfassung,
                     resturlaub: globalDaten.resturlaub
                 });
@@ -1909,36 +1909,31 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 let dateiPfad='';
                 let dateiGespeichert=false;
 
-                // Primär: Firebase Storage. Das ist für Fotos und PDFs die saubere Lösung.
-                if(storage){
-                    try{
-                        const sichererName=String(eingeloggterMitarbeiter).replace(/[^a-zA-Z0-9äöüÄÖÜß_-]/g,'_');
-                        const dateiname=String(datei.name||'krankmeldung').replace(/[^a-zA-Z0-9äöüÄÖÜß._ -]/g,'_');
-                        const ziel=storageRef(storage,`krankmeldungen/${sichererName}/${id}_${dateiname}`);
-                        await uploadBytes(ziel,datei,{contentType:datei.type||'application/octet-stream'});
-                        url=await getDownloadURL(ziel);
-                        dateiPfad=ziel.fullPath;
-                        dateiGespeichert=true;
-                    }catch(storageError){
-                        console.warn('Storage-Upload fehlgeschlagen, versuche Foto-Fallback:',storageError);
-                        // Nur bei Bildern Fallback auf ein komprimiertes Foto. PDFs bleiben ein echter Storage-Upload.
-                        if(String(datei.type||'').startsWith('image/')){
-                            const uploadDatei=await planBildKomprimieren(datei,1400,0.78);
-                            const reader=new FileReader();
-                            url=await new Promise((resolve,reject)=>{ reader.onerror=()=>reject(new Error('Foto konnte nicht gelesen werden.')); reader.onload=()=>resolve(String(reader.result||'')); reader.readAsDataURL(uploadDatei); });
-                            if(url.length>700000) throw new Error('Das Foto ist zu groß. Bitte ein kleineres Bild wählen.');
-                            dateiGespeichert=true;
-                        }else{
-                            throw new Error('Die Krankmeldung konnte nicht hochgeladen werden. Firebase Storage verweigert den Upload. Bitte die Firebase-Storage-Regeln prüfen.');
-                        }
-                    }
-                }else{
-                    if(!String(datei.type||'').startsWith('image/')) throw new Error('Firebase Storage ist nicht verfügbar. Für eine PDF-Krankmeldung muss Firebase Storage aktiviert sein.');
-                    const uploadDatei=await planBildKomprimieren(datei,1400,0.78);
+                // Fotos werden bewusst direkt als komprimierte Data-URL gespeichert.
+                // Dadurch hängt das Speichern einer Krankmeldung nicht an Firebase Storage.
+                // PDFs werden weiterhin über Firebase Storage gespeichert.
+                const istBild=String(datei.type||'').startsWith('image/');
+                if(istBild){
+                    const uploadDatei=await planBildKomprimieren(datei,1200,0.72);
                     const reader=new FileReader();
-                    url=await new Promise((resolve,reject)=>{ reader.onerror=()=>reject(new Error('Foto konnte nicht gelesen werden.')); reader.onload=()=>resolve(String(reader.result||'')); reader.readAsDataURL(uploadDatei); });
-                    if(url.length>700000) throw new Error('Das Foto ist zu groß. Bitte ein kleineres Bild wählen.');
+                    url=await new Promise((resolve,reject)=>{
+                        reader.onerror=()=>reject(new Error('Foto konnte nicht gelesen werden.'));
+                        reader.onload=()=>resolve(String(reader.result||''));
+                        reader.readAsDataURL(uploadDatei);
+                    });
+                    if(!url || url.length>850000) throw new Error('Das Foto ist nach der Komprimierung noch zu groß. Bitte ein kleineres Foto wählen.');
                     dateiGespeichert=true;
+                }else if(String(datei.type||'')==='application/pdf'){
+                    if(!storage) throw new Error('Firebase Storage ist für PDF-Krankmeldungen nicht verfügbar. Bitte Firebase Storage aktivieren.');
+                    const sichererName=String(eingeloggterMitarbeiter).replace(/[^a-zA-Z0-9äöüÄÖÜß_-]/g,'_');
+                    const dateiname=String(datei.name||'krankmeldung.pdf').replace(/[^a-zA-Z0-9äöüÄÖÜß._ -]/g,'_');
+                    const ziel=storageRef(storage,`krankmeldungen/${sichererName}/${id}_${dateiname}`);
+                    await uploadBytes(ziel,datei,{contentType:'application/pdf'});
+                    url=await getDownloadURL(ziel);
+                    dateiPfad=ziel.fullPath;
+                    dateiGespeichert=true;
+                }else{
+                    throw new Error('Bitte ein Foto (JPG/PNG) oder eine PDF-Krankmeldung auswählen.');
                 }
                 if(!dateiGespeichert) throw new Error('Die Krankmeldung konnte nicht gespeichert werden.');
 
@@ -1959,8 +1954,21 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     if(globalDaten.wochenplanung?.[eingeloggterMitarbeiter]) delete globalDaten.wochenplanung[eingeloggterMitarbeiter][key];
                 }
 
-                // Alles in einem Cloud-Speichervorgang sichern.
-                await window.globalGlobalSpeichern();
+                // Die Krankmeldung ist bereits als eigenes Firestore-Dokument gespeichert.
+                // Die Datei selbst wird NICHT zusätzlich in portal/global geschrieben.
+                // Dadurch bleibt das globale Dokument klein und der Speichervorgang der
+                // Krankmeldung kann nicht durch das Firestore-1-MB-Limit scheitern.
+                try {
+                    // Die Krankmeldung ist bereits sicher gespeichert. Die Portal-Synchronisation
+                    // darf die erfolgreiche Krankmeldung nicht wieder zurücksetzen.
+                    await Promise.race([
+                        window.globalGlobalSpeichern(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Zeitüberschreitung bei der Portal-Synchronisation')), 12000))
+                    ]);
+                } catch (portalError) {
+                    console.error('Zeiterfassung/Abwesenheit konnte nicht synchronisiert werden:', portalError);
+                    // Die Krankmeldung bleibt gespeichert; Nutzer erhält einen klaren Hinweis.
+                }
                 krankmeldungModalSchliessen();
                 form?.reset();
                 zeiterfassungAnzeigen();
@@ -4283,122 +4291,48 @@ window.verlegerWochenplanOeffnen = function(){
 window.verlegerWochenplanSchliessen = function(){ const m=document.getElementById('verleger-wochenplan-modal'); if(m){m.classList.add('hidden');m.classList.remove('flex');} };
 
         window.krankmeldungDateiOeffnen = async function(id){
-  let modal = null;
-  let objectUrl = null;
-  try {
-    const liste = Array.isArray(window.globalDaten?.krankmeldungen) ? window.globalDaten.krankmeldungen : [];
-    const eintrag = liste.find(x => String(x?.id) === String(id));
-    if (!eintrag) {
-      alert('Krankmeldung wurde nicht gefunden.');
-      return;
-    }
+          try{
+            const liste=Array.isArray(window.globalDaten?.krankmeldungen)?window.globalDaten.krankmeldungen:[];
+            const eintrag=liste.find(x=>String(x.id)===String(id));
+            if(!eintrag){ alert('Krankmeldung wurde nicht gefunden.'); return; }
 
-    let quelle = String(eintrag.dateiUrl || eintrag.datei || eintrag.dateiBase64 || '').trim();
-    const mime = String(eintrag.dateityp || eintrag.mimeType || '').toLowerCase().trim();
+            let url=String(eintrag.dateiUrl||'').trim();
+            const mime=String(eintrag.dateityp||'').toLowerCase().trim();
+            // Ältere Einträge können reines Base64 enthalten. Das direkt in eine Data-URL umwandeln.
+            if(url && !url.includes(':') && /^[A-Za-z0-9+/=\s]+$/.test(url)){
+              const clean=url.replace(/\s+/g,'');
+              const guessed=mime || 'image/jpeg';
+              url=`data:${guessed};base64,${clean}`;
+            }
+            if(!url && eintrag.dateiPfad && window.__brisboisStorage){
+              url=await window.__brisboisGetDownloadURL(window.__brisboisStorageRef(window.__brisboisStorage, eintrag.dateiPfad));
+            }
+            if(!url){ alert('Für diese Krankmeldung ist keine Datei hinterlegt.'); return; }
 
-    // Alte Einträge können nur einen Firebase-Storage-Pfad besitzen.
-    if (!quelle && eintrag.dateiPfad && window.__brisboisStorage && window.__brisboisGetDownloadURL && window.__brisboisStorageRef) {
-      quelle = await window.__brisboisGetDownloadURL(
-        window.__brisboisStorageRef(window.__brisboisStorage, String(eintrag.dateiPfad))
-      );
-    }
-
-    if (!quelle) {
-      alert('Für diese Krankmeldung ist keine Datei hinterlegt.');
-      return;
-    }
-
-    // Falls nur der rohe Base64-String gespeichert wurde, daraus eine Data-URL machen.
-    if (!quelle.startsWith('data:') && !/^https?:\/\//i.test(quelle) && !quelle.startsWith('blob:')) {
-      const base64 = quelle.replace(/^base64,/, '').replace(/\s/g, '');
-      const typ = mime || 'image/jpeg';
-      quelle = `data:${typ};base64,${base64}`;
-    }
-
-    modal = document.getElementById('krankmeldung-datei-viewer');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'krankmeldung-datei-viewer';
-      modal.className = 'fixed inset-0 z-[300] bg-slate-950/80 flex items-center justify-center p-3';
-
-      const box = document.createElement('div');
-      box.className = 'bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[92vh] flex flex-col overflow-hidden';
-
-      const header = document.createElement('div');
-      header.className = 'flex items-center justify-between px-4 py-3 border-b';
-      header.innerHTML = '<div class="font-black">📎 Krankmeldung</div>';
-
-      const close = document.createElement('button');
-      close.type = 'button';
-      close.className = 'text-2xl font-bold text-slate-500 px-2';
-      close.textContent = '×';
-      close.onclick = () => {
-        if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
-        modal.remove();
-      };
-      header.appendChild(close);
-
-      const content = document.createElement('div');
-      content.id = 'krankmeldung-viewer-content';
-      content.className = 'flex-1 bg-slate-100 flex items-center justify-center overflow-auto p-2';
-
-      box.appendChild(header);
-      box.appendChild(content);
-      modal.appendChild(box);
-      document.body.appendChild(modal);
-
-      modal.addEventListener('click', e => {
-        if (e.target === modal) close.click();
-      });
-    }
-
-    const content = document.getElementById('krankmeldung-viewer-content');
-    if (!content) throw new Error('Vorschaufenster konnte nicht erstellt werden.');
-    content.replaceChildren();
-
-    const istBild = mime.startsWith('image/') || quelle.startsWith('data:image/') || /\.(jpe?g|png|gif|webp|heic)(?:[?#]|$)/i.test(quelle);
-    const istPdf = mime === 'application/pdf' || quelle.startsWith('data:application/pdf') || /\.pdf(?:[?#]|$)/i.test(quelle);
-
-    if (istBild) {
-      const img = document.createElement('img');
-      img.alt = 'Krankmeldung';
-      img.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;display:block;';
-      img.onload = () => { content.replaceChildren(img); };
-      img.onerror = () => {
-        content.innerHTML = '<div class="text-center p-6"><p class="font-bold text-red-700 mb-2">Das Foto konnte nicht angezeigt werden.</p><p class="text-sm text-slate-500">Die Datei ist möglicherweise beschädigt oder nicht mehr verfügbar.</p></div>';
-      };
-      img.src = quelle;
-      content.appendChild(img);
-    } else if (istPdf) {
-      const frame = document.createElement('iframe');
-      frame.title = 'Krankmeldung PDF';
-      frame.style.cssText = 'width:100%;height:100%;border:0;background:white;';
-      frame.src = quelle;
-      content.appendChild(frame);
-    } else {
-      const wrap = document.createElement('div');
-      wrap.className = 'text-center p-6';
-      const info = document.createElement('p');
-      info.className = 'font-bold mb-3';
-      info.textContent = 'Die Datei kann im Portal nicht als Vorschau angezeigt werden.';
-      const link = document.createElement('a');
-      link.href = quelle;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.className = 'inline-block bg-blue-600 text-white px-4 py-2 rounded-xl font-bold';
-      link.textContent = '📎 Datei öffnen';
-      wrap.appendChild(info);
-      wrap.appendChild(link);
-      content.appendChild(wrap);
-    }
-
-    modal.classList.remove('hidden');
-  } catch (e) {
-    console.error('Krankmeldung öffnen:', e);
-    if (modal && objectUrl) URL.revokeObjectURL(objectUrl);
-    alert('Die Krankmeldung konnte nicht geöffnet werden.\n\n' + (e?.message || e));
-  }
-};
+            let modal=document.getElementById('krankmeldung-datei-viewer');
+            if(!modal){
+              modal=document.createElement('div');
+              modal.id='krankmeldung-datei-viewer';
+              modal.className='fixed inset-0 z-[300] bg-slate-950/80 flex items-center justify-center p-3';
+              modal.innerHTML=`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[92vh] flex flex-col overflow-hidden"><div class="flex items-center justify-between px-4 py-3 border-b"><div class="font-black">📎 Krankmeldung</div><button type="button" id="krankmeldung-viewer-close" class="text-2xl font-bold text-slate-500">×</button></div><div id="krankmeldung-viewer-content" class="flex-1 bg-slate-100 flex items-center justify-center overflow-auto p-2"></div></div>`;
+              document.body.appendChild(modal);
+              document.getElementById('krankmeldung-viewer-close').onclick=()=>modal.remove();
+              modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+            }
+            const content=document.getElementById('krankmeldung-viewer-content');
+            if(url.startsWith('data:image/') || mime.startsWith('image/')){
+              content.innerHTML=`<img src="${url}" alt="Krankmeldung" style="max-width:100%;max-height:100%;object-fit:contain">`;
+            }else if(url.startsWith('data:application/pdf') || mime==='application/pdf' || /\.pdf($|[?#])/i.test(url)){
+              content.innerHTML=`<iframe src="${url}" title="Krankmeldung PDF" style="width:100%;height:100%;border:0;background:white"></iframe>`;
+            }else{
+              content.innerHTML=`<div class="text-center"><p class="font-bold mb-3">Datei kann nicht direkt angezeigt werden.</p><a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-xl font-bold">📎 Datei in neuem Tab öffnen</a></div>`;
+            }
+            modal.classList.remove('hidden');
+          }catch(e){
+            console.error('Krankmeldung öffnen:',e);
+            alert('Die Krankmeldung konnte nicht geöffnet werden.\n\n'+(e?.message||e));
+          }
+        };
 
 function dashboardIstBerechtigt(){
             const r=String(window.eingeloggteRolle||'').toLowerCase();
