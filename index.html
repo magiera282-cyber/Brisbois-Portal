@@ -1200,6 +1200,20 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         </main>
     </div>
 
+    <!-- MODAL: WOCHENPLANUNG EINTRAG -->
+    <div id="wochenplanung-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[120] hidden items-center justify-center p-4">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5">
+        <div class="flex items-center justify-between border-b pb-3">
+          <div><h3 class="text-lg font-black text-slate-900">🏗️ Baustelle einteilen</h3><p id="wochenplanung-modal-datum" class="text-xs text-slate-500 mt-1"></p></div>
+          <button type="button" onclick="wochenplanungModalSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+        </div>
+        <div><div class="text-xs font-bold uppercase text-slate-500 mb-1">Verleger</div><div id="wochenplanung-modal-verleger" class="font-bold text-slate-900"></div></div>
+        <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Baustelle</label><select id="wochenplanung-modal-baustelle" class="w-full px-3 py-3 border rounded-xl bg-white text-sm font-semibold"><option value="">Baustelle auswählen...</option></select></div>
+        <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Notiz (optional)</label><input id="wochenplanung-modal-notiz" type="text" placeholder="z. B. Material mitbringen" class="w-full px-3 py-3 border rounded-xl text-sm"></div>
+        <div class="flex gap-2 pt-2"><button type="button" onclick="wochenplanungEintragSpeichern()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">💾 Speichern</button><button type="button" onclick="wochenplanungModalSchliessen()" class="px-5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold">Abbrechen</button></div>
+      </div>
+    </div>
+
     <!-- Firebase SDK & Cloud Logik -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -1337,6 +1351,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             resturlaub: {}
         };
 
+        window.globalDaten = globalDaten;
+
         let eingeloggterMitarbeiter = "";
         let eingeloggteRolle = "";
         let aktuellesProjekt = "";
@@ -1412,6 +1428,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
+                globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
                 globalDaten.resturlaub = cloudDaten.resturlaub || {};
                 allesAktualisieren();
@@ -2046,62 +2063,25 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         let wochenplanungOffset = 0;
-        function wochenMontag(offset=0){
-            const d=new Date(); d.setHours(0,0,0,0);
-            const day=d.getDay()||7; d.setDate(d.getDate()-day+1+(offset*7));
-            return d;
-        }
-        function lokalesDatumKey(d){
-            const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
-            return `${y}-${m}-${day}`;
-        }
-        function wochenTage(offset=0){
-            const mon=wochenMontag(offset), out=[];
-            for(let i=0;i<7;i++){ const d=new Date(mon); d.setDate(mon.getDate()+i); out.push({key:lokalesDatumKey(d),date:d,label:d.toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'}),voll:d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})}); }
-            return out;
-        }
-        function planungsBaustellenFuerMitarbeiter(name){
-            const grund=(globalDaten.zuweisungen?.[name]||[]).filter(t=>globalDaten.projekte[t]);
-            return grund.length ? grund : Object.keys(globalDaten.projekte||{});
-        }
-        function wochenplanungDaten(name,key){
-            globalDaten.wochenplanung=globalDaten.wochenplanung||{}; globalDaten.wochenplanung[name]=globalDaten.wochenplanung[name]||{};
-            const v=globalDaten.wochenplanung[name][key];
-            if(Array.isArray(v)) return v;
-            if(typeof v==='string' && v) return [v];
-            globalDaten.wochenplanung[name][key]=[]; return globalDaten.wochenplanung[name][key];
-        }
+        let wochenplanungAuswahl = { name: '', key: '' };
+        function wochenMontag(offset=0){ const d=new Date(); d.setHours(0,0,0,0); const day=d.getDay()||7; d.setDate(d.getDate()-day+1+(offset*7)); return d; }
+        function lokalesDatumKey(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+        function wochenTage(offset=0){ const mon=wochenMontag(offset),out=[]; for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);out.push({key:lokalesDatumKey(d),date:d,label:d.toLocaleDateString('de-DE',{weekday:'short'}),voll:d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})});} return out; }
+        function planungsBaustellenFuerMitarbeiter(name){ return Object.keys(globalDaten.projekte||{}); }
+        function wochenplanungDaten(name,key){ globalDaten.wochenplanung=globalDaten.wochenplanung||{};globalDaten.wochenplanung[name]=globalDaten.wochenplanung[name]||{};const v=globalDaten.wochenplanung[name][key];if(Array.isArray(v))return v;if(typeof v==='string'&&v)return [v];globalDaten.wochenplanung[name][key]=[];return globalDaten.wochenplanung[name][key]; }
+        function wochenplanungIstChef(){ return String(eingeloggteRolle||'').toLowerCase().includes('chef') || String(eingeloggteRolle||'').toLowerCase().includes('admin'); }
         window.wochenplanungAnzeigen=function(){
-            const box=document.getElementById('mitarbeiter-wochenplanung'); if(!box) return;
-            const tage=wochenTage(wochenplanungOffset), chef=kalenderIstChef();
-            const alle=(globalDaten.mitarbeiterListe||[]).filter(m=>m.rolle==='Verleger');
-            const sichtbar=chef?alle:alle.filter(m=>m.name===eingeloggterMitarbeiter);
-            const mon=tage[0].date, son=tage[6].date;
-            const titel=`${mon.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} – ${son.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
-            const titleEl=document.getElementById('wochenplanung-titel'); if(titleEl) titleEl.textContent=titel;
-            if(!sichtbar.length){ box.innerHTML='<div class="p-5 rounded-xl bg-slate-50 text-sm text-slate-500">Keine Verleger gefunden.</div>'; return; }
-            box.innerHTML=sichtbar.map(m=>{
-                const projects=planungsBaustellenFuerMitarbeiter(m.name);
-                const cells=tage.map(t=>{
-                    const vals=wochenplanungDaten(m.name,t.key), heute=lokalesDatumKey(new Date())===t.key;
-                    const chips=vals.map((proj,i)=>`<div class="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 mb-1"><span class="text-[11px] font-semibold text-blue-900 truncate flex-1">${escapeHtml(proj)}</span>${chef?`<button type="button" onclick="wochenTagBaustelleEntfernen(${JSON.stringify(m.name)},${JSON.stringify(t.key)},${i})" class="text-red-500 font-bold">×</button>`:''}</div>`).join('');
-                    const options=projects.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
-                    return `<div class="rounded-xl border ${heute?'border-blue-400 bg-blue-50/40':'border-slate-200 bg-white'} p-2 min-w-[150px]">\n                        <div class="flex justify-between items-center mb-2"><span class="text-xs font-bold ${heute?'text-blue-700':'text-slate-700'}">${escapeHtml(t.label)}</span>${heute?'<span class="text-[9px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full">HEUTE</span>':''}</div>\n                        <div class="min-h-[36px]">${chips||'<span class="text-[10px] text-slate-400">Keine Baustelle</span>'}</div>\n                        ${chef?`<select onchange="wochenTagBaustelleHinzufuegen(this,${JSON.stringify(m.name)},${JSON.stringify(t.key)})" class="w-full mt-2 px-2 py-1.5 border rounded-lg text-[10px] bg-white"><option value="">+ Baustelle</option>${options}</select>`:''}\n                    </div>`;
-                }).join('');
-                return `<section class="border border-slate-200 rounded-2xl p-4 bg-slate-50"><div class="flex items-center justify-between mb-3"><div><div class="font-bold text-slate-900">👷 ${escapeHtml(m.name)}</div><div class="text-[10px] text-slate-500">${escapeHtml(m.rolle||'Verleger')} · mehrere Baustellen pro Tag möglich</div></div><span class="text-xs bg-white border px-2 py-1 rounded-full font-bold">Woche</span></div><div class="overflow-x-auto"><div class="flex gap-2 min-w-max">${cells}</div></div></section>`;
-            }).join('');
+          const box=document.getElementById('mitarbeiter-wochenplanung');if(!box)return;const tage=wochenTage(wochenplanungOffset);const sichtbar=(globalDaten.mitarbeiterListe||[]).filter(m=>m.rolle==='Verleger');
+          const mon=tage[0].date,fre=tage[4].date;const titleEl=document.getElementById('wochenplanung-titel');if(titleEl)titleEl.textContent=`${mon.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} – ${fre.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
+          if(!sichtbar.length){box.innerHTML='<div class="p-5 rounded-xl bg-slate-50 text-sm text-slate-500">Keine Verleger gefunden.</div>';return;}
+          const chef=wochenplanungIstChef();
+          box.innerHTML=`<div class="overflow-x-auto"><table class="w-full min-w-[900px] border-separate border-spacing-0"><thead><tr><th class="p-3 text-left bg-slate-100 rounded-tl-xl w-48">Verleger</th>${tage.map(t=>`<th class="p-3 text-center bg-slate-100">${t.label}<div class="text-[10px] font-normal text-slate-500">${t.date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></th>`).join('')}<th class="bg-slate-100 rounded-tr-xl"></th></tr></thead><tbody>${sichtbar.map(m=>`<tr><td class="p-3 border-b border-slate-200 font-bold text-slate-900">👷 ${escapeHtml(m.name)}</td>${tage.map(t=>{const vals=wochenplanungDaten(m.name,t.key),heute=lokalesDatumKey(new Date())===t.key;return `<td class="p-2 border-b border-slate-200 align-top ${heute?'bg-blue-50/50':''}"><div class="min-h-[72px] rounded-xl border ${heute?'border-blue-300':'border-slate-200'} bg-white p-2 cursor-pointer hover:border-blue-400" onclick="wochenplanungTagOeffnen(${JSON.stringify(m.name)},${JSON.stringify(t.key)})">${vals.length?vals.map((v,i)=>`<div class="mb-1 rounded-lg bg-blue-50 border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-900 flex gap-1"><span class="truncate flex-1">${escapeHtml(v.baustelle||v)}</span>${chef?`<button type="button" onclick="event.stopPropagation();wochenplanungEintragEntfernen(${JSON.stringify(m.name)},${JSON.stringify(t.key)},${i})" class="text-red-500 font-bold">×</button>`:''}</div>`).join(''):'<span class="text-[10px] text-slate-400">'+(chef?'+ Baustelle':'Keine Baustelle')+'</span>'}</div></td>`}).join('')}<td class="border-b border-slate-200"></td></tr>`).join('')}</tbody></table></div>`;
         };
-        window.wochenTagBaustelleHinzufuegen=async function(select,name,key){
-            if(!kalenderIstChef() || !select.value) { if(select) select.value=''; return; }
-            const vals=wochenplanungDaten(name,key); if(!vals.includes(select.value)) vals.push(select.value);
-            await globalGlobalSpeichern(); select.value=''; wochenplanungAnzeigen(); startseiteAktualisieren();
-        };
-        window.wochenTagBaustelleEntfernen=async function(name,key,index){
-            if(!kalenderIstChef()) return; const vals=wochenplanungDaten(name,key); vals.splice(index,1); await globalGlobalSpeichern(); wochenplanungAnzeigen(); startseiteAktualisieren();
-        };
-        window.wochenplanungVorherigeWoche=function(){wochenplanungOffset--;wochenplanungAnzeigen();};
-        window.wochenplanungNaechsteWoche=function(){wochenplanungOffset++;wochenplanungAnzeigen();};
-        window.wochenplanungHeute=function(){wochenplanungOffset=0;wochenplanungAnzeigen();};
+        window.wochenplanungTagOeffnen=function(name,key){ if(!wochenplanungIstChef())return;wochenplanungAuswahl={name,key};const modal=document.getElementById('wochenplanung-modal');const sel=document.getElementById('wochenplanung-modal-baustelle');const d=new Date(key+'T12:00:00');document.getElementById('wochenplanung-modal-verleger').textContent=name;document.getElementById('wochenplanung-modal-datum').textContent=d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});sel.innerHTML='<option value="">Baustelle auswählen...</option>'+planungsBaustellenFuerMitarbeiter(name).map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');document.getElementById('wochenplanung-modal-notiz').value='';modal.classList.remove('hidden');modal.classList.add('flex');};
+        window.wochenplanungModalSchliessen=function(){const m=document.getElementById('wochenplanung-modal');m.classList.add('hidden');m.classList.remove('flex');};
+        window.wochenplanungEintragSpeichern=async function(){if(!wochenplanungIstChef())return;const p=document.getElementById('wochenplanung-modal-baustelle').value;if(!p)return alert('Bitte eine Baustelle auswählen.');const n=document.getElementById('wochenplanung-modal-notiz').value.trim();const vals=wochenplanungDaten(wochenplanungAuswahl.name,wochenplanungAuswahl.key);vals.push({baustelle:p,notiz:n});try{await globalGlobalSpeichern();wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();}catch(e){alert('Wochenplanung konnte nicht gespeichert werden: '+(e.message||e));}};
+        window.wochenplanungEintragEntfernen=async function(name,key,index){if(!wochenplanungIstChef())return;const vals=wochenplanungDaten(name,key);vals.splice(index,1);await globalGlobalSpeichern();wochenplanungAnzeigen();startseiteAktualisieren();};
+        window.wochenplanungVorherigeWoche=function(){wochenplanungOffset--;wochenplanungAnzeigen();};window.wochenplanungNaechsteWoche=function(){wochenplanungOffset++;wochenplanungAnzeigen();};window.wochenplanungHeute=function(){wochenplanungOffset=0;wochenplanungAnzeigen();};
 
         function mitarbeiterZuweisungsTabelleAktualisieren() {
             const tbody = document.querySelector('#mitarbeiter-zuweisung-tabelle tbody');
@@ -3670,34 +3650,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
 <script>
 window.zeigeVerlegerPlanungAufStartseite=function(){
-  const b=document.getElementById('verleger-planung-startseite');
-  const l=document.getElementById('verleger-planung-start-liste');
-  const h=document.getElementById('verleger-planung-start-heute');
-  const sub=document.getElementById('verleger-planung-start-subtitle');
-  if(!b||!l||!h)return;
-  const name=typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:'';
-  const rolle=typeof eingeloggteRolle!=='undefined'?eingeloggteRolle:'';
-  if(!name || rolle!=='Verleger'){b.classList.add('hidden');return;}
-  const g=window.globalDaten||{};
-  const projekte=g.projekte||{};
-  const zugewiesen=(g.zuweisungen&&Array.isArray(g.zuweisungen[name]))?g.zuweisungen[name]:[];
-  const heute=new Date(); heute.setHours(0,0,0,0);
-  const montag=new Date(heute); const tag=montag.getDay()||7; montag.setDate(montag.getDate()-tag+1);
-  const tage=[]; for(let i=0;i<7;i++){const d=new Date(montag);d.setDate(montag.getDate()+i);tage.push(d);}
-  const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const kurz=['So','Mo','Di','Mi','Do','Fr','Sa'];
-  const einsaetze=[];
-  zugewiesen.forEach(projekt=>{
-    const p=projekte[projekt]; if(!p)return;
-    const plan=p.planung&&p.planung.verleger&&p.planung.verleger[name];
-    const daten=plan&&plan.tage||{};
-    tage.forEach(d=>{const v=daten[key(d)]; if(v&&v.baustelle===projekt)einsaetze.push({d,v,p,projekt});});
-  });
-  b.classList.remove('hidden');
-  sub.textContent='Deine Einsätze für heute und die ganze Woche';
-  const heuteJobs=einsaetze.filter(x=>key(x.d)===key(heute));
-  h.innerHTML=heuteJobs.length?`<div class="rounded-2xl border border-blue-200 bg-blue-50 p-4"><div class="text-xs font-black uppercase tracking-wider text-blue-700 mb-2">📍 Heute · ${heute.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit'})}</div>${heuteJobs.map(x=>`<div class="bg-white rounded-xl p-3 mb-2 last:mb-0"><div class="font-bold text-slate-900">${String(x.projekt).replace(/[<>]/g,'')}</div><div class="text-xs text-slate-500">📍 ${String(x.p.adresse||'Keine Adresse').replace(/[<>]/g,'')}${x.v.von||x.v.bis?` · ⏰ ${x.v.von||''}${x.v.bis?' – '+x.v.bis:''}`:''}</div>${x.v.notiz?`<div class="text-xs text-slate-600 mt-1">📝 ${String(x.v.notiz).replace(/[<>]/g,'')}</div>`:''}</div>`).join('')}</div>`:'<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">Heute ist keine Baustelle eingeteilt.</div>';
-  l.innerHTML=tage.map(d=>{const jobs=einsaetze.filter(x=>key(x.d)===key(d));const istHeute=key(d)===key(heute);return `<div class="rounded-xl border ${istHeute?'border-blue-300 bg-blue-50/40':'border-slate-200 bg-white'} p-3"><div class="flex items-center justify-between gap-2 mb-2"><strong class="text-sm text-slate-900">${kurz[d.getDay()]} · ${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</strong><span class="text-[10px] font-bold ${jobs.length?'text-blue-700':'text-slate-400'}">${jobs.length?jobs.length+' Baustelle'+(jobs.length>1?'n':''):'frei'}</span></div>${jobs.length?jobs.map(x=>`<div class="border-t border-slate-200 pt-2 mt-2"><div class="font-semibold text-sm">${String(x.projekt).replace(/[<>]/g,'')}</div><div class="text-xs text-slate-500">📍 ${String(x.p.adresse||'Keine Adresse').replace(/[<>]/g,'')}${x.v.von||x.v.bis?` · ${x.v.von||''}${x.v.bis?' – '+x.v.bis:''}`:''}</div></div>`).join(''):'<div class="text-xs text-slate-400">Keine Baustelle eingeteilt</div>'}</div>`;}).join('');
+  const b=document.getElementById('verleger-planung-startseite'),l=document.getElementById('verleger-planung-start-liste'),h=document.getElementById('verleger-planung-start-heute'),sub=document.getElementById('verleger-planung-start-subtitle');
+  if(!b||!l||!h)return;const name=typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:'';const rolle=typeof eingeloggteRolle!=='undefined'?eingeloggteRolle:'';if(!name||rolle!=='Verleger'){b.classList.add('hidden');return;}
+  const g=window.globalDaten||{};const wp=g.wochenplanung||{};const plan=wp[name]||{};const heute=new Date();heute.setHours(0,0,0,0);const montag=new Date(heute);const day=montag.getDay()||7;montag.setDate(montag.getDate()-day+1);const tage=[];for(let i=0;i<5;i++){const d=new Date(montag);d.setDate(montag.getDate()+i);tage.push(d);}const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const jobs=d=>Array.isArray(plan[key(d)])?plan[key(d)]:plan[key(d)]?[plan[key(d)]]:[];b.classList.remove('hidden');sub.textContent='Deine Einsätze für heute und die ganze Woche';const heuteJobs=jobs(heute);
+  h.innerHTML=`<div class="rounded-2xl border border-blue-200 bg-blue-50 p-4"><div class="text-xs font-black uppercase tracking-wider text-blue-700 mb-2">📍 Heute · ${heute.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit'})}</div>${heuteJobs.length?heuteJobs.map(x=>`<div class="bg-white rounded-xl p-3 mb-2 last:mb-0"><div class="font-bold text-slate-900">${String(x.baustelle||x).replace(/[<>]/g,'')}</div>${g.projekte?.[x.baustelle]?.adresse?`<div class="text-xs text-slate-500 mt-1">📍 ${String(g.projekte[x.baustelle].adresse).replace(/[<>]/g,'')}</div>`:''}${x.notiz?`<div class="text-xs text-slate-600 mt-1">📝 ${String(x.notiz).replace(/[<>]/g,'')}</div>`:''}</div>`).join(''):'<div class="text-sm text-slate-500">Heute ist keine Baustelle eingeteilt.</div>'}</div>`;
+  l.innerHTML=`<div class="grid grid-cols-1 md:grid-cols-5 gap-2">${tage.map(d=>{const js=jobs(d),ist=key(d)===key(heute);return `<div class="rounded-xl border ${ist?'border-blue-300 bg-blue-50/40':'border-slate-200 bg-white'} p-3 min-h-[130px]"><div class="flex items-center justify-between mb-2"><strong class="text-sm text-slate-900">${d.toLocaleDateString('de-DE',{weekday:'short'})}</strong><span class="text-[10px] text-slate-500">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span></div>${js.length?js.map(x=>`<div class="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-1"><div class="font-semibold text-xs text-blue-900">${String(x.baustelle||x).replace(/[<>]/g,'')}</div>${x.notiz?`<div class="text-[10px] text-slate-600 mt-1">${String(x.notiz).replace(/[<>]/g,'')}</div>`:''}</div>`).join(''):'<div class="text-xs text-slate-400">Frei</div>'}</div>`;}).join('')}</div>`;
 };
 </script>
 
