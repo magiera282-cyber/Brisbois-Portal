@@ -954,6 +954,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             <div class="grid lg:grid-cols-2 gap-6">
               <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><h3 class="font-black text-lg mb-3">📅 Heute im Einsatz</h3><div id="dashboard-heute" class="space-y-2"></div></section>
               <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-lg">⚠️ Baustellen-Probleme</h3><div class="flex items-center gap-2"><span id="dashboard-problem-info" class="text-xs text-slate-500"></span><span id="dashboard-probleme-count" class="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded-full"></span></div></div><div id="dashboard-probleme" class="space-y-2"></div></section>
+              <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 lg:col-span-2"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-lg">🤒 Krankmeldungen</h3><span id="dashboard-krank-count" class="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded-full"></span></div><div id="dashboard-krankmeldungen" class="space-y-2"></div></section>
             </div>
         </main>
 
@@ -1162,6 +1163,15 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                             🌴 Neuen Urlaubsantrag einreichen
                         </button>
                     </div>
+                </div>
+
+                <!-- KRANKHEITSTAGE-SAMMLER -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex items-center justify-between border-b pb-3">
+                        <div><h3 class="font-bold text-slate-900 text-base">🤒 Krankheitstage-Sammler</h3><p class="text-xs text-slate-500 mt-1">Alle deine gespeicherten Krankmeldungen und Krankheitstage.</p></div>
+                        <span id="zeiterfassung-kranktage-gesamt" class="bg-red-100 text-red-700 text-sm px-3 py-1.5 rounded-full font-black">0 Tage</span>
+                    </div>
+                    <div id="zeiterfassung-kranktage-liste" class="space-y-2"></div>
                 </div>
 
                 <!-- GESPEICHERTE ZEITEN HISTORIE -->
@@ -1491,6 +1501,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
                 // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
                 globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
+                globalDaten.krankmeldungen = Array.isArray(cloudDaten.krankmeldungen) ? cloudDaten.krankmeldungen : [];
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
                 globalDaten.resturlaub = cloudDaten.resturlaub || {};
                 allesAktualisieren();
@@ -1762,6 +1773,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try { wetterLaden(); } catch(e) { console.warn('Wetter-Start fehlgeschlagen:', e); }
             try { startseiteAktualisieren(); } catch(e) { console.warn('Startseite konnte nicht aktualisiert werden:', e); }
             try { zeiterfassungAnzeigen(); } catch(e) { console.warn('Zeiterfassung konnte nicht aktualisiert werden:', e); }
+            try { if(dashboardIstBerechtigt()) dashboardAktualisieren(); } catch(e) { console.warn('Dashboard konnte nicht aktualisiert werden:', e); }
             try { wechselnTab('startseite'); } catch(e) { console.warn('Startseite konnte nicht geöffnet werden:', e); }
         }
 
@@ -1862,50 +1874,87 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         async function krankmeldungSpeichern(event){
             event.preventDefault();
-            if(!eingeloggterMitarbeiter) return;
+            if(!eingeloggterMitarbeiter){ alert('Bitte zuerst anmelden.'); return; }
+            const form=document.getElementById('krankmeldung-form');
             const von=document.getElementById('krank-von')?.value;
             const bis=document.getElementById('krank-bis')?.value;
             const datei=document.getElementById('krank-foto')?.files?.[0];
             if(!von||!bis||!datei){ alert('Bitte Von, Bis und die Krankmeldung angeben.'); return; }
             if(von>bis){ alert('Das Bis-Datum darf nicht vor dem Von-Datum liegen.'); return; }
             if(datei.size>15*1024*1024){ alert('Die Datei darf maximal 15 MB groß sein.'); return; }
+            const submit=form?.querySelector('button[type="submit"]');
+            if(submit){ submit.disabled=true; submit.textContent='⏳ Wird gespeichert...'; }
             try{
-                let url='';
-                if(storage){
-                    const sichererName=String(eingeloggterMitarbeiter).replace(/[^a-zA-Z0-9äöüÄÖÜß_-]/g,'_');
-                    const dateiname=String(datei.name||'krankmeldung').replace(/[^a-zA-Z0-9äöüÄÖÜß._ -]/g,'_');
-                    const ziel=storageRef(storage,`krankmeldungen/${sichererName}/${Date.now()}_${dateiname}`);
-                    await uploadBytes(ziel,datei,{contentType:datei.type||'application/octet-stream'});
-                    url=await getDownloadURL(ziel);
-                } else {
-                    if(!String(datei.type||'').startsWith('image/')) throw new Error('Für PDF-Krankmeldungen muss Firebase Storage verfügbar sein.');
-                    const uploadDatei=await planBildKomprimieren(datei,1200,0.72);
-                    const reader=new FileReader();
-                    url=await new Promise((resolve,reject)=>{reader.onerror=()=>reject(new Error('Foto konnte nicht gelesen werden.'));reader.onload=()=>resolve(String(reader.result||''));reader.readAsDataURL(uploadDatei);});
-                    if(url.length>800000) throw new Error('Das Foto ist zu groß. Bitte ein kleineres Bild wählen.');
-                }
-                globalDaten.krankmeldungen=globalDaten.krankmeldungen||[];
-                const id='KM_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
-                globalDaten.krankmeldungen.push({id,mitarbeiter:eingeloggterMitarbeiter,von,bis,dateiUrl:url,dateiname:datei.name,dateityp:datei.type,erstelltAm:new Date().toISOString()});
+                globalDaten.krankmeldungen=Array.isArray(globalDaten.krankmeldungen)?globalDaten.krankmeldungen:[];
                 globalDaten.zeiterfassung=globalDaten.zeiterfassung||{};
                 globalDaten.zeiterfassung[eingeloggterMitarbeiter]=globalDaten.zeiterfassung[eingeloggterMitarbeiter]||{};
                 globalDaten.abwesenheiten=globalDaten.abwesenheiten||{};
                 globalDaten.abwesenheiten[eingeloggterMitarbeiter]=globalDaten.abwesenheiten[eingeloggterMitarbeiter]||{};
-                const start=new Date(von+'T00:00:00'), end=new Date(bis+'T00:00:00');
+
+                const id='KM_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+                let url='';
+                let dateiGespeichert=false;
+
+                // Primär: Firebase Storage. Das ist für Fotos und PDFs die saubere Lösung.
+                if(storage){
+                    try{
+                        const sichererName=String(eingeloggterMitarbeiter).replace(/[^a-zA-Z0-9äöüÄÖÜß_-]/g,'_');
+                        const dateiname=String(datei.name||'krankmeldung').replace(/[^a-zA-Z0-9äöüÄÖÜß._ -]/g,'_');
+                        const ziel=storageRef(storage,`krankmeldungen/${sichererName}/${id}_${dateiname}`);
+                        await uploadBytes(ziel,datei,{contentType:datei.type||'application/octet-stream'});
+                        url=await getDownloadURL(ziel);
+                        dateiGespeichert=true;
+                    }catch(storageError){
+                        console.warn('Storage-Upload fehlgeschlagen, versuche Foto-Fallback:',storageError);
+                        // Nur bei Bildern Fallback auf ein komprimiertes Foto. PDFs bleiben ein echter Storage-Upload.
+                        if(String(datei.type||'').startsWith('image/')){
+                            const uploadDatei=await planBildKomprimieren(datei,1400,0.78);
+                            const reader=new FileReader();
+                            url=await new Promise((resolve,reject)=>{ reader.onerror=()=>reject(new Error('Foto konnte nicht gelesen werden.')); reader.onload=()=>resolve(String(reader.result||'')); reader.readAsDataURL(uploadDatei); });
+                            if(url.length>700000) throw new Error('Das Foto ist zu groß. Bitte ein kleineres Bild wählen.');
+                            dateiGespeichert=true;
+                        }else{
+                            throw new Error('Die Krankmeldung konnte nicht hochgeladen werden. Firebase Storage verweigert den Upload. Bitte die Firebase-Storage-Regeln prüfen.');
+                        }
+                    }
+                }else{
+                    if(!String(datei.type||'').startsWith('image/')) throw new Error('Firebase Storage ist nicht verfügbar. Für eine PDF-Krankmeldung muss Firebase Storage aktiviert sein.');
+                    const uploadDatei=await planBildKomprimieren(datei,1400,0.78);
+                    const reader=new FileReader();
+                    url=await new Promise((resolve,reject)=>{ reader.onerror=()=>reject(new Error('Foto konnte nicht gelesen werden.')); reader.onload=()=>resolve(String(reader.result||'')); reader.readAsDataURL(uploadDatei); });
+                    if(url.length>700000) throw new Error('Das Foto ist zu groß. Bitte ein kleineres Bild wählen.');
+                    dateiGespeichert=true;
+                }
+                if(!dateiGespeichert) throw new Error('Die Krankmeldung konnte nicht gespeichert werden.');
+
+                const krankmeldung={id,mitarbeiter:eingeloggterMitarbeiter,von,bis,dateiUrl:url,dateiname:datei.name,dateityp:datei.type||'',erstelltAm:new Date().toISOString(),status:'eingereicht'};
+                globalDaten.krankmeldungen.push(krankmeldung);
+
+                const start=new Date(von+'T00:00:00');
+                const end=new Date(bis+'T00:00:00');
+                let tage=0;
                 for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
                     const key=d.toISOString().split('T')[0];
+                    tage++;
                     globalDaten.zeiterfassung[eingeloggterMitarbeiter][key]={datum:key,status:'Krank',krankmeldungId:id,krankheitstage:true,nettoStunden:'00:00'};
                     globalDaten.abwesenheiten[eingeloggterMitarbeiter][key]={status:'krank',krankmeldungId:id};
                     if(globalDaten.wochenplanung?.[eingeloggterMitarbeiter]) delete globalDaten.wochenplanung[eingeloggterMitarbeiter][key];
                 }
+
+                // Alles in einem Cloud-Speichervorgang sichern.
                 await globalGlobalSpeichern();
                 krankmeldungModalSchliessen();
-                document.getElementById('krankmeldung-form')?.reset();
+                form?.reset();
                 zeiterfassungAnzeigen();
                 if(typeof wochenplanungAnzeigen==='function') wochenplanungAnzeigen();
                 startseiteAktualisieren();
-                alert(`✅ Krankmeldung vom ${von} bis ${bis} gespeichert.`);
-            }catch(e){ console.error('Krankmeldung:',e); alert('❌ Krankmeldung konnte nicht gespeichert werden.\n\n'+(e?.message||e)); }
+                alert(`✅ Krankmeldung gespeichert. ${tage} Krankheitstag${tage===1?'':'e'} wurden eingetragen.`);
+            }catch(e){
+                console.error('Krankmeldung:',e);
+                alert('❌ Krankmeldung konnte nicht gespeichert werden.\n\n'+(e?.message||e));
+            }finally{
+                if(submit){ submit.disabled=false; submit.textContent='💾 Krankmeldung speichern'; }
+            }
         }
         window.krankmeldungSpeichern=krankmeldungSpeichern;
 
@@ -1971,6 +2020,20 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     if(anzeigeHeutig) anzeigeHeutig.innerText = eintrag.nettoStunden;
                 }
             }
+
+            const meineKrankmeldungen = (globalDaten.krankmeldungen || []).filter(x => x && x.mitarbeiter === eingeloggterMitarbeiter);
+            let gesamtKranktage = 0;
+            const krankSammler = meineKrankmeldungen.map(x => {
+                const von = new Date(String(x.von || '') + 'T00:00:00');
+                const bis = new Date(String(x.bis || '') + 'T00:00:00');
+                const tage = (!isNaN(von) && !isNaN(bis)) ? Math.max(0, Math.floor((bis-von)/86400000)+1) : 0;
+                gesamtKranktage += tage;
+                return {...x, tage};
+            }).sort((a,b)=>String(b.von||'').localeCompare(String(a.von||'')));
+            const krankGesamtEl=document.getElementById('zeiterfassung-kranktage-gesamt');
+            const krankListeEl=document.getElementById('zeiterfassung-kranktage-liste');
+            if(krankGesamtEl) krankGesamtEl.textContent=`${gesamtKranktage} ${gesamtKranktage===1?'Tag':'Tage'}`;
+            if(krankListeEl) krankListeEl.innerHTML=krankSammler.length ? krankSammler.map(x=>`<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-red-50 border border-red-200 rounded-xl p-3"><div><div class="font-bold text-red-900">🤒 ${escapeHtmlUI(x.von||'')} ${x.bis && x.bis!==x.von ? `bis ${escapeHtmlUI(x.bis)}` : ''}</div><div class="text-xs text-red-700 mt-1">${x.tage} ${x.tage===1?'Krankheitstag':'Krankheitstage'}</div></div>${x.dateiUrl?`<a href="${x.dateiUrl}" target="_blank" rel="noopener" class="text-xs font-bold text-blue-700 underline">📎 Krankmeldung öffnen</a>`:''}</div>`).join(''):'<div class="text-sm text-slate-400 italic">Noch keine Krankmeldungen vorhanden.</div>';
 
             const tbody = document.querySelector('#zeiterfassung-historie-tabelle tbody');
             if(tbody) {
@@ -4237,6 +4300,11 @@ window.verlegerWochenplanSchliessen = function(){ const m=document.getElementByI
     countEl.textContent=offen.length+' offen';
     probEl.innerHTML=offen.length?offen.map(p=>`<div class="border border-red-200 bg-red-50 rounded-xl p-4"><div class="flex flex-wrap justify-between gap-2"><div><b>🏗️ ${escapeHtmlUI(p.baustelle||'Unbekannte Baustelle')}</b><div class="text-xs font-bold text-red-700 mt-1">${escapeHtmlUI(p.kategorie||'Sonstiges')}</div></div><span class="text-xs text-slate-500">${escapeHtmlUI(p.datum||'')}</span></div><p class="text-sm text-slate-700 mt-2 whitespace-pre-wrap">${escapeHtmlUI(p.text||'')}</p><div class="text-xs text-slate-500 mt-2">Gemeldet von: <b>${escapeHtmlUI(p.von||'Unbekannt')}</b></div><button type="button" onclick="problemErledigen('${String(p.id).replace(/'/g,"\'")}')" class="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold">✔ Als erledigt markieren</button></div>`).join(''):'<p class="text-sm text-slate-400">Keine offenen Probleme.</p>';
     const info=document.getElementById('dashboard-problem-info'); if(info) info.innerHTML=`<span>Gesamt gemeldet: <b>${probleme.length}</b></span><span> · </span><span>Erledigt: <b>${erledigt.length}</b></span>`;
+    const krankmeldungen=Array.isArray(window.globalDaten.krankmeldungen)?window.globalDaten.krankmeldungen:[];
+    const krankCount=document.getElementById('dashboard-krank-count');
+    const krankEl=document.getElementById('dashboard-krankmeldungen');
+    if(krankCount) krankCount.textContent=`${krankmeldungen.length} Meldung${krankmeldungen.length===1?'':'en'}`;
+    if(krankEl) krankEl.innerHTML=krankmeldungen.length ? krankmeldungen.slice().sort((a,b)=>String(b.erstelltAm||'').localeCompare(String(a.erstelltAm||''))).map(x=>{const von=String(x.von||'');const bis=String(x.bis||'');const d1=new Date(von+'T00:00:00');const d2=new Date(bis+'T00:00:00');const tage=von&&bis&&!isNaN(d1)&&!isNaN(d2)?Math.max(1,Math.floor((d2-d1)/86400000)+1):0;return `<div class="border border-red-200 bg-red-50 rounded-xl p-4"><div class="flex flex-wrap justify-between gap-2"><div><b>👷 ${escapeHtmlUI(x.mitarbeiter||'Unbekannt')}</b><div class="text-sm font-bold text-red-800 mt-1">🤒 ${escapeHtmlUI(von)} bis ${escapeHtmlUI(bis)} · ${tage} ${tage===1?'Tag':'Tage'}</div></div><span class="text-xs text-slate-500">${escapeHtmlUI(x.status||'eingereicht')}</span></div><div class="text-xs text-slate-500 mt-2">Eingereicht: ${escapeHtmlUI(x.erstelltAm?new Date(x.erstelltAm).toLocaleString('de-DE'):'')}</div>${x.dateiUrl?`<a href="${x.dateiUrl}" target="_blank" rel="noopener" class="inline-block mt-3 text-sm font-bold text-blue-700 underline">📎 Krankmeldung öffnen</a>`:''}</div>`;}).join(''):'<p class="text-sm text-slate-400">Noch keine Krankmeldungen eingegangen.</p>';
   }catch(e){ console.error('Dashboard:',e); }
 };
 
