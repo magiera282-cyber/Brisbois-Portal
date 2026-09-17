@@ -1,3 +1,5 @@
+
+<div id="verleger-planung-startseite" style="display:none;margin:18px 0"><div class="card" style="border-left:4px solid #2563eb"><h3 style="margin:0 0 6px">📅 Meine Baustellenplanung</h3><div id="verleger-planung-start-subtitle" style="color:#666;font-size:14px"></div><div id="verleger-planung-start-liste" style="margin-top:12px"></div></div></div>
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -645,7 +647,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             <button onclick="wechselnTab('mitarbeiter-liste')" id="btn-mitarbeiter-liste" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📞 Telefonliste</button>
             <button onclick="wechselnTab('mitarbeiter')" id="btn-mitarbeiter" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap chef-only">👥 Mitarbeiter & Zuweisung</button>
             <button onclick="wechselnTab('kollegen')" id="btn-kollegen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">🗺️ Live-Karte</button>
-            <button onclick="wechselnTab('kalender')" id="btn-kalender" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📅 Baustellen-Kalender</button>
             <button onclick="wechselnTab('belege')" id="btn-belege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⛽ Belege & Kasse</button>
             <button onclick="wechselnTab('urlaub')" id="btn-urlaub" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⏱️ Zeiterfassung & Urlaub</button>
         </nav>
@@ -774,10 +775,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 <div class="flex justify-between items-center border-b pb-2">
                     <h2 class="text-lg font-semibold text-slate-700" id="projekt-listen-titel">Aktive & Nächste Projekte</h2>
                     <div class="flex gap-1">
-                        <button onclick="neuesProjektModalOeffnen()" class="text-xs bg-emerald-600 text-white px-2 py-1 rounded font-bold hover:bg-emerald-700 transition" title="Manuell anlegen">
+                        <button id="btn-neues-projekt" onclick="neuesProjektModalOeffnen()" class="text-xs bg-emerald-600 text-white px-2 py-1 rounded font-bold hover:bg-emerald-700 transition" title="Manuell anlegen">
                             + Neu
                         </button>
-                        <button onclick="document.getElementById('projekt-ki-modal').classList.remove('hidden')" class="text-xs bg-blue-600 text-white px-2.5 py-1 rounded font-bold hover:bg-blue-700 transition" title="KI-Auftrag">
+                        <button id="btn-ki-auftrag" onclick="kiAuftragModalOeffnen()" class="text-xs bg-blue-600 text-white px-2.5 py-1 rounded font-bold hover:bg-blue-700 transition" title="KI-Auftrag">
                             🤖 KI-Auftrag
                         </button>
                     </div>
@@ -1061,21 +1062,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             </div>
         </main>
 
-        <!-- BAUSTELLEN-KALENDER -->
-        <main id="tab-kalender" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden">
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
-                <div class="flex justify-between items-center flex-wrap gap-2">
-                    <div><h2 class="text-xl font-bold text-slate-900">📅 Baustellen-Kalender & Verleger-Planung</h2><p class="text-xs text-slate-500">Der Chef plant für jeden Verleger Baustelle, Zeitraum und jeden einzelnen Arbeitstag. Änderungen können täglich vorgenommen werden.</p></div>
-                    <input id="kalender-datum" type="month" onchange="kalenderAnzeigen()" class="px-3 py-2 border rounded-lg text-sm">
-                </div>
-                <div id="verleger-uebersicht" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
-                <div class="border-t pt-5">
-                    <div class="flex items-center justify-between mb-3"><h3 class="font-bold text-slate-900">🏗️ Baustellenplanung</h3><span id="kalender-hinweis" class="text-[11px] text-slate-400"></span></div>
-                    <div id="baustellen-kalender" class="space-y-4"></div>
-                </div>
-            </div>
-        </main>
-
         <!-- BELEGE -->
         <main id="tab-belege" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
@@ -1232,8 +1218,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app, "(default)");
-        // Firebase fuer nachgelagerte Kalender-UI bereitstellen
-        window.db = db; window.setDoc = setDoc; window.doc = doc; window.deleteDoc = deleteDoc; window.collection = collection; window.onSnapshot = onSnapshot;
         let storage = null;
         try { storage = getStorage(app); } catch (storageError) {
             console.warn("Firebase Storage ist noch nicht verfügbar. Login und Portal bleiben nutzbar:", storageError);
@@ -1363,11 +1347,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         let ausgewaehlteNachrichtIndex = null;
         let map = null;
         let mapMarkerLayer = [];
-        // Bridge fuer die nachgelagerten UI-Skripte: Die Hauptlogik laeuft als ES-Modul.
-        // Diese Getter halten window.* immer mit den echten Modulvariablen synchron.
-        Object.defineProperty(window, "globalDaten", { configurable:true, get:()=>globalDaten, set:v=>{ if(v) globalDaten=v; } });
-        Object.defineProperty(window, "eingeloggterMitarbeiter", { configurable:true, get:()=>eingeloggterMitarbeiter, set:v=>{ eingeloggterMitarbeiter=v||""; } });
-        Object.defineProperty(window, "eingeloggteRolle", { configurable:true, get:()=>eingeloggteRolle, set:v=>{ eingeloggteRolle=v||""; } });
 
         let vollbildZoomFaktor = 1;
         let isVollbildPanning = false;
@@ -1433,8 +1412,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
-                // Wochenplanung aus Firestore laden, damit sie nach einem Refresh erhalten bleibt.
-                globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
                 globalDaten.resturlaub = cloudDaten.resturlaub || {};
                 allesAktualisieren();
@@ -1460,7 +1437,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         aktuellesProjekt = zugewieseneProjekte.length > 0 ? zugewieseneProjekte[0] : "";
                     }
                 }
-                try { if (typeof window.zeigeVerlegerPlanungAufStartseite === 'function') window.zeigeVerlegerPlanungAufStartseite(); } catch(e) { console.warn('Wochenplanung Snapshot:', e); }
                 allesAktualisieren();
             } else {
                 Object.keys(basisProjekte).forEach(projName => {
@@ -1468,16 +1444,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 });
             }
         });
-
-        // Neuer Mitarbeiter-Kalender: Daten aus Firestore laden, damit sie auch auf anderen Geraeten erscheinen.
-        window.chefKalenderPlanung = window.chefKalenderPlanung || {};
-        onSnapshot(collection(db, "kalenderPlanung"), (snapshot) => {
-            const daten = {};
-            snapshot.forEach(snap => { daten[snap.id] = snap.data(); });
-            window.chefKalenderPlanung = daten;
-            try { if (typeof window.zeigeChefKalender === "function") window.zeigeChefKalender(); } catch(e) {}
-            try { if (typeof window.zeigeVerlegerPlanungAufStartseite === "function") window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {}
-        }, (error) => console.warn("Fehler beim Laden der Wochenplanung:", error));
 
         async function globalGlobalSpeichern() {
             try {
@@ -1492,11 +1458,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     zeiterfassung: globalDaten.zeiterfassung,
                     resturlaub: globalDaten.resturlaub
                 });
-                return true;
             } catch(e) {
                 console.error("Fehler beim Speichern global:", e);
-                alert(`⚠️ Wochenplanung konnte nicht gespeichert werden. ${e.message || "Bitte Firebase-Verbindung und Regeln prüfen."}`);
-                return false;
             }
         }
 
@@ -1573,13 +1536,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             telefonlistenTabelleFüllen();
             benachrichtigungenAnzeigen();
             empfaengerDropdownBefuellen();
+            neueAuftragButtonsAktualisieren();
             projektTeamAnzeigen();
             schnellZuweisungDropdownBefuellen();
             startseiteAktualisieren();
             zeiterfassungAnzeigen();
             if (aktuellesProjekt && globalDaten.projekte[aktuellesProjekt]) projektLaden(aktuellesProjekt);
             if (map) karteAktualisieren();
-            kalenderAnzeigen();
         }
 
         function loginDropdownBefuellen() {
@@ -1653,6 +1616,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (userBadge) userBadge.innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
             if (loginModal) loginModal.classList.add('hidden');
             if (appContainer) appContainer.classList.remove('hidden');
+            // Erstellungsrechte sofort nach dem Login anwenden.
+            neueAuftragButtonsAktualisieren();
 
             const belegDatum = document.getElementById('beleg-datum');
             if (belegDatum && !belegDatum.value) belegDatum.value = new Date().toISOString().split('T')[0];
@@ -1705,7 +1670,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             try { wetterLaden(); } catch(e) { console.warn('Wetter-Start fehlgeschlagen:', e); }
             try { startseiteAktualisieren(); } catch(e) { console.warn('Startseite konnte nicht aktualisiert werden:', e); }
-            try { if (typeof window.zeigeVerlegerPlanungAufStartseite === 'function') window.zeigeVerlegerPlanungAufStartseite(); } catch(e) { console.warn('Wochenplanung konnte beim Login nicht geladen werden:', e); }
             try { zeiterfassungAnzeigen(); } catch(e) { console.warn('Zeiterfassung konnte nicht aktualisiert werden:', e); }
             try { wechselnTab('startseite'); } catch(e) { console.warn('Startseite konnte nicht geöffnet werden:', e); }
         }
@@ -1868,6 +1832,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         window.neuesProjektModalOeffnen = function() {
+            if(!darfNeueAuftraegeAnlegen()) {
+                alert('Nur Sekretariat, Techniker und Chefs dürfen neue Aufträge/Baustellen anlegen.');
+                return;
+            }
             document.getElementById('manuell-projekt-titel').value = "";
             document.getElementById('manuell-projekt-adresse').value = "";
             document.getElementById('manuell-projekt-anweisung').value = "";
@@ -1876,6 +1844,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             materialZeileHinzufuegen();
             document.getElementById('neues-projekt-modal').classList.remove('hidden');
         }
+
+        window.kiAuftragModalOeffnen = function() {
+            if(!darfNeueAuftraegeAnlegen()) {
+                alert('Nur Sekretariat, Techniker und Chefs dürfen neue Aufträge/Baustellen anlegen.');
+                return;
+            }
+            document.getElementById('projekt-ki-modal')?.classList.remove('hidden');
+        };
 
         window.materialZeileHinzufuegen = function() {
             const container = document.getElementById('manuell-material-container');
@@ -1895,6 +1871,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         window.neuesProjektManuellSpeichern = function(event) {
             event.preventDefault();
+            if(!darfNeueAuftraegeAnlegen()) {
+                alert('Nur Sekretariat, Techniker und Chefs dürfen neue Aufträge/Baustellen anlegen.');
+                return;
+            }
             const titel = document.getElementById('manuell-projekt-titel').value.trim();
             const adresse = document.getElementById('manuell-projekt-adresse').value.trim();
             const status = document.getElementById('manuell-projekt-status').value;
@@ -2114,12 +2094,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.wochenTagBaustelleHinzufuegen=async function(select,name,key){
             if(!kalenderIstChef() || !select.value) { if(select) select.value=''; return; }
             const vals=wochenplanungDaten(name,key); if(!vals.includes(select.value)) vals.push(select.value);
-            const gespeichert = await globalGlobalSpeichern();
-            if(gespeichert === false) return;
-            select.value=''; wochenplanungAnzeigen(); startseiteAktualisieren();
+            await globalGlobalSpeichern(); select.value=''; wochenplanungAnzeigen(); startseiteAktualisieren();
         };
         window.wochenTagBaustelleEntfernen=async function(name,key,index){
-            if(!kalenderIstChef()) return; const vals=wochenplanungDaten(name,key); const entfernt=vals.splice(index,1)[0]; const gespeichert=await globalGlobalSpeichern(); if(gespeichert===false){ vals.splice(index,0,entfernt); wochenplanungAnzeigen(); return; } wochenplanungAnzeigen(); startseiteAktualisieren();
+            if(!kalenderIstChef()) return; const vals=wochenplanungDaten(name,key); vals.splice(index,1); await globalGlobalSpeichern(); wochenplanungAnzeigen(); startseiteAktualisieren();
         };
         window.wochenplanungVorherigeWoche=function(){wochenplanungOffset--;wochenplanungAnzeigen();};
         window.wochenplanungNaechsteWoche=function(){wochenplanungOffset++;wochenplanungAnzeigen();};
@@ -2691,51 +2669,23 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.tagesberichtSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; const text=document.getElementById('tagesbericht-text')?.value.trim(); const st=document.getElementById('tagesbericht-stunden')?.value; if(!p||!text) return alert('Bitte einen Tagesbericht eingeben.'); p.tagesberichte=p.tagesberichte||[]; p.tagesberichte.push({datum:new Date().toLocaleDateString('de-DE'),mitarbeiter:eingeloggterMitarbeiter,text,stunden:st||'',erstelltAm:new Date().toISOString()}); document.getElementById('tagesbericht-text').value=''; document.getElementById('tagesbericht-stunden').value=''; await projektSpeichern(aktuellesProjekt); projektModuleAktualisieren(); };
         window.abnahmeSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; if(!p) return; const verantwortlicher=document.getElementById('abnahme-verantwortlicher')?.value.trim(); const notiz=document.getElementById('abnahme-notiz')?.value.trim(); if(!verantwortlicher) return alert('Bitte Kunde / Verantwortlichen eintragen.'); p.abnahme={verantwortlicher,notiz,datum:new Date().toLocaleDateString('de-DE'),durch:eingeloggterMitarbeiter}; p.status='Fertig'; await projektSpeichern(aktuellesProjekt); projektLaden(aktuellesProjekt); alert('Abnahme gespeichert und Baustelle auf Fertig gesetzt.'); };
 
-        function kalenderIstChef(){ return eingeloggteRolle === 'Chef' || eingeloggteRolle === '2. Chef' || eingeloggteRolle === 'Admin'; }
-        function datumSchluessel(d){ const x=new Date(d); return x.toISOString().slice(0,10); }
-        function monatstage(monat){
-            const [y,m]=monat.split('-').map(Number); const tage=[]; const start=new Date(y,m-1,1); const end=new Date(y,m,0);
-            for(let d=1;d<=end.getDate();d++){ const x=new Date(y,m-1,d); tage.push({key:datumSchluessel(x), label:x.toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'})}); }
-            return tage;
-        }
-        function planungFuerProjekt(p){ p.planung = p.planung || {verleger:{}}; p.planung.verleger = p.planung.verleger || {}; return p.planung; }
-        function verplanterStatus(p,name,key){ return planungFuerProjekt(p).verleger?.[name]?.tage?.[key] || null; }
-        function baustellenNamenFuerVerleger(name){ return (globalDaten.zuweisungen?.[name] || []).filter(t=>globalDaten.projekte[t]); }
-
-        window.kalenderAnzeigen = function(){
-            const el=document.getElementById('baustellen-kalender'); const overview=document.getElementById('verleger-uebersicht'); if(!el||!overview) return;
-            const month=document.getElementById('kalender-datum')?.value || new Date().toISOString().slice(0,7); const tage=monatstage(month); const chef=kalenderIstChef();
-            const verleger=(globalDaten.mitarbeiterListe||[]).filter(m=>m.rolle==='Verleger');
-            const sichtbar=chef ? verleger : verleger.filter(m=>m.name===eingeloggterMitarbeiter);
-            document.getElementById('kalender-hinweis').textContent=chef?'Chef-Ansicht: Planung und tägliche Änderungen sind möglich.':'Du siehst nur deine eigene Einsatzplanung.';
-            overview.innerHTML = sichtbar.map(m=>{
-                const jobs=[]; baustellenNamenFuerVerleger(m.name).forEach(t=>{ const p=globalDaten.projekte[t]; const daten=planungFuerProjekt(p).verleger[m.name]?.tage||{}; const belegte=tage.filter(d=>daten[d.key]?.baustelle===t).length; if(belegte) jobs.push({t,belegte}); });
-                const gesamt=jobs.reduce((a,x)=>a+x.belegte,0);
-                return `<div class="border rounded-xl p-4 bg-slate-50"><div class="flex items-center justify-between"><div><div class="font-bold text-slate-900">👷 ${escapeHtml(m.name)}</div><div class="text-[11px] text-slate-500">${escapeHtml(m.rolle||'Verleger')}</div></div><span class="text-xs font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-800">${gesamt} Tage</span></div><div class="mt-3 space-y-1.5">${jobs.length?jobs.map(j=>`<div class="flex justify-between text-xs bg-white border rounded-lg px-2 py-1.5"><span class="font-medium">${escapeHtml(j.t)}</span><span>${j.belegte} Tage</span></div>`).join(''):'<span class="text-xs text-slate-400">Keine Einsätze im ausgewählten Monat.</span>'}</div></div>`;
-            }).join('') || '<p class="text-sm text-slate-400">Keine Verleger gefunden.</p>';
-            const projekte=Object.entries(globalDaten.projekte).filter(([t,p])=>chef || (globalDaten.zuweisungen[eingeloggterMitarbeiter]||[]).includes(t));
-            el.innerHTML=projekte.map(([t,p])=>{
-                const names=(globalDaten.mitarbeiterListe||[]).filter(m=>m.rolle==='Verleger' && (globalDaten.zuweisungen[m.name]||[]).includes(t)).map(m=>m.name);
-                const rows=names.map(name=>{
-                    const plan=planungFuerProjekt(p).verleger[name] = planungFuerProjekt(p).verleger[name] || {tage:{}}; const tageD=plan.tage||{};
-                    const cells=tage.map(d=>{const v=tageD[d.key]; const checked=v?.baustelle===t; const cls=checked?'bg-blue-100 border-blue-300':'bg-white'; return `<div class="min-w-[88px] border rounded-lg p-1.5 ${cls}"><div class="text-[9px] font-bold text-slate-500">${d.label}</div>${chef?`<button type="button" onclick="kalenderTagUmschalten(${JSON.stringify(t)},${JSON.stringify(name)},${JSON.stringify(d.key)})" class="w-full mt-1 text-[10px] font-bold px-1.5 py-1 rounded ${checked?'bg-blue-600 text-white':'bg-slate-100 text-slate-600'}">${checked?'✓ Einsatz':'+ Einsatz'}</button>`:`<div class="mt-1 text-[10px] font-bold">${checked?'✓ Einsatz':'–'}</div>`}${checked?`<select ${chef?'':'disabled'} onchange="kalenderTagAendern(${JSON.stringify(t)},${JSON.stringify(name)},${JSON.stringify(d.key)},this.value)" class="w-full mt-1 text-[9px] border rounded px-1 py-1"><option value="Geplant" ${(v.status||'Geplant')==='Geplant'?'selected':''}>Geplant</option><option value="Arbeit" ${v.status==='Arbeit'?'selected':''}>Arbeit</option><option value="Urlaub" ${v.status==='Urlaub'?'selected':''}>Urlaub</option><option value="Krank" ${v.status==='Krank'?'selected':''}>Krank</option><option value="Abwesend" ${v.status==='Abwesend'?'selected':''}>Abwesend</option></select>`:''}</div>`;}).join('');
-                    return `<div class="mb-4"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><div class="font-bold text-sm">👷 ${escapeHtml(name)}</div><div class="text-[10px] text-slate-400">Tage direkt oben ändern</div></div><div class="overflow-x-auto pb-2"><div class="flex gap-1.5 min-w-max">${cells}</div></div></div>`;
-                }).join('');
-                return `<div class="border rounded-xl p-4 bg-slate-50"><div class="flex justify-between gap-3 items-start"><div><div class="font-bold text-slate-900">🏗️ ${escapeHtml(t)}</div><div class="text-xs text-slate-500">${escapeHtml(p.adresse||'Keine Adresse')}</div></div><button onclick="projektLaden(${JSON.stringify(t)})" class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold">Baustelle öffnen</button></div><div class="mt-4">${rows || '<p class="text-xs text-slate-400">Noch kein Verleger zugewiesen. Die Zuweisung erfolgt über Mitarbeiter & Zuweisung.</p>'}</div></div>`;
-            }).join('') || '<p class="text-sm text-slate-400">Keine Baustellen gefunden.</p>';
-        };
-
-        window.kalenderTagUmschalten = async function(projekt,name,key){
-            if(!kalenderIstChef()) return alert('Nur der Chef kann die Einsatzplanung ändern.');
-            const p=globalDaten.projekte[projekt]; if(!p) return; const plan=planungFuerProjekt(p); plan.verleger[name]=plan.verleger[name]||{tage:{}}; plan.verleger[name].tage=plan.verleger[name].tage||{};
-            if(plan.verleger[name].tage[key]?.baustelle===projekt) delete plan.verleger[name].tage[key];
-            else plan.verleger[name].tage[key]={baustelle:projekt,status:'Geplant'};
-            await projektSpeichern(projekt); kalenderAnzeigen(); if(typeof window.zeigeVerlegerPlanungAufStartseite==="function") window.zeigeVerlegerPlanungAufStartseite();
-        };
-        window.kalenderTagAendern = async function(projekt,name,key,status){
-            if(!kalenderIstChef()) return; const p=globalDaten.projekte[projekt]; if(!p) return; const plan=planungFuerProjekt(p); const v=plan.verleger[name]?.tage?.[key]; if(!v) return; v.status=status; await projektSpeichern(projekt); kalenderAnzeigen(); if(typeof window.zeigeVerlegerPlanungAufStartseite==="function") window.zeigeVerlegerPlanungAufStartseite();
-        };
         function isChefOrPrivileged(){ return eingeloggteRolle.includes('Chef')||eingeloggteRolle.includes('Techniker')||eingeloggteRolle.includes('Admin')||eingeloggteRolle.includes('Sekretariat')||eingeloggterMitarbeiter==='Christian Leppin'; }
+
+        // Neue Aufträge/Baustellen dürfen ausschließlich Sekretariat, Techniker
+        // und alle Chef-/Admin-Rollen anlegen. Verleger dürfen nur bestehende
+        // Baustellen sehen und bearbeiten, sofern sie ihnen zugewiesen sind.
+        function darfNeueAuftraegeAnlegen(){
+            const rolle = String(eingeloggteRolle || '');
+            return rolle.includes('Chef') || rolle.includes('Admin') || rolle.includes('Techniker') || rolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+        }
+
+        function neueAuftragButtonsAktualisieren(){
+            const erlaubt = darfNeueAuftraegeAnlegen();
+            const neu = document.getElementById('btn-neues-projekt');
+            const ki = document.getElementById('btn-ki-auftrag');
+            if(neu) neu.classList.toggle('hidden', !erlaubt);
+            if(ki) ki.classList.toggle('hidden', !erlaubt);
+        }
 
         function projektListeAktualisieren() {
             const liste = document.getElementById('projekt-liste');
@@ -3305,6 +3255,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         window.kiErgebnisAlsBaustelleSpeichern = async function() {
+            if(!darfNeueAuftraegeAnlegen()) {
+                alert('Nur Sekretariat, Techniker und Chefs dürfen neue Aufträge/Baustellen anlegen.');
+                return;
+            }
             const button = document.querySelector('#ki-ergebnis-bereich button[onclick*="kiErgebnisAlsBaustelleSpeichern"]');
             const originalButtonText = button ? button.innerHTML : '';
 
@@ -3702,7 +3656,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (tabName === 'startseite') {
                 wetterLaden();
                 startseiteAktualisieren();
-                try { if (typeof window.zeigeVerlegerPlanungAufStartseite === 'function') window.zeigeVerlegerPlanungAufStartseite(); } catch(e) { console.warn('Wochenplanung:', e); }
             }
             if (tabName === 'urlaub') {
                 zeiterfassungAnzeigen();
@@ -3717,83 +3670,34 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
 <script>
 window.zeigeVerlegerPlanungAufStartseite=function(){
-  const b=document.getElementById("verleger-planung-startseite");
-  if(!b) return;
-
-  const name=String(window.eingeloggterMitarbeiter||"").trim();
-  const rolle=String(window.eingeloggteRolle||"").trim().toLowerCase();
-  const istVerleger=rolle.includes("verleger") || /^(patrick magiera|wolfgang seimetz)$/i.test(name);
-  if(!name || !istVerleger){ b.classList.add("hidden"); b.style.display="none"; return; }
-
-  const projekte=(window.globalDaten && window.globalDaten.projekte) || {};
-  const tage=[
-    {name:"Montag",nr:1},{name:"Dienstag",nr:2},{name:"Mittwoch",nr:3},
-    {name:"Donnerstag",nr:4},{name:"Freitag",nr:5}
-  ];
+  const b=document.getElementById('verleger-planung-startseite');
+  const l=document.getElementById('verleger-planung-start-liste');
+  const h=document.getElementById('verleger-planung-start-heute');
+  const sub=document.getElementById('verleger-planung-start-subtitle');
+  if(!b||!l||!h)return;
+  const name=typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:'';
+  const rolle=typeof eingeloggteRolle!=='undefined'?eingeloggteRolle:'';
+  if(!name || rolle!=='Verleger'){b.classList.add('hidden');return;}
+  const g=window.globalDaten||{};
+  const projekte=g.projekte||{};
+  const zugewiesen=(g.zuweisungen&&Array.isArray(g.zuweisungen[name]))?g.zuweisungen[name]:[];
   const heute=new Date(); heute.setHours(0,0,0,0);
-  const montag=new Date(heute);
-  const wd=montag.getDay()||7;
-  montag.setDate(montag.getDate()-wd+1);
-  const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  const jobs={1:[],2:[],3:[],4:[],5:[]};
-
-  // Mitarbeiter-Zentrale: Die Tagesplanung wird in portal/global.wochenplanung gespeichert.
-  const wochenplanung=(window.globalDaten && window.globalDaten.wochenplanung) || {};
-  const meineWoche=wochenplanung[name] || {};
-  tage.forEach((t,i)=>{
-    const d=new Date(montag); d.setDate(montag.getDate()+i);
-    const vals=meineWoche[key(d)];
-    const liste=Array.isArray(vals) ? vals : (typeof vals==='string' && vals ? [vals] : []);
-    liste.forEach(j=>{ if(j) jobs[t.nr].push(String(j)); });
+  const montag=new Date(heute); const tag=montag.getDay()||7; montag.setDate(montag.getDate()-tag+1);
+  const tage=[]; for(let i=0;i<7;i++){const d=new Date(montag);d.setDate(montag.getDate()+i);tage.push(d);}
+  const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const kurz=['So','Mo','Di','Mi','Do','Fr','Sa'];
+  const einsaetze=[];
+  zugewiesen.forEach(projekt=>{
+    const p=projekte[projekt]; if(!p)return;
+    const plan=p.planung&&p.planung.verleger&&p.planung.verleger[name];
+    const daten=plan&&plan.tage||{};
+    tage.forEach(d=>{const v=daten[key(d)]; if(v&&v.baustelle===projekt)einsaetze.push({d,v,p,projekt});});
   });
-
-  // Alte Baustellen-Kalenderstruktur: projekt.planung.verleger[name].tage[datum]
-  Object.keys(projekte).forEach(projekt=>{
-    const p=projekte[projekt]||{};
-    const plan=p.planung && p.planung.verleger && p.planung.verleger[name];
-    const daten=plan && plan.tage ? plan.tage : {};
-    tage.forEach((t,i)=>{
-      const d=new Date(montag); d.setDate(montag.getDate()+i);
-      const v=daten[key(d)];
-      if(v) jobs[t.nr].push(String(v.baustelle||p.name||projekt));
-    });
-  });
-
-  // Neuer Chef-Kalender: ein Eintrag pro Mitarbeiter/Datum.
-  const neu=window.chefKalenderPlanung||{};
-  tage.forEach((t,i)=>{
-    const d=new Date(montag); d.setDate(montag.getDate()+i);
-    const datum=key(d);
-    Object.keys(neu).forEach(k=>{
-      const v=neu[k];
-      if(!v || String(v.employee||v.mitarbeiter||"").trim()!==name) return;
-      const vd=String(v.date||v.datum||k.split("_")[0]||"").slice(0,10);
-      if(vd===datum && (v.baustelle||v.projektName||v.projektId)) jobs[t.nr].push(String(v.baustelle||v.projektName||v.projektId));
-    });
-  });
-  tage.forEach(t=>jobs[t.nr]=[...new Set(jobs[t.nr])]);
-
-  b.classList.remove("hidden");
-  b.style.display="block";
-  b.style.visibility="visible";
-  b.innerHTML=`
-    <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
-      <div><h2 class="text-lg font-black text-slate-900">📅 Meine Wochenplanung</h2>
-      <p class="text-xs text-slate-500">Deine Baustellen von Montag bis Freitag</p></div>
-      <span class="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full">Diese Woche</span></div>
-    <div style="display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px;overflow-x:auto;">
-      ${tage.map((t,i)=>{
-        const d=new Date(montag); d.setDate(montag.getDate()+i);
-        const istHeute=key(d)===key(heute);
-        return `<div class="rounded-2xl border ${istHeute?"border-blue-300 bg-blue-50/50":"border-slate-200 bg-white"} overflow-hidden" style="min-height:150px;">
-          <div class="px-3 py-3 border-b border-slate-200 ${istHeute?"bg-blue-100":"bg-slate-50"}">
-            <div class="font-black text-slate-900 text-sm">${t.name}</div>
-            <div class="text-xs text-slate-500">${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}. </div>
-          </div><div class="p-3 space-y-2">
-            ${jobs[t.nr].length?jobs[t.nr].map(j=>`<div class="rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-sm font-bold text-slate-800">📍 ${String(j).replace(/[<>]/g,"")}</div>`).join(""):"<div class=\"text-xs text-slate-400 text-center py-4\">Keine Baustelle eingeteilt</div>"}
-          </div></div>`;
-      }).join("")}
-    </div>`;
+  b.classList.remove('hidden');
+  sub.textContent='Deine Einsätze für heute und die ganze Woche';
+  const heuteJobs=einsaetze.filter(x=>key(x.d)===key(heute));
+  h.innerHTML=heuteJobs.length?`<div class="rounded-2xl border border-blue-200 bg-blue-50 p-4"><div class="text-xs font-black uppercase tracking-wider text-blue-700 mb-2">📍 Heute · ${heute.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit'})}</div>${heuteJobs.map(x=>`<div class="bg-white rounded-xl p-3 mb-2 last:mb-0"><div class="font-bold text-slate-900">${String(x.projekt).replace(/[<>]/g,'')}</div><div class="text-xs text-slate-500">📍 ${String(x.p.adresse||'Keine Adresse').replace(/[<>]/g,'')}${x.v.von||x.v.bis?` · ⏰ ${x.v.von||''}${x.v.bis?' – '+x.v.bis:''}`:''}</div>${x.v.notiz?`<div class="text-xs text-slate-600 mt-1">📝 ${String(x.v.notiz).replace(/[<>]/g,'')}</div>`:''}</div>`).join('')}</div>`:'<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">Heute ist keine Baustelle eingeteilt.</div>';
+  l.innerHTML=tage.map(d=>{const jobs=einsaetze.filter(x=>key(x.d)===key(d));const istHeute=key(d)===key(heute);return `<div class="rounded-xl border ${istHeute?'border-blue-300 bg-blue-50/40':'border-slate-200 bg-white'} p-3"><div class="flex items-center justify-between gap-2 mb-2"><strong class="text-sm text-slate-900">${kurz[d.getDay()]} · ${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</strong><span class="text-[10px] font-bold ${jobs.length?'text-blue-700':'text-slate-400'}">${jobs.length?jobs.length+' Baustelle'+(jobs.length>1?'n':''):'frei'}</span></div>${jobs.length?jobs.map(x=>`<div class="border-t border-slate-200 pt-2 mt-2"><div class="font-semibold text-sm">${String(x.projekt).replace(/[<>]/g,'')}</div><div class="text-xs text-slate-500">📍 ${String(x.p.adresse||'Keine Adresse').replace(/[<>]/g,'')}${x.v.von||x.v.bis?` · ${x.v.von||''}${x.v.bis?' – '+x.v.bis:''}`:''}</div></div>`).join(''):'<div class="text-xs text-slate-400">Keine Baustelle eingeteilt</div>'}</div>`;}).join('');
 };
 </script>
 
@@ -4007,213 +3911,6 @@ window.zeigeVerlegerPlanungAufStartseite=function(){
     };
   };
 
-})();
-</script>
-
-
-<script id="CHEF_KALENDER_MITARBEITER_ZUWEISUNG_V1">
-(function(){
-"use strict";
-
-/*
- * Chef-Kalender:
- * Mitarbeiter anklicken -> Baustelle auswählen -> Tag anklicken.
- * Jeder Tag ist einzeln änderbar. Die Planung wird lokal gehalten und,
- * wenn Firebase/Firestore vorhanden ist, zusätzlich unter
- * kalenderPlanung/{YYYY-MM-DD_Mitarbeiter} gespeichert.
- */
-
-const isChef = () => {
-  const r = window.eingeloggteRolle || "";
-  return r === "Chef";
-};
-
-function getMitarbeiter(){
-  const g = window.globalDaten || {};
-  const arr = Array.isArray(g.mitarbeiterListe) ? g.mitarbeiterListe : [];
-  return arr.filter(x => x && x.name && (!x.rolle || x.rolle === "Verleger"))
-    .map(x => x.name);
-}
-
-function getBaustellen(){
-  const candidates = [
-    window.baustellenDaten,
-    window.projekteDaten,
-    window.projekte,
-    window.baustellen
-  ];
-  for(const a of candidates){
-    if(Array.isArray(a)) return a;
-  }
-  return [];
-}
-
-function planningKey(date, employee){
-  return date + "_" + encodeURIComponent(employee);
-}
-
-window.chefKalenderPlanung = window.chefKalenderPlanung || {};
-
-window.setzeChefKalenderEintrag = async function(date, employee, projectId, projectName, von, bis, notiz){
-  const item = {
-    datum: date,
-    mitarbeiter: employee,
-    projektId: projectId || "",
-    baustelle: projectName || "",
-    von: von || "",
-    bis: bis || "",
-    notiz: notiz || "",
-    status: "Geplant",
-    geaendertAm: new Date().toISOString()
-  };
-  window.chefKalenderPlanung[planningKey(date, employee)] = item;
-
-  try{
-    if(window.db && typeof window.setDoc === "function" && typeof window.doc === "function"){
-      await window.setDoc(window.doc(window.db, "kalenderPlanung", planningKey(date, employee)), item, {merge:true});
-    }
-  }catch(e){ console.warn("Kalender-Speicherung:", e); }
-
-  if(typeof window.zeigeChefKalender === "function") window.zeigeChefKalender();
-  if(typeof window.zeigeVerlegerPlanungAufStartseite === "function") window.zeigeVerlegerPlanungAufStartseite();
-};
-
-window.oeffneChefKalenderZuweisung = function(date, employee){
-  if(!isChef()) return;
-
-  const projects = getBaustellen();
-  let modal = document.getElementById("chef-kalender-modal");
-  if(modal) modal.remove();
-
-  modal = document.createElement("div");
-  modal.id = "chef-kalender-modal";
-  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;";
-
-  const options = projects.map((p,i)=>{
-    const id = p.id || p.projektId || p.key || "";
-    const name = p.name || p.projekt || p.baustelle || p.titel || ("Baustelle "+(i+1));
-    return `<option value="${String(id).replace(/"/g,"&quot;")}" data-name="${String(name).replace(/"/g,"&quot;")}">${String(name).replace(/[<>]/g,"")}</option>`;
-  }).join("");
-
-  modal.innerHTML = `
-    <div style="background:white;width:min(620px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:22px;">
-      <h2 style="margin-top:0">👷 Mitarbeiter einteilen</h2>
-      <p><b>${String(employee).replace(/[<>]/g,"")}</b> · ${date}</p>
-      <label style="display:block;margin:12px 0;">Baustelle
-        <select id="chef-kal-projekt" style="width:100%;padding:10px;margin-top:5px;">
-          <option value="">-- Baustelle auswählen --</option>${options}
-        </select>
-      </label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <label>Von<input id="chef-kal-von" type="time" style="width:100%;padding:9px;margin-top:5px;"></label>
-        <label>Bis<input id="chef-kal-bis" type="time" style="width:100%;padding:9px;margin-top:5px;"></label>
-      </div>
-      <label style="display:block;margin:12px 0;">Tagesnotiz
-        <textarea id="chef-kal-notiz" rows="3" style="width:100%;padding:9px;margin-top:5px;" placeholder="z. B. Untergrund spachteln"></textarea>
-      </label>
-      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
-        <button id="chef-kal-loeschen" type="button">🗑️ Tag leeren</button>
-        <button id="chef-kal-abbrechen" type="button">Abbrechen</button>
-        <button id="chef-kal-speichern" type="button" style="font-weight:bold;">💾 Zuweisen</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-
-  const existing = window.chefKalenderPlanung[planningKey(date, employee)];
-  if(existing){
-    document.getElementById("chef-kal-projekt").value = existing.projektId || "";
-    document.getElementById("chef-kal-von").value = existing.von || "";
-    document.getElementById("chef-kal-bis").value = existing.bis || "";
-    document.getElementById("chef-kal-notiz").value = existing.notiz || "";
-  }
-
-  document.getElementById("chef-kal-abbrechen").onclick=()=>modal.remove();
-  document.getElementById("chef-kal-loeschen").onclick=async()=>{
-    delete window.chefKalenderPlanung[planningKey(date,employee)];
-    try{
-      if(window.db && typeof window.deleteDoc==="function" && typeof window.doc==="function"){
-        await window.deleteDoc(window.doc(window.db,"kalenderPlanung",planningKey(date,employee)));
-      }
-    }catch(e){ console.warn(e); }
-    modal.remove();
-    if(typeof window.zeigeChefKalender==="function") window.zeigeChefKalender();
-    if(typeof window.zeigeVerlegerPlanungAufStartseite==="function") window.zeigeVerlegerPlanungAufStartseite();
-  };
-  document.getElementById("chef-kal-speichern").onclick=async()=>{
-    const sel=document.getElementById("chef-kal-projekt");
-    if(!sel.value){ alert("Bitte zuerst eine Baustelle auswählen."); return; }
-    const opt=sel.options[sel.selectedIndex];
-    await window.setzeChefKalenderEintrag(
-      date,employee,sel.value,opt.dataset.name,
-      document.getElementById("chef-kal-von").value,
-      document.getElementById("chef-kal-bis").value,
-      document.getElementById("chef-kal-notiz").value
-    );
-    modal.remove();
-  };
-};
-
-window.zeigeChefKalender = function(){
-  const host = document.getElementById("baustellen-kalender") ||
-               document.getElementById("kalender") ||
-               document.querySelector("[data-baustellen-kalender]");
-  if(!host || !isChef()) return;
-
-  const employees=getMitarbeiter();
-  if(!employees.length) return;
-
-  const now=new Date();
-  const year=window._chefKalenderYear || now.getFullYear();
-  const month=window._chefKalenderMonth ?? now.getMonth();
-  window._chefKalenderYear=year; window._chefKalenderMonth=month;
-
-  const days=new Date(year,month+1,0).getDate();
-  const monthName=new Date(year,month,1).toLocaleDateString("de-DE",{month:"long",year:"numeric"});
-
-  let html=`<div style="padding:12px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-      <button type="button" id="chef-kal-prev">‹</button>
-      <h2 style="margin:0;text-transform:capitalize;">📅 ${monthName}</h2>
-      <button type="button" id="chef-kal-next">›</button>
-    </div>
-    <div style="overflow:auto;">
-    <table style="border-collapse:collapse;min-width:${Math.max(900,days*145)}px;width:100%;">
-      <thead><tr><th style="position:sticky;left:0;background:white;z-index:2;padding:8px;text-align:left;">Mitarbeiter</th>`;
-  for(let d=1;d<=days;d++){
-    const dt=new Date(year,month,d);
-    html+=`<th style="padding:8px;border-bottom:1px solid #ddd;min-width:125px;">${dt.toLocaleDateString("de-DE",{weekday:"short"})}<br>${String(d).padStart(2,"0")}.${String(month+1).padStart(2,"0")}</th>`;
-  }
-  html+=`</tr></thead><tbody>`;
-
-  employees.forEach(emp=>{
-    html+=`<tr><th style="position:sticky;left:0;background:white;z-index:1;padding:8px;text-align:left;border-bottom:1px solid #eee;">${emp}</th>`;
-    for(let d=1;d<=days;d++){
-      const date=year+"-"+String(month+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
-      const p=window.chefKalenderPlanung[planningKey(date,emp)];
-      html+=`<td data-date="${date}" data-employee="${emp.replace(/"/g,"&quot;")}" style="padding:6px;border-bottom:1px solid #eee;border-left:1px solid #eee;vertical-align:top;cursor:pointer;background:${p?"#eef6ff":"#fff"};">
-        ${p?`<div style="font-weight:700;">🏗️ ${String(p.baustelle).replace(/[<>]/g,"")}</div>
-             <div style="font-size:12px;color:#555;">${p.von||p.bis?(p.von||"")+" – "+(p.bis||""):"Ganztägig"}</div>
-             ${p.notiz?`<div style="font-size:12px;margin-top:3px;">${String(p.notiz).replace(/[<>]/g,"")}</div>`:""}`
-          :`<span style="color:#aaa;">+ Baustelle</span>`}
-      </td>`;
-    }
-    html+=`</tr>`;
-  });
-  html+=`</tbody></table></div>
-    <p style="font-size:13px;color:#666;margin-bottom:0;">💡 Als Chef auf einen Mitarbeiter-Tag klicken → Baustelle auswählen. Ein einzelner Tag kann jederzeit geändert oder geleert werden.</p>
-  </div>`;
-
-  host.innerHTML=html;
-  host.querySelector("#chef-kal-prev").onclick=()=>{ window._chefKalenderMonth--; if(window._chefKalenderMonth<0){window._chefKalenderMonth=11;window._chefKalenderYear--;} window.zeigeChefKalender(); };
-  host.querySelector("#chef-kal-next").onclick=()=>{ window._chefKalenderMonth++; if(window._chefKalenderMonth>11){window._chefKalenderMonth=0;window._chefKalenderYear++;} window.zeigeChefKalender(); };
-  host.querySelectorAll("td[data-date]").forEach(td=>td.onclick=()=>window.oeffneChefKalenderZuweisung(td.dataset.date,td.dataset.employee));
-};
-
-// Try to render after the portal has initialized its data.
-document.addEventListener("DOMContentLoaded",()=>{
-  setTimeout(window.zeigeChefKalender,700);
-  setTimeout(window.zeigeChefKalender,1800);
-});
 })();
 </script>
 
