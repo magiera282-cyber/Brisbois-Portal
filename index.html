@@ -1,5 +1,4 @@
 
-<div id="verleger-planung-startseite" style="display:none;margin:18px 0"><div class="card" style="border-left:4px solid #2563eb"><h3 style="margin:0 0 6px">📅 Meine Baustellenplanung</h3><div id="verleger-planung-start-subtitle" style="color:#666;font-size:14px"></div><div id="verleger-planung-start-liste" style="margin-top:12px"></div></div></div>
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -645,7 +644,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             </button>
             <button onclick="wechselnTab('profil')" id="btn-profil" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⚙️ Mein Profil</button>
             <button onclick="wechselnTab('mitarbeiter-liste')" id="btn-mitarbeiter-liste" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📞 Telefonliste</button>
-            <button onclick="wechselnTab('mitarbeiter')" id="btn-mitarbeiter" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap chef-only">👥 Mitarbeiter & Zuweisung</button>
+            <button onclick="wechselnTab('mitarbeiter')" id="btn-mitarbeiter" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap wochenplanung-only">👥 Mitarbeiter & Zuweisung</button>
             <button onclick="wechselnTab('kollegen')" id="btn-kollegen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">🗺️ Live-Karte</button>
             <button onclick="wechselnTab('belege')" id="btn-belege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⛽ Belege & Kasse</button>
             <button onclick="wechselnTab('urlaub')" id="btn-urlaub" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">⏱️ Zeiterfassung & Urlaub</button>
@@ -678,7 +677,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                                 <span class="text-2xl">📅</span>
                                 <div>
                                     <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Heutiges Datum</div>
-                                    <div class="text-sm font-bold text-white" id="live-datum">--.------ 2026</div>
+                                    <button type="button" id="live-datum" onclick="verlegerWochenplanOeffnen()" class="text-sm font-bold text-white text-left hover:text-amber-300 transition cursor-pointer" title="Wochenplan öffnen">--.------ 2026</button>
                                 </div>
                             </div>
                         </div>
@@ -700,7 +699,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 </div>
             </div>
 
-            <div id="verleger-planung-startseite" class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+            <div id="verleger-planung-startseite" class="hidden" aria-hidden="true">
                 <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
                     <div><h2 class="text-lg font-black text-slate-900">📅 Meine Wochenplanung</h2><p id="verleger-planung-start-subtitle" class="text-xs text-slate-500">Deine heutigen und geplanten Einsätze</p></div>
                     <span class="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full">Diese Woche</span>
@@ -1200,6 +1199,18 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         </main>
     </div>
 
+
+    <!-- MODAL: WOCHENPLAN VERLEGER STARTSEITE -->
+    <div id="verleger-wochenplan-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[130] hidden items-center justify-center p-4">
+      <div class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-6 md:p-8">
+        <div class="flex items-center justify-between border-b pb-4 mb-5">
+          <div><h3 class="text-xl md:text-2xl font-black text-slate-900">📅 Meine Wochenplanung</h3><p class="text-xs text-slate-500 mt-1">Deine geplanten Baustellen für diese Woche</p></div>
+          <button type="button" onclick="verlegerWochenplanSchliessen()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold">✕</button>
+        </div>
+        <div id="verleger-wochenplan-inhalt"></div>
+      </div>
+    </div>
+
     <!-- MODAL: WOCHENPLANUNG EINTRAG -->
     <div id="wochenplanung-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[120] hidden items-center justify-center p-4">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5">
@@ -1355,6 +1366,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         let eingeloggterMitarbeiter = "";
         let eingeloggteRolle = "";
+        // Für Funktionen außerhalb des ES-Moduls lesbar, aber nicht von außen beschreibbar.
+        Object.defineProperty(window, "eingeloggterMitarbeiter", { get: () => eingeloggterMitarbeiter, configurable: true });
+        Object.defineProperty(window, "eingeloggteRolle", { get: () => eingeloggteRolle, configurable: true });
         let aktuellesProjekt = "";
         let pinModusAktiv = false;
         let temporärePinX = 0;
@@ -1620,6 +1634,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             eingeloggterMitarbeiter = name;
             const maObjekt = globalDaten.mitarbeiterListe.find(m => m.name === name);
             eingeloggteRolle = maObjekt ? maObjekt.rolle : "Verleger";
+            setTimeout(() => { try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {} }, 50);
             
             oeffneAppNachLogin();
         }
@@ -1646,6 +1661,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             const isChefOrTech = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin';
             const isSekretariat = eingeloggteRolle.includes('Sekretariat');
+            const darfWochenplanung = isChefOrTech || isSekretariat;
+            document.querySelectorAll('.wochenplanung-only').forEach(el => el.classList.toggle('hidden', !darfWochenplanung));
+            const mitarbeiterNeuanlage = document.querySelector('#tab-mitarbeiter > div:first-child');
+            if (mitarbeiterNeuanlage) mitarbeiterNeuanlage.classList.toggle('hidden', !isChefOrTech);
 
             const projektListenTitel = document.getElementById('projekt-listen-titel');
 
@@ -2011,6 +2030,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             document.getElementById('start-begruessung').innerText = `Guten Tag, ${eingeloggterMitarbeiter}!`;
             document.getElementById('start-user-name').innerText = eingeloggterMitarbeiter;
             document.getElementById('start-user-rolle').innerText = eingeloggteRolle;
+            try { if (typeof zeigeVerlegerPlanungAufStartseite === 'function') zeigeVerlegerPlanungAufStartseite(); } catch(e) { console.warn('Wochenplanung Startseite:', e); }
             
             const initialen = eingeloggterMitarbeiter.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
             document.getElementById('start-user-initial').innerText = initialen;
@@ -2030,6 +2050,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 document.getElementById('start-aktuelle-baustelle').innerText = "Keine Baustelle zugeteilt";
                 document.getElementById('start-baustelle-adresse').innerText = "Bitte wende dich an die Arbeitsvorbereitung.";
             }
+            try { if (typeof window.zeigeVerlegerPlanungAufStartseite === 'function') window.zeigeVerlegerPlanungAufStartseite(); } catch(e) { console.warn('Wochenplan Startseite:', e); }
         }
 
         window.neuenMitarbeiterHinzufuegen = function() {
@@ -2069,7 +2090,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function wochenTage(offset=0){ const mon=wochenMontag(offset),out=[]; for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);out.push({key:lokalesDatumKey(d),date:d,label:d.toLocaleDateString('de-DE',{weekday:'short'}),voll:d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})});} return out; }
         function planungsBaustellenFuerMitarbeiter(name){ return Object.keys(globalDaten.projekte||{}); }
         function wochenplanungDaten(name,key){ globalDaten.wochenplanung=globalDaten.wochenplanung||{};globalDaten.wochenplanung[name]=globalDaten.wochenplanung[name]||{};const v=globalDaten.wochenplanung[name][key];if(Array.isArray(v))return v;if(typeof v==='string'&&v)return [v];globalDaten.wochenplanung[name][key]=[];return globalDaten.wochenplanung[name][key]; }
-        function wochenplanungIstChef(){ return String(eingeloggteRolle||'').toLowerCase().includes('chef') || String(eingeloggteRolle||'').toLowerCase().includes('admin'); }
+        function wochenplanungIstBerechtigt(){ const r=String(eingeloggteRolle||'').toLowerCase(); return r.includes('chef') || r.includes('admin') || r.includes('techniker') || r.includes('sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin'; }
+         function wochenplanungIstChef(){ return wochenplanungIstBerechtigt(); }
         window.wochenplanungAnzeigen=function(){
           const box=document.getElementById('mitarbeiter-wochenplanung');if(!box)return;const tage=wochenTage(wochenplanungOffset);const sichtbar=(globalDaten.mitarbeiterListe||[]).filter(m=>m.rolle==='Verleger');
           const mon=tage[0].date,fre=tage[4].date;const titleEl=document.getElementById('wochenplanung-titel');if(titleEl)titleEl.textContent=`${mon.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} – ${fre.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
@@ -2079,7 +2101,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         };
         window.wochenplanungTagOeffnen=function(name,key){
   try {
-    if(!wochenplanungIstChef()) { alert("Nur Chef/Admin kann die Wochenplanung bearbeiten."); return; }
+    if(!wochenplanungIstBerechtigt()) { alert("Du hast keine Berechtigung für die Wochenplanung."); return; }
     wochenplanungAuswahl={name:String(name||""),key:String(key||"")};
     const modal=document.getElementById("wochenplanung-modal");
     const sel=document.getElementById("wochenplanung-modal-baustelle");
@@ -3672,7 +3694,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 <script>
 window.zeigeVerlegerPlanungAufStartseite=function(){
   const b=document.getElementById('verleger-planung-startseite'),l=document.getElementById('verleger-planung-start-liste'),h=document.getElementById('verleger-planung-start-heute'),sub=document.getElementById('verleger-planung-start-subtitle');
-  if(!b||!l||!h)return;const name=typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:'';const rolle=typeof eingeloggteRolle!=='undefined'?eingeloggteRolle:'';if(!name||rolle!=='Verleger'){b.classList.add('hidden');return;}
+  if(!b||!l||!h)return;
+  const name=typeof eingeloggterMitarbeiter!=='undefined'?String(eingeloggterMitarbeiter||'').trim():'';
+  const rolle=typeof eingeloggteRolle!=='undefined'?String(eingeloggteRolle||'').trim():'';
+  const istVerleger=rolle.toLowerCase()==='verleger' || rolle.toLowerCase().includes('verleger');
+  if(!name||!istVerleger){b.classList.add('hidden');b.style.display='none';return;}
+  b.classList.remove('hidden');b.style.display='block';
   const g=window.globalDaten||{};const wp=g.wochenplanung||{};const plan=wp[name]||{};const heute=new Date();heute.setHours(0,0,0,0);const montag=new Date(heute);const day=montag.getDay()||7;montag.setDate(montag.getDate()-day+1);const tage=[];for(let i=0;i<5;i++){const d=new Date(montag);d.setDate(montag.getDate()+i);tage.push(d);}const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const jobs=d=>Array.isArray(plan[key(d)])?plan[key(d)]:plan[key(d)]?[plan[key(d)]]:[];b.classList.remove('hidden');sub.textContent='Deine Einsätze für heute und die ganze Woche';const heuteJobs=jobs(heute);
   h.innerHTML=`<div class="rounded-2xl border border-blue-200 bg-blue-50 p-4"><div class="text-xs font-black uppercase tracking-wider text-blue-700 mb-2">📍 Heute · ${heute.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit'})}</div>${heuteJobs.length?heuteJobs.map(x=>`<div class="bg-white rounded-xl p-3 mb-2 last:mb-0"><div class="font-bold text-slate-900">${String(x.baustelle||x).replace(/[<>]/g,'')}</div>${g.projekte?.[x.baustelle]?.adresse?`<div class="text-xs text-slate-500 mt-1">📍 ${String(g.projekte[x.baustelle].adresse).replace(/[<>]/g,'')}</div>`:''}${x.notiz?`<div class="text-xs text-slate-600 mt-1">📝 ${String(x.notiz).replace(/[<>]/g,'')}</div>`:''}</div>`).join(''):'<div class="text-sm text-slate-500">Heute ist keine Baustelle eingeteilt.</div>'}</div>`;
@@ -3891,6 +3918,65 @@ window.zeigeVerlegerPlanungAufStartseite=function(){
   };
 
 })();
+</script>
+
+
+<script>
+/* WOCHENPLAN STARTSEITE – ROBUSTE VERSION */
+window.verlegerWochenplanOeffnen = function(){
+  try {
+    const rolle = String(window.eingeloggteRolle || '').trim().toLowerCase();
+    const name = String(window.eingeloggterMitarbeiter || '').trim();
+    if (!name) return alert('Bitte zuerst anmelden.');
+    if (!rolle.includes('verleger')) return;
+
+    let modal = document.getElementById('verleger-wochenplan-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'verleger-wochenplan-modal';
+      modal.className = 'fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-[9999] flex items-center justify-center p-4';
+      modal.innerHTML = `
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto p-5 md:p-8">
+          <div class="flex items-center justify-between border-b pb-4 mb-5">
+            <div>
+              <h3 class="text-xl md:text-2xl font-black text-slate-900">📅 Meine Wochenplanung</h3>
+              <p class="text-xs text-slate-500 mt-1">Deine geplanten Baustellen für diese Woche</p>
+            </div>
+            <button type="button" id="verleger-wochenplan-close" class="text-slate-400 hover:text-slate-700 text-2xl font-bold">✕</button>
+          </div>
+          <div id="verleger-wochenplan-inhalt"></div>
+        </div>`;
+      document.body.appendChild(modal);
+      document.getElementById('verleger-wochenplan-close').onclick = window.verlegerWochenplanSchliessen;
+      modal.addEventListener('click', function(e){ if(e.target === modal) window.verlegerWochenplanSchliessen(); });
+    }
+
+    const inhalt = document.getElementById('verleger-wochenplan-inhalt');
+    if (!inhalt) return;
+    const g = window.globalDaten || globalDaten || {};
+    const plan = (g.wochenplanung && g.wochenplanung[name]) || {};
+    const heute = new Date(); heute.setHours(0,0,0,0);
+    const montag = new Date(heute);
+    const tag = montag.getDay() || 7;
+    montag.setDate(montag.getDate() - tag + 1);
+    const key = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const tage = Array.from({length:5}, (_,i)=>{ const d=new Date(montag); d.setDate(montag.getDate()+i); return d; });
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    inhalt.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-5 gap-3">${tage.map(d=>{
+      const k=key(d), arr=Array.isArray(plan[k])?plan[k]:(plan[k]?[plan[k]]:[]), ist=k===key(heute);
+      return `<div class="rounded-2xl border ${ist?'border-blue-400 bg-blue-50':'border-slate-200 bg-slate-50'} p-4 min-h-[180px]">
+        <div class="flex items-center justify-between mb-3"><div class="font-black text-slate-900">${d.toLocaleDateString('de-DE',{weekday:'long'})}</div><div class="text-xs text-slate-500">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></div>
+        ${arr.length ? arr.map(item=>{ const b=typeof item==='object'?(item.baustelle||''):item; const n=typeof item==='object'?(item.notiz||''):''; const adr=g.projekte&&g.projekte[b]?g.projekte[b].adresse:''; return `<div class="bg-white rounded-xl border border-blue-200 p-3 mb-2"><div class="font-bold text-sm text-blue-900">🏗️ ${esc(b)}</div>${adr?`<div class="text-xs text-slate-500 mt-1">📍 ${esc(adr)}</div>`:''}${n?`<div class="text-xs text-slate-600 mt-1">📝 ${esc(n)}</div>`:''}</div>`; }).join('') : `<div class="text-sm text-slate-400 pt-3">Keine Baustelle eingeteilt</div>`}
+      </div>`;
+    }).join('')}</div>`;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  } catch (e) {
+    console.error('Wochenplan:', e);
+    alert('Der Wochenplan konnte nicht geöffnet werden.');
+  }
+};
+window.verlegerWochenplanSchliessen = function(){ const m=document.getElementById('verleger-wochenplan-modal'); if(m){m.classList.add('hidden');m.classList.remove('flex');} };
 </script>
 
 </body>
