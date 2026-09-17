@@ -4291,46 +4291,123 @@ window.verlegerWochenplanOeffnen = function(){
 window.verlegerWochenplanSchliessen = function(){ const m=document.getElementById('verleger-wochenplan-modal'); if(m){m.classList.add('hidden');m.classList.remove('flex');} };
 
         window.krankmeldungDateiOeffnen = async function(id){
+          let blobUrl = null;
           try{
-            const liste=Array.isArray(window.globalDaten?.krankmeldungen)?window.globalDaten.krankmeldungen:[];
-            const eintrag=liste.find(x=>String(x.id)===String(id));
-            if(!eintrag){ alert('Krankmeldung wurde nicht gefunden.'); return; }
-
-            let url=String(eintrag.dateiUrl||'').trim();
-            const mime=String(eintrag.dateityp||'').toLowerCase().trim();
-            // Ältere Einträge können reines Base64 enthalten. Das direkt in eine Data-URL umwandeln.
-            if(url && !url.includes(':') && /^[A-Za-z0-9+/=\s]+$/.test(url)){
-              const clean=url.replace(/\s+/g,'');
-              const guessed=mime || 'image/jpeg';
-              url=`data:${guessed};base64,${clean}`;
+            const liste = Array.isArray(window.globalDaten?.krankmeldungen) ? window.globalDaten.krankmeldungen : [];
+            const eintrag = liste.find(x => String(x?.id) === String(id));
+            if(!eintrag){
+              alert('Krankmeldung wurde nicht gefunden.');
+              return;
             }
-            if(!url && eintrag.dateiPfad && window.__brisboisStorage){
-              url=await window.__brisboisGetDownloadURL(window.__brisboisStorageRef(window.__brisboisStorage, eintrag.dateiPfad));
-            }
-            if(!url){ alert('Für diese Krankmeldung ist keine Datei hinterlegt.'); return; }
 
-            let modal=document.getElementById('krankmeldung-datei-viewer');
+            let quelle = String(eintrag.dateiUrl || '').trim();
+            let mime = String(eintrag.dateityp || '').toLowerCase().trim();
+            let anzuzeigen = quelle;
+
+            // Ältere Einträge können reines Base64 enthalten.
+            if(quelle && !quelle.includes(':') && /^[A-Za-z0-9+/=\s]+$/.test(quelle)){
+              const clean = quelle.replace(/\s+/g,'');
+              if(!mime) mime = 'image/jpeg';
+              anzuzeigen = `data:${mime};base64,${clean}`;
+            }
+
+            // Falls nur ein Firebase-Storage-Pfad gespeichert wurde, erst jetzt die URL holen.
+            if(!anzuzeigen && eintrag.dateiPfad && window.__brisboisStorage && window.__brisboisGetDownloadURL && window.__brisboisStorageRef){
+              const ref = window.__brisboisStorageRef(window.__brisboisStorage, String(eintrag.dateiPfad));
+              anzuzeigen = await window.__brisboisGetDownloadURL(ref);
+            }
+
+            if(!anzuzeigen){
+              alert('Für diese Krankmeldung ist keine Datei hinterlegt.');
+              return;
+            }
+
+            // Vorschaufenster sofort erzeugen – unabhängig davon, ob das Laden der Datei länger dauert.
+            let modal = document.getElementById('krankmeldung-datei-viewer');
             if(!modal){
-              modal=document.createElement('div');
-              modal.id='krankmeldung-datei-viewer';
-              modal.className='fixed inset-0 z-[300] bg-slate-950/80 flex items-center justify-center p-3';
-              modal.innerHTML=`<div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[92vh] flex flex-col overflow-hidden"><div class="flex items-center justify-between px-4 py-3 border-b"><div class="font-black">📎 Krankmeldung</div><button type="button" id="krankmeldung-viewer-close" class="text-2xl font-bold text-slate-500">×</button></div><div id="krankmeldung-viewer-content" class="flex-1 bg-slate-100 flex items-center justify-center overflow-auto p-2"></div></div>`;
+              modal = document.createElement('div');
+              modal.id = 'krankmeldung-datei-viewer';
+              modal.className = 'fixed inset-0 z-[300] bg-slate-950/80 flex items-center justify-center p-3';
+              modal.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[92vh] flex flex-col overflow-hidden">
+                  <div class="flex items-center justify-between px-4 py-3 border-b">
+                    <div class="font-black">📎 Krankmeldung – ${escapeHtmlUI(eintrag.mitarbeiter || '')}</div>
+                    <button type="button" id="krankmeldung-viewer-close" class="text-2xl font-bold text-slate-500">×</button>
+                  </div>
+                  <div id="krankmeldung-viewer-content" class="flex-1 bg-slate-100 flex items-center justify-center overflow-auto p-2"></div>
+                </div>`;
               document.body.appendChild(modal);
-              document.getElementById('krankmeldung-viewer-close').onclick=()=>modal.remove();
-              modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
+              document.getElementById('krankmeldung-viewer-close').onclick = () => modal.remove();
+              modal.addEventListener('click', e => { if(e.target === modal) modal.remove(); });
             }
-            const content=document.getElementById('krankmeldung-viewer-content');
-            if(url.startsWith('data:image/') || mime.startsWith('image/')){
-              content.innerHTML=`<img src="${url}" alt="Krankmeldung" style="max-width:100%;max-height:100%;object-fit:contain">`;
-            }else if(url.startsWith('data:application/pdf') || mime==='application/pdf' || /\.pdf($|[?#])/i.test(url)){
-              content.innerHTML=`<iframe src="${url}" title="Krankmeldung PDF" style="width:100%;height:100%;border:0;background:white"></iframe>`;
-            }else{
-              content.innerHTML=`<div class="text-center"><p class="font-bold mb-3">Datei kann nicht direkt angezeigt werden.</p><a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-xl font-bold">📎 Datei in neuem Tab öffnen</a></div>`;
-            }
+
             modal.classList.remove('hidden');
+            const content = document.getElementById('krankmeldung-viewer-content');
+            content.innerHTML = '<div class="text-sm font-semibold text-slate-500 p-6">⏳ Krankmeldung wird geladen…</div>';
+
+            // Data-URLs/Base64 werden in einen Blob umgewandelt. Das ist bei großen Fotos deutlich robuster
+            // als eine riesige Data-URL direkt in innerHTML einzusetzen.
+            if(anzuzeigen.startsWith('data:')){
+              const comma = anzuzeigen.indexOf(',');
+              const header = comma >= 0 ? anzuzeigen.slice(0, comma) : '';
+              const body = comma >= 0 ? anzuzeigen.slice(comma + 1) : '';
+              const typeMatch = header.match(/^data:([^;]+)/i);
+              const type = (typeMatch ? typeMatch[1] : mime || 'image/jpeg').toLowerCase();
+              if(header.toLowerCase().includes(';base64')){
+                const binary = atob(body.replace(/\s+/g,''));
+                const bytes = new Uint8Array(binary.length);
+                for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+                blobUrl = URL.createObjectURL(new Blob([bytes], {type}));
+              }else{
+                blobUrl = URL.createObjectURL(new Blob([decodeURIComponent(body)], {type}));
+              }
+              anzuzeigen = blobUrl;
+              mime = type;
+            }
+
+            const istBild = mime.startsWith('image/') || /\.(jpe?g|png|gif|webp)(?:$|[?#])/i.test(anzuzeigen);
+            const istPdf = mime === 'application/pdf' || /\.pdf(?:$|[?#])/i.test(anzuzeigen);
+
+            content.innerHTML = '';
+
+            if(istBild){
+              const img = document.createElement('img');
+              img.alt = 'Krankmeldung';
+              img.style.maxWidth = '100%';
+              img.style.maxHeight = '100%';
+              img.style.objectFit = 'contain';
+              img.onload = () => {};
+              img.onerror = () => {
+                content.innerHTML = '<div class="text-center p-6"><p class="font-bold text-red-700 mb-2">Das Bild konnte nicht angezeigt werden.</p><a href="'+anzuzeigen+'" target="_blank" rel="noopener noreferrer" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-xl font-bold">📎 Datei öffnen</a></div>';
+              };
+              img.src = anzuzeigen;
+              content.appendChild(img);
+            }else if(istPdf){
+              const iframe = document.createElement('iframe');
+              iframe.src = anzuzeigen;
+              iframe.title = 'Krankmeldung PDF';
+              iframe.style.width = '100%';
+              iframe.style.height = '100%';
+              iframe.style.border = '0';
+              iframe.style.background = 'white';
+              content.appendChild(iframe);
+            }else{
+              content.innerHTML = '<div class="text-center p-6"><p class="font-bold mb-3">Datei kann nicht direkt angezeigt werden.</p><a href="'+anzuzeigen+'" target="_blank" rel="noopener noreferrer" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-xl font-bold">📎 Datei öffnen</a></div>';
+            }
+
+            // Blob-URLs nach dem Schließen wieder freigeben.
+            const closeBtn = document.getElementById('krankmeldung-viewer-close');
+            if(closeBtn){
+              const oldClose = closeBtn.onclick;
+              closeBtn.onclick = () => {
+                if(blobUrl){ try{ URL.revokeObjectURL(blobUrl); }catch(_){} blobUrl=null; }
+                if(oldClose) oldClose();
+              };
+            }
           }catch(e){
-            console.error('Krankmeldung öffnen:',e);
-            alert('Die Krankmeldung konnte nicht geöffnet werden.\n\n'+(e?.message||e));
+            if(blobUrl){ try{ URL.revokeObjectURL(blobUrl); }catch(_){} }
+            console.error('Krankmeldung öffnen:', e);
+            alert('Die Krankmeldung konnte nicht geöffnet werden.\n\n' + (e?.message || e));
           }
         };
 
