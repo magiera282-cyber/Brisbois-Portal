@@ -638,6 +638,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         <nav id="haupt-navigation" class="bg-white border-b border-slate-200 px-4 py-2 flex gap-2 md:gap-4 text-sm font-semibold shadow-sm overflow-x-auto">
             <button onclick="wechselnTab('startseite')" id="btn-startseite" class="tab-btn text-blue-600 border-b-2 border-blue-600 pb-1 whitespace-nowrap">🏠 Startseite</button>
             <button onclick="wechselnTab('auftraege')" id="btn-auftraege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📁 Projekt & Baustelle</button>
+            <button onclick="wechselnTab('dashboard')" id="btn-dashboard" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap dashboard-only hidden">📊 Chef-Dashboard</button>
             <button onclick="wechselnTab('benachrichtigungen')" id="btn-benachrichtigungen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap flex items-center gap-1">
                 <span>🔔 Benachrichtigungen</span>
                 <span id="badge-count" class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full hidden">1</span>
@@ -820,6 +821,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         </div>
                     </div>
                 </div>
+                <div class="flex justify-end">
+                    <button type="button" onclick="problemMeldenOeffnen()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm">⚠️ Problem melden</button>
+                </div>
 
                 <!-- DIREKT IM PROJEKT: ZUGETEILTE MITARBEITER & MEHRFACH-ZUWEISUNG -->
                 <div class="border-t pt-4 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
@@ -880,7 +884,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
                 <div class="border-t pt-4 space-y-4">
                     <div class="flex justify-between items-center">
-                        <h3 class="font-semibold text-lg text-slate-700">📦 Projekt-Packliste & Uzin-Material</h3>
+                        <div><h3 class="font-semibold text-lg text-slate-700">📦 Projekt-Packliste & Materialverbrauch</h3><p class="text-[11px] text-slate-400 mt-1">Soll → verbraucht → Rest. Verbrauch direkt auf der Baustelle dokumentieren.</p></div>
                         <button onclick="uzinAuswahlOeffnen()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition shadow-sm">
                             ➕ Uzin-Material hinzufügen
                         </button>
@@ -892,6 +896,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                                     <th class="p-3 rounded-l">Hersteller / Produkt</th>
                                     <th class="p-3">Kategorie</th>
                                     <th class="p-3">Soll-Menge</th>
+                                    <th class="p-3">Verbraucht</th>
+                                    <th class="p-3">Rest</th>
                                     <th class="p-3">Lagerort</th>
                                     <th class="p-3 rounded-r text-center">Status</th>
                                 </tr>
@@ -931,6 +937,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     </div>
                 </div>
                 </div>
+            </div>
+        </main>
+
+        <!-- CHEF-DASHBOARD -->
+        <main id="tab-dashboard" class="tab-content max-w-7xl mx-auto p-4 md:p-8 hidden space-y-6">
+            <div class="flex items-center justify-between"><div><h2 class="text-2xl font-black text-slate-900">📊 Chef-Dashboard</h2><p class="text-sm text-slate-500">Aktuelle Übersicht über Baustellen, Einsätze und gemeldete Probleme.</p></div><button onclick="dashboardAktualisieren()" class="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold">🔄 Aktualisieren</button></div>
+            <div id="dashboard-karten" class="grid grid-cols-2 md:grid-cols-5 gap-4"></div>
+            <div class="grid lg:grid-cols-2 gap-6">
+              <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><h3 class="font-black text-lg mb-3">📅 Heute im Einsatz</h3><div id="dashboard-heute" class="space-y-2"></div></section>
+              <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-lg">⚠️ Baustellen-Probleme</h3><div class="flex items-center gap-2"><span id="dashboard-problem-info" class="text-xs text-slate-500"></span><span id="dashboard-probleme-count" class="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded-full"></span></div></div><div id="dashboard-probleme" class="space-y-2"></div></section>
             </div>
         </main>
 
@@ -1360,6 +1376,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             zuweisungen: {},
             wochenplanung: {},
             abwesenheiten: {},
+            probleme: [],
             zeiterfassung: {},
             resturlaub: {}
         };
@@ -1371,6 +1388,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // Für Funktionen außerhalb des ES-Moduls lesbar, aber nicht von außen beschreibbar.
         Object.defineProperty(window, "eingeloggterMitarbeiter", { get: () => eingeloggterMitarbeiter, configurable: true });
         Object.defineProperty(window, "eingeloggteRolle", { get: () => eingeloggteRolle, configurable: true });
+        Object.defineProperty(window, "aktuellesProjekt", { get: () => aktuellesProjekt, set: v => { aktuellesProjekt = v || ""; }, configurable: true });
         let aktuellesProjekt = "";
         let pinModusAktiv = false;
         let temporärePinX = 0;
@@ -1446,6 +1464,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
                 globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
+                // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
+                globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
                 globalDaten.resturlaub = cloudDaten.resturlaub || {};
                 allesAktualisieren();
@@ -1490,6 +1510,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     zuweisungen: globalDaten.zuweisungen,
                     wochenplanung: globalDaten.wochenplanung,
                     abwesenheiten: globalDaten.abwesenheiten,
+                    probleme: globalDaten.probleme || [],
                     zeiterfassung: globalDaten.zeiterfassung,
                     resturlaub: globalDaten.resturlaub
                 });
@@ -1497,6 +1518,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 console.error("Fehler beim Speichern global:", e);
             }
         }
+
+        window.globalGlobalSpeichern = globalGlobalSpeichern;
 
         async function projektSpeichern(titel) {
             try {
@@ -1575,6 +1598,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             projektTeamAnzeigen();
             schnellZuweisungDropdownBefuellen();
             startseiteAktualisieren();
+            dashboardAktualisieren();
             zeiterfassungAnzeigen();
             if (aktuellesProjekt && globalDaten.projekte[aktuellesProjekt]) projektLaden(aktuellesProjekt);
             if (map) karteAktualisieren();
@@ -1667,6 +1691,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const isSekretariat = eingeloggteRolle.includes('Sekretariat');
             const darfWochenplanung = isChefOrTech || isSekretariat;
             document.querySelectorAll('.wochenplanung-only').forEach(el => el.classList.toggle('hidden', !darfWochenplanung));
+            document.querySelectorAll('.dashboard-only').forEach(el => el.classList.toggle('hidden', !dashboardIstBerechtigt()));
             const mitarbeiterNeuanlage = document.querySelector('#tab-mitarbeiter > div:first-child');
             if (mitarbeiterNeuanlage) mitarbeiterNeuanlage.classList.toggle('hidden', !isChefOrTech);
 
@@ -2151,6 +2176,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
           } catch(e){console.error(e);alert('Fehler beim Öffnen der Wochenplanung: '+(e.message||e));}
         };
         window.wochenplanungModalSchliessen=function(){const m=document.getElementById('wochenplanung-modal');if(m){m.classList.add('hidden');m.classList.remove('flex');}};
+        async function wochenplanBenachrichtigung(empfaenger,text,projekt=''){
+          if(!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen=[];
+          globalDaten.benachrichtigungen.unshift({von: eingeloggterMitarbeiter + (eingeloggteRolle.includes('Chef')?' (Chef)':' (Team)'),empfaenger,text,datum:new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}),gelesenVon:[eingeloggterMitarbeiter],geloeschtVon:[],projekt});
+        }
         window.wochenplanungEintragSpeichern=async function(){
           if(!wochenplanungIstBerechtigt())return;
           if(!wochenplanungAuswahl?.name||!wochenplanungAuswahl?.key)return;
@@ -2163,6 +2192,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
           if(vals.length) vals[0]={baustelle:p,notiz:n};
           else globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key]=[{baustelle:p,notiz:n}];
           if(globalDaten.abwesenheiten?.[wochenplanungAuswahl.name]) delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key];
+          await wochenplanBenachrichtigung(wochenplanungAuswahl.name, `Neue Wochenplanung: ${p} am ${wochenplanungAuswahl.key}.` , p);
           await globalGlobalSpeichern();
           wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();
         };
@@ -2186,6 +2216,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             globalDaten.wochenplanung[wochenplanungAuswahl.name]=globalDaten.wochenplanung[wochenplanungAuswahl.name]||{};
             delete globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key];
           }
+          await wochenplanBenachrichtigung(wochenplanungAuswahl.name, status==='frei' ? `Wochenplanung gelöscht am ${wochenplanungAuswahl.key}.` : `${status==='urlaub'?'🏖️ Urlaub':'🤒 Krank'} eingetragen am ${wochenplanungAuswahl.key}.`);
           await globalGlobalSpeichern();wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();
         };
 
@@ -3166,37 +3197,68 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
+        function materialSollZahl(menge){
+            const m=String(menge||'').replace(',','.').match(/(\d+(?:\.\d+)?)/);
+            return m?Number(m[1]):null;
+        }
+        function materialRest(mat){
+            const soll=materialSollZahl(mat.menge), verb=Number(mat.verbraucht||0);
+            return soll===null?null:Math.max(0,soll-verb);
+        }
+        function materialVerbrauchBerechtigt(){ return !!eingeloggterMitarbeiter; }
+
         function packlisteAktualisieren() {
             const tbody = document.querySelector('#packlisten-tabelle tbody');
             if(!tbody) return;
             tbody.innerHTML = '';
-
             if(!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             const p = globalDaten.projekte[aktuellesProjekt];
-            const materialien = p ? p.material : [];
+            const materialien = p ? (p.material || []) : [];
+            const manager = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Sekretariat') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin';
 
             materialien.forEach((mat, index) => {
-                const isChefOrTech = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggterMitarbeiter === 'Christian Leppin';
-                let statusBtn = isChefOrTech 
-                    ? `<button onclick="statusMatUmschalten(${index})" class="px-3 py-1 rounded-full text-xs font-bold ${mat.status.includes('✔') ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${mat.status}</button>`
-                    : `<span class="px-3 py-1 rounded-full text-xs font-bold ${mat.status.includes('✔') ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${mat.status}</span>`;
-
+                if(mat.verbraucht===undefined) mat.verbraucht=0;
+                const soll=materialSollZahl(mat.menge), rest=materialRest(mat);
+                const statusBtn = manager
+                    ? `<button onclick="statusMatUmschalten(${index})" class="px-3 py-1 rounded-full text-xs font-bold ${String(mat.status||'').includes('✔') ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${mat.status||'⏳ Offen'}</button>`
+                    : `<span class="px-3 py-1 rounded-full text-xs font-bold ${String(mat.status||'').includes('✔') ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${mat.status||'⏳ Offen'}</span>`;
+                const verbrauch = `<div class="flex items-center gap-1 justify-center"><input type="number" min="0" step="0.01" value="${Number(mat.verbraucht||0)}" onchange="materialVerbrauchSpeichern(${index},this.value)" class="w-20 px-2 py-1.5 border rounded-lg text-xs text-center bg-white" ${materialVerbrauchBerechtigt()?'':'disabled'}><span class="text-[10px] text-slate-400">${soll!==null?'von '+soll:''}</span></div>`;
+                const restText=rest===null?'–':String(rest).replace('.',',');
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td class="p-3 font-semibold text-slate-900">${mat.bez}</td>
-                    <td class="p-3"><span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded font-medium">${mat.kat}</span></td>
-                    <td class="p-3 font-medium text-blue-700">${mat.menge}</td>
-                    <td class="p-3 text-slate-600">${mat.ort}</td>
+                    <td class="p-3 font-semibold text-slate-900">${escapeHtml(mat.bez||'Material')}</td>
+                    <td class="p-3"><span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded font-medium">${escapeHtml(mat.kat||'Material')}</span></td>
+                    <td class="p-3 font-medium text-blue-700">${escapeHtml(mat.menge||'–')}</td>
+                    <td class="p-3">${verbrauch}</td>
+                    <td class="p-3 text-center font-bold ${rest!==null&&rest<=0?'text-red-600':'text-emerald-700'}">${restText}</td>
+                    <td class="p-3 text-slate-600">${escapeHtml(mat.ort||'–')}</td>
                     <td class="p-3 text-center">${statusBtn}</td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
+        window.materialVerbrauchSpeichern = async function(index,value){
+            if(!materialVerbrauchBerechtigt() || !aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
+            const mat=globalDaten.projekte[aktuellesProjekt].material[index]; if(!mat)return;
+            const neu=Math.max(0,Number(String(value).replace(',','.'))||0);
+            mat.verbraucht=neu;
+            await projektSpeichern(aktuellesProjekt);
+            if(!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen=[];
+            const verbrauchText=`Materialverbrauch aktualisiert: ${mat.bez||'Material'} – ${neu} verbraucht auf Baustelle ${aktuellesProjekt}.`;
+            const datumMat=new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+            const managerListe=(globalDaten.mitarbeiterListe||[]).filter(m=>{const r=String(m.rolle||'').toLowerCase();return r.includes('chef')||r.includes('techniker')||r.includes('sekretariat')||r.includes('büro')||r.includes('buero')||r.includes('admin');}).map(m=>m.name);
+            managerListe.forEach(emp=>globalDaten.benachrichtigungen.unshift({von:eingeloggterMitarbeiter + (eingeloggteRolle.includes('Chef')?' (Chef)':' (Team)'),empfaenger:emp,text:verbrauchText,datum:datumMat,gelesenVon:[eingeloggterMitarbeiter],geloeschtVon:[],projekt:aktuellesProjekt}));
+            await globalGlobalSpeichern();
+            packlisteAktualisieren();
+            benachrichtigungenAnzeigen();
+        };
+
         window.statusMatUmschalten = function(index) {
             const mat = globalDaten.projekte[aktuellesProjekt].material[index];
-            mat.status = mat.status.includes('✔') ? "⏳ Offen" : "✔ Kommissioniert";
+            mat.status = String(mat.status||'').includes('✔') ? "⏳ Offen" : "✔ Kommissioniert";
             projektSpeichern(aktuellesProjekt);
+            packlisteAktualisieren();
         }
 
         // ==================== LIVE-KARTE: ECHTE BAUSTELLENADRESSEN ====================
@@ -3741,6 +3803,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (tabName === 'benachrichtigungen') {
                 benachrichtigungenAnzeigen();
             }
+            if (tabName === 'dashboard') { dashboardAktualisieren(); }
             if (tabName === 'startseite') {
                 wetterLaden();
                 startseiteAktualisieren();
@@ -3757,14 +3820,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
     </script>
 
 <script>
+const lokalesDatumKeyUI = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const escapeHtmlUI = v => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 window.zeigeVerlegerPlanungAufStartseite=function(){
   const b=document.getElementById('verleger-planung-startseite'),l=document.getElementById('verleger-planung-start-liste'),h=document.getElementById('verleger-planung-start-heute');
   if(!b||!l||!h)return;
-  const name=String(typeof eingeloggterMitarbeiter!=='undefined'?eingeloggterMitarbeiter:'').trim();
-  const rolle=String(typeof eingeloggteRolle!=='undefined'?eingeloggteRolle:'').trim().toLowerCase();
+  const name=String(typeof window.eingeloggterMitarbeiter!=='undefined'?window.eingeloggterMitarbeiter:'').trim();
+  const rolle=String(typeof window.eingeloggteRolle!=='undefined'?window.eingeloggteRolle:'').trim().toLowerCase();
   if(!name||!rolle.includes('verleger')){b.classList.add('hidden');b.style.display='none';return;}
   b.classList.remove('hidden');b.style.display='block';
-  const g=typeof globalDaten!=='undefined'?globalDaten:{}; const plan=(g.wochenplanung&&g.wochenplanung[name])||{}; const abs=(g.abwesenheiten&&g.abwesenheiten[name])||{};
+  const g=typeof window.globalDaten!=='undefined'?window.globalDaten:{}; const plan=(g.wochenplanung&&g.wochenplanung[name])||{}; const abs=(g.abwesenheiten&&g.abwesenheiten[name])||{};
   const heute=new Date();heute.setHours(0,0,0,0); const montag=new Date(heute); const day=montag.getDay()||7; montag.setDate(montag.getDate()-day+1);
   const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const tage=Array.from({length:5},(_,i)=>{const d=new Date(montag);d.setDate(montag.getDate()+i);return d;});
@@ -3995,8 +4060,8 @@ window.zeigeVerlegerPlanungAufStartseite=function(){
 /* WOCHENPLAN STARTSEITE – ROBUSTE VERSION */
 window.verlegerWochenplanOeffnen = function(){
   try {
-    const rolle=String(window.eingeloggteRolle||eingeloggteRolle||'').trim().toLowerCase();
-    const name=String(window.eingeloggterMitarbeiter||eingeloggterMitarbeiter||'').trim();
+    const rolle=String(window.window.eingeloggteRolle||window.eingeloggteRolle||'').trim().toLowerCase();
+    const name=String(window.window.eingeloggterMitarbeiter||window.eingeloggterMitarbeiter||'').trim();
     if(!name)return alert('Bitte zuerst anmelden.');
     if(!rolle.includes('verleger'))return;
     let modal=document.getElementById('verleger-wochenplan-modal');
@@ -4011,7 +4076,7 @@ window.verlegerWochenplanOeffnen = function(){
       document.getElementById('verleger-wochenplan-close').onclick=window.verlegerWochenplanSchliessen;
       modal.addEventListener('click',e=>{if(e.target===modal)window.verlegerWochenplanSchliessen();});
     }
-    const g=window.globalDaten||globalDaten||{};
+    const g=window.window.globalDaten||window.globalDaten||{};
     const plan=(g.wochenplanung&&g.wochenplanung[name])||{};
     const abs=(g.abwesenheiten&&g.abwesenheiten[name])||{};
     const heute=new Date();heute.setHours(0,0,0,0);
@@ -4033,7 +4098,107 @@ window.verlegerWochenplanOeffnen = function(){
   }catch(e){console.error('Wochenplan:',e);alert('Der Wochenplan konnte nicht geöffnet werden.');}
 };
 window.verlegerWochenplanSchliessen = function(){ const m=document.getElementById('verleger-wochenplan-modal'); if(m){m.classList.add('hidden');m.classList.remove('flex');} };
+
+        function dashboardIstBerechtigt(){
+            const r=String(window.eingeloggteRolle||'').toLowerCase();
+            return r.includes('chef')||r.includes('admin')||r.includes('techniker')||r.includes('sekretariat')||r.includes('büro')||r.includes('buero')||window.eingeloggterMitarbeiter==='Christian Leppin';
+        }
+
+        function dashboardProjektListe(){
+            const proj=window.globalDaten.projekte||{};
+            return Object.entries(proj).map(([name,p])=>({name, ...(p||{})}));
+        }
+
+        window.dashboardAktualisieren=function(){
+  try{
+    const k=document.getElementById('dashboard-karten'), heuteEl=document.getElementById('dashboard-heute'), probEl=document.getElementById('dashboard-probleme'), countEl=document.getElementById('dashboard-probleme-count');
+    if(!k||!heuteEl||!probEl) return;
+    const projekte=window.globalDaten.projekte||{};
+    const aktiv=Object.values(projekte).filter(p=>String(p?.status||'').toLowerCase()!=='fertig').length;
+    const fertig=Object.values(projekte).filter(p=>String(p?.status||'').toLowerCase()==='fertig').length;
+    const heuteKey=lokalesDatumKeyUI(new Date()); const heute=[];
+    Object.entries(window.globalDaten.mitarbeiterListe||[]).forEach(()=>{});
+    Object.entries(window.globalDaten.wochenplanung||{}).forEach(([name,days])=>{
+      const entries=Array.isArray(days?.[heuteKey])?days[heuteKey]:(days?.[heuteKey]?[days[heuteKey]]:[]);
+      const abs=window.globalDaten.abwesenheiten?.[name]?.[heuteKey];
+      if(abs?.status) heute.push({name,status:String(abs.status).toLowerCase(),entries:[]});
+      else if(entries.length) heute.push({name,status:'einsatz',entries});
+    });
+    const probleme=Array.isArray(window.globalDaten.probleme)?window.globalDaten.probleme:[];
+    const offen=probleme.filter(p=>!p.erledigt), erledigt=probleme.filter(p=>p.erledigt);
+    k.innerHTML=[['🏗️','Baustellen gesamt',Object.keys(projekte).length],['🟢','Aktiv / In Arbeit',aktiv],['🏁','Fertiggestellt',fertig],['👷','Heute im Einsatz',heute.filter(x=>x.status==='einsatz').length],['⚠️','Offene Probleme',offen.length]].map(x=>`<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm"><div class="text-2xl">${x[0]}</div><div class="text-xs text-slate-500 font-bold mt-1">${x[1]}</div><div class="text-2xl font-black text-slate-900 mt-1">${x[2]}</div></div>`).join('');
+    heuteEl.innerHTML=heute.length?heute.map(x=>{
+      if(x.status==='urlaub') return `<div class="p-3 bg-amber-50 border border-amber-200 rounded-xl"><b>👷 ${escapeHtmlUI(x.name)}</b><div class="text-sm font-bold text-amber-800 mt-1">🏖️ Urlaub</div></div>`;
+      if(x.status==='krank') return `<div class="p-3 bg-red-50 border border-red-200 rounded-xl"><b>👷 ${escapeHtmlUI(x.name)}</b><div class="text-sm font-bold text-red-800 mt-1">🤒 Krank</div></div>`;
+      return `<div class="p-3 bg-blue-50 border border-blue-200 rounded-xl"><b>👷 ${escapeHtmlUI(x.name)}</b>${x.entries.map(item=>{const b=typeof item==='object'?(item.baustelle||''):item; const n=typeof item==='object'?(item.notiz||''):''; const adr=projekte[b]?.adresse||''; return `<div class="mt-2 text-sm"><span class="font-bold">🏗️ ${escapeHtmlUI(b)}</span>${adr?`<div class="text-xs text-slate-500">📍 ${escapeHtmlUI(adr)}</div>`:''}${n?`<div class="text-xs text-slate-500">📝 ${escapeHtmlUI(n)}</div>`:''}</div>`}).join('')}</div>`;
+    }).join(''):'<p class="text-sm text-slate-400">Heute keine Einteilungen.</p>';
+    countEl.textContent=offen.length+' offen';
+    probEl.innerHTML=offen.length?offen.map(p=>`<div class="border border-red-200 bg-red-50 rounded-xl p-4"><div class="flex flex-wrap justify-between gap-2"><div><b>🏗️ ${escapeHtmlUI(p.baustelle||'Unbekannte Baustelle')}</b><div class="text-xs font-bold text-red-700 mt-1">${escapeHtmlUI(p.kategorie||'Sonstiges')}</div></div><span class="text-xs text-slate-500">${escapeHtmlUI(p.datum||'')}</span></div><p class="text-sm text-slate-700 mt-2 whitespace-pre-wrap">${escapeHtmlUI(p.text||'')}</p><div class="text-xs text-slate-500 mt-2">Gemeldet von: <b>${escapeHtmlUI(p.von||'Unbekannt')}</b></div><button type="button" onclick="problemErledigen('${String(p.id).replace(/'/g,"\'")}')" class="mt-3 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold">✔ Als erledigt markieren</button></div>`).join(''):'<p class="text-sm text-slate-400">Keine offenen Probleme.</p>';
+    const info=document.getElementById('dashboard-problem-info'); if(info) info.innerHTML=`<span>Gesamt gemeldet: <b>${probleme.length}</b></span><span> · </span><span>Erledigt: <b>${erledigt.length}</b></span>`;
+  }catch(e){ console.error('Dashboard:',e); }
+};
+
+window.problemMeldenOeffnen=function(){
+  const projekt=window.aktuellesProjekt || document.getElementById('projekt-titel')?.innerText?.trim();
+  if(!projekt){ alert('Bitte zuerst eine Baustelle öffnen.'); return; }
+  window.aktuellesProjekt=projekt;
+  const m=document.getElementById('problem-modal'), b=document.getElementById('problem-modal-baustelle'), t=document.getElementById('problem-text');
+  if(!m){ alert('Das Problem-Fenster konnte nicht geladen werden.'); return; }
+  if(b) b.textContent='Baustelle: '+projekt;
+  if(t) t.value='';
+  window.problemKategorie='Untergrund nicht geeignet';
+  document.querySelectorAll('.problem-option').forEach((el,i)=>{el.classList.remove('ring-2','ring-red-500');if(i===0)el.classList.add('ring-2','ring-red-500');});
+  m.classList.remove('hidden'); m.classList.add('flex');
+};
+window.problemMeldenSchliessen=function(){const m=document.getElementById('problem-modal');if(m){m.classList.add('hidden');m.classList.remove('flex');}};
+        window.problemKategorieSetzen=function(value,btn){
+            window.problemKategorie=value;
+            document.querySelectorAll('.problem-option').forEach(el=>{el.classList.remove('ring-2','ring-red-500');});
+            if(btn){btn.classList.add('ring-2','ring-red-500');}
+        };
+        window.problemMeldenSpeichern=async function(){
+            if(!window.aktuellesProjekt){alert('Keine Baustelle ausgewählt.');return;}
+            const text=document.getElementById('problem-text')?.value.trim();
+            const k=window.problemKategorie||'Sonstiges';
+            if(!text){alert('Bitte kurz beschreiben, was passiert ist.');return;}
+            const problem={id:Date.now(),baustelle:window.aktuellesProjekt,kategorie:k,text,von:window.eingeloggterMitarbeiter,datum:new Date().toLocaleString('de-DE'),erledigt:false};
+            window.globalDaten.probleme=Array.isArray(window.globalDaten.probleme)?window.globalDaten.probleme:[];
+            window.globalDaten.probleme.unshift(problem);
+            try{
+                await globalGlobalSpeichern();
+                problemMeldenSchliessen();
+                dashboardAktualisieren();
+                alert('⚠️ Problem wurde gespeichert und ist im Chef-Dashboard sichtbar.');
+            }catch(e){
+                window.globalDaten.probleme=window.globalDaten.probleme.filter(x=>x!==problem);
+                console.error(e);
+                alert('❌ Das Problem konnte nicht gespeichert werden. Bitte Firebase-Berechtigungen prüfen.');
+            }
+        };
+        window.problemErledigen=async function(id){
+            if(!dashboardIstBerechtigt())return;
+            const target=(window.globalDaten.probleme||[]).find(x=>String(x.id)===String(id));
+            if(!target)return;
+            target.erledigt=true;
+            await globalGlobalSpeichern();
+            dashboardAktualisieren();
+        };
 </script>
 
-</body>
+<div id="problem-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/60 p-4">
+<div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5">
+<div class="flex justify-between items-center"><div><h3 class="text-xl font-black">⚠️ Problem auf Baustelle melden</h3><p class="text-xs text-slate-500 mt-1">Bitte Problem auswählen und kurz beschreiben.</p></div><button type="button" onclick="problemMeldenSchliessen()" class="text-slate-500 text-2xl">×</button></div>
+<p id="problem-modal-baustelle" class="text-sm font-bold text-blue-700 bg-blue-50 rounded-xl px-3 py-2"></p>
+<div><div class="text-xs font-black uppercase text-slate-500 mb-2">Problem auswählen</div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+<button type="button" class="problem-option text-left border rounded-xl p-3 font-semibold hover:bg-red-50" onclick="problemKategorieSetzen('Untergrund nicht geeignet',this)">🧱 Untergrund nicht geeignet</button>
+<button type="button" class="problem-option text-left border rounded-xl p-3 font-semibold hover:bg-red-50" onclick="problemKategorieSetzen('Material fehlt',this)">📦 Material fehlt</button>
+<button type="button" class="problem-option text-left border rounded-xl p-3 font-semibold hover:bg-red-50" onclick="problemKategorieSetzen('Fläche stimmt nicht',this)">📐 Fläche stimmt nicht</button>
+<button type="button" class="problem-option text-left border rounded-xl p-3 font-semibold hover:bg-red-50" onclick="problemKategorieSetzen('Kunde nicht vor Ort',this)">👤 Kunde nicht vor Ort</button>
+<button type="button" class="problem-option text-left border rounded-xl p-3 font-semibold hover:bg-red-50" onclick="problemKategorieSetzen('Beschädigung vorhanden',this)">💥 Beschädigung vorhanden</button>
+<button type="button" class="problem-option text-left border rounded-xl p-3 font-semibold hover:bg-red-50" onclick="problemKategorieSetzen('Terminproblem',this)">📅 Terminproblem</button>
+<button type="button" class="problem-option text-left border rounded-xl p-3 font-semibold hover:bg-red-50 sm:col-span-2" onclick="problemKategorieSetzen('Sonstiges',this)">❓ Sonstiges</button>
+</div></div>
+<textarea id="problem-text" rows="4" class="w-full border rounded-xl px-3 py-3" placeholder="Was ist passiert? Was muss der Chef wissen?"></textarea>
+<div class="flex justify-end gap-2"><button type="button" onclick="problemMeldenSchliessen()" class="px-4 py-2 rounded-xl bg-slate-100">Abbrechen</button><button type="button" onclick="problemMeldenSpeichern()" class="px-4 py-2 rounded-xl bg-red-600 text-white font-bold">⚠️ Problem melden</button></div>
+</div></div></body>
 </html>
