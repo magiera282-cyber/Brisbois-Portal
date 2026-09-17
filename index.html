@@ -2075,43 +2075,29 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
           const mon=tage[0].date,fre=tage[4].date;const titleEl=document.getElementById('wochenplanung-titel');if(titleEl)titleEl.textContent=`${mon.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} – ${fre.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
           if(!sichtbar.length){box.innerHTML='<div class="p-5 rounded-xl bg-slate-50 text-sm text-slate-500">Keine Verleger gefunden.</div>';return;}
           const chef=wochenplanungIstChef();
-          box.innerHTML=`<div class="overflow-x-auto"><table class="w-full min-w-[900px] border-separate border-spacing-0"><thead><tr><th class="p-3 text-left bg-slate-100 rounded-tl-xl w-48">Verleger</th>${tage.map(t=>`<th class="p-3 text-center bg-slate-100">${t.label}<div class="text-[10px] font-normal text-slate-500">${t.date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></th>`).join('')}<th class="bg-slate-100 rounded-tr-xl"></th></tr></thead><tbody>${sichtbar.map(m=>`<tr><td class="p-3 border-b border-slate-200 font-bold text-slate-900">👷 ${escapeHtml(m.name)}</td>${tage.map(t=>{const vals=wochenplanungDaten(m.name,t.key),heute=lokalesDatumKey(new Date())===t.key;return `<td class="p-2 border-b border-slate-200 align-top ${heute?'bg-blue-50/50':''}"><div class="min-h-[72px] rounded-xl border ${heute?'border-blue-300':'border-slate-200'} bg-white p-2 cursor-pointer hover:border-blue-400" onclick="wochenplanungTagOeffnen(${JSON.stringify(m.name)},${JSON.stringify(t.key)})">${vals.length?vals.map((v,i)=>`<div class="mb-1 rounded-lg bg-blue-50 border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-900 flex gap-1"><span class="truncate flex-1">${escapeHtml(v.baustelle||v)}</span>${chef?`<button type="button" onclick="event.stopPropagation();wochenplanungEintragEntfernen(${JSON.stringify(m.name)},${JSON.stringify(t.key)},${i})" class="text-red-500 font-bold">×</button>`:''}</div>`).join(''):'<span class="text-[10px] text-slate-400">'+(chef?'+ Baustelle':'Keine Baustelle')+'</span>'}</div></td>`}).join('')}<td class="border-b border-slate-200"></td></tr>`).join('')}</tbody></table></div>`;
+          box.innerHTML=`<div class="overflow-x-auto"><table class="w-full min-w-[900px] border-separate border-spacing-0"><thead><tr><th class="p-3 text-left bg-slate-100 rounded-tl-xl w-48">Verleger</th>${tage.map(t=>`<th class="p-3 text-center bg-slate-100">${t.label}<div class="text-[10px] font-normal text-slate-500">${t.date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></th>`).join('')}<th class="bg-slate-100 rounded-tr-xl"></th></tr></thead><tbody>${sichtbar.map(m=>`<tr><td class="p-3 border-b border-slate-200 font-bold text-slate-900">👷 ${escapeHtml(m.name)}</td>${tage.map(t=>{const vals=wochenplanungDaten(m.name,t.key),heute=lokalesDatumKey(new Date())===t.key;return `<td class="p-2 border-b border-slate-200 align-top ${heute?'bg-blue-50/50':''}"><div class="min-h-[72px] rounded-xl border ${heute?'border-blue-300':'border-slate-200'} bg-white p-2 cursor-pointer hover:border-blue-400" data-wochenplan-name="${escapeHtml(m.name)}" data-wochenplan-key="${escapeHtml(t.key)}" onclick="wochenplanungTagOeffnen(this.dataset.wochenplanName,this.dataset.wochenplanKey)">${vals.length?vals.map((v,i)=>`<div class="mb-1 rounded-lg bg-blue-50 border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-900 flex gap-1"><span class="truncate flex-1">${escapeHtml(v.baustelle||v)}</span>${chef?`<button type="button" onclick="event.stopPropagation();wochenplanungEintragEntfernen(${JSON.stringify(m.name)},${JSON.stringify(t.key)},${i})" class="text-red-500 font-bold">×</button>`:''}</div>`).join(''):'<span class="text-[10px] text-slate-400">'+(chef?'+ Baustelle':'Keine Baustelle')+'</span>'}</div></td>`}).join('')}<td class="border-b border-slate-200"></td></tr>`).join('')}</tbody></table></div>`;
         };
         window.wochenplanungTagOeffnen=function(name,key){
-  if(!wochenplanungIstChef()) return;
-  wochenplanungAuswahl={name,key};
-  const modal=document.getElementById('wochenplanung-modal');
-  const sel=document.getElementById('wochenplanung-modal-baustelle');
-  if(!modal||!sel) return;
-  const d=new Date(key+'T12:00:00');
-  const ver=document.getElementById('wochenplanung-modal-verleger');
-  const dat=document.getElementById('wochenplanung-modal-datum');
-  if(ver) ver.textContent=name;
-  if(dat) dat.textContent=d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-
-  // Immer alle vorhandenen Baustellen anbieten. Die Grundzuweisung darf die
-  // Auswahl in der Wochenplanung nicht blockieren.
-  const baustellen=Object.keys(globalDaten.projekte||{}).filter(Boolean);
-  sel.disabled=false;
-  sel.innerHTML='<option value="">Baustelle auswählen...</option>';
-  if(baustellen.length){
-    baustellen.forEach(projekt=>{
-      const option=document.createElement('option');
-      option.value=projekt;
-      option.textContent=projekt;
-      sel.appendChild(option);
-    });
-  } else {
-    const option=document.createElement('option');
-    option.value='';
-    option.textContent='Noch keine Baustellen vorhanden';
-    option.disabled=true;
-    sel.appendChild(option);
-  }
-  const notiz=document.getElementById('wochenplanung-modal-notiz');
-  if(notiz) notiz.value='';
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
+  try {
+    if(!wochenplanungIstChef()) { alert("Nur Chef/Admin kann die Wochenplanung bearbeiten."); return; }
+    wochenplanungAuswahl={name:String(name||""),key:String(key||"")};
+    const modal=document.getElementById("wochenplanung-modal");
+    const sel=document.getElementById("wochenplanung-modal-baustelle");
+    if(!modal || !sel){ alert("Das Planungsfenster konnte nicht gefunden werden."); return; }
+    const d=new Date(String(key)+"T12:00:00");
+    const ver=document.getElementById("wochenplanung-modal-verleger");
+    const dat=document.getElementById("wochenplanung-modal-datum");
+    if(ver) ver.textContent=String(name||"");
+    if(dat) dat.textContent=isNaN(d.getTime())?String(key):d.toLocaleDateString("de-DE",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"});
+    const baustellen=Object.keys(globalDaten.projekte||{}).filter(Boolean);
+    sel.innerHTML="";
+    const first=document.createElement("option"); first.value=""; first.textContent="Baustelle auswählen..."; sel.appendChild(first);
+    baustellen.forEach(function(projekt){ const o=document.createElement("option"); o.value=projekt; o.textContent=projekt; sel.appendChild(o); });
+    if(!baustellen.length){ const o=document.createElement("option"); o.value=""; o.textContent="Keine Baustellen vorhanden"; o.disabled=true; sel.appendChild(o); }
+    sel.value="";
+    const notiz=document.getElementById("wochenplanung-modal-notiz"); if(notiz) notiz.value="";
+    modal.classList.remove("hidden"); modal.classList.add("flex");
+  } catch(e) { console.error("Wochenplanung öffnen:",e); alert("Fehler beim Öffnen der Baustellenauswahl: "+(e.message||e)); }
 };
         window.wochenplanungModalSchliessen=function(){const m=document.getElementById('wochenplanung-modal');m.classList.add('hidden');m.classList.remove('flex');};
         window.wochenplanungEintragSpeichern=async function(){if(!wochenplanungIstChef())return;const p=document.getElementById('wochenplanung-modal-baustelle').value;if(!p)return alert('Bitte eine Baustelle auswählen.');const n=document.getElementById('wochenplanung-modal-notiz').value.trim();const vals=wochenplanungDaten(wochenplanungAuswahl.name,wochenplanungAuswahl.key);vals.push({baustelle:p,notiz:n});try{await globalGlobalSpeichern();wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();}catch(e){alert('Wochenplanung konnte nicht gespeichert werden: '+(e.message||e));}};
