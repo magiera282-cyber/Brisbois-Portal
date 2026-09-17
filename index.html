@@ -1220,8 +1220,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         </div>
         <div><div class="text-xs font-bold uppercase text-slate-500 mb-1">Verleger</div><div id="wochenplanung-modal-verleger" class="font-bold text-slate-900"></div></div>
         <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Baustelle</label><select id="wochenplanung-modal-baustelle" class="w-full px-3 py-3 border rounded-xl bg-white text-sm font-semibold"><option value="">Baustelle auswählen...</option></select></div>
+        <div><label class="block text-xs font-bold uppercase text-slate-500 mb-2">Abwesenheit für diesen Tag</label><div class="grid grid-cols-3 gap-2"><button type="button" onclick="wochenplanungAbwesenheitSetzen('urlaub')" class="py-2.5 rounded-xl bg-amber-100 text-amber-800 font-bold hover:bg-amber-200">🏖️ Urlaub</button><button type="button" onclick="wochenplanungAbwesenheitSetzen('krank')" class="py-2.5 rounded-xl bg-red-100 text-red-800 font-bold hover:bg-red-200">🤒 Krank</button><button type="button" onclick="wochenplanungAbwesenheitSetzen('frei')" class="py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200">↩️ Löschen</button></div></div>
         <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Notiz (optional)</label><input id="wochenplanung-modal-notiz" type="text" placeholder="z. B. Material mitbringen" class="w-full px-3 py-3 border rounded-xl text-sm"></div>
-        <div class="flex gap-2 pt-2"><button type="button" onclick="wochenplanungEintragSpeichern()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">💾 Speichern</button><button type="button" onclick="wochenplanungModalSchliessen()" class="px-5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold">Abbrechen</button></div>
+        <div class="flex gap-2 pt-2"><button type="button" onclick="wochenplanungEintragSpeichern()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">💾 Baustelle speichern</button><button type="button" onclick="wochenplanungModalSchliessen()" class="px-5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold">Abbrechen</button></div>
       </div>
     </div>
 
@@ -1358,6 +1359,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             projekte: basisProjekte,
             zuweisungen: {},
             wochenplanung: {},
+            abwesenheiten: {},
             zeiterfassung: {},
             resturlaub: {}
         };
@@ -1443,6 +1445,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
                 globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
+                globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
                 globalDaten.resturlaub = cloudDaten.resturlaub || {};
                 allesAktualisieren();
@@ -1486,6 +1489,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     uzinKatalog: globalDaten.uzinKatalog,
                     zuweisungen: globalDaten.zuweisungen,
                     wochenplanung: globalDaten.wochenplanung,
+                    abwesenheiten: globalDaten.abwesenheiten,
                     zeiterfassung: globalDaten.zeiterfassung,
                     resturlaub: globalDaten.resturlaub
                 });
@@ -2091,38 +2095,22 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function planungsBaustellenFuerMitarbeiter(name){ return Object.keys(globalDaten.projekte||{}); }
         function wochenplanungDaten(name,key){ globalDaten.wochenplanung=globalDaten.wochenplanung||{};globalDaten.wochenplanung[name]=globalDaten.wochenplanung[name]||{};const v=globalDaten.wochenplanung[name][key];if(Array.isArray(v))return v;if(typeof v==='string'&&v)return [v];globalDaten.wochenplanung[name][key]=[];return globalDaten.wochenplanung[name][key]; }
         function wochenplanungIstBerechtigt(){ const r=String(eingeloggteRolle||'').toLowerCase(); return r.includes('chef') || r.includes('admin') || r.includes('techniker') || r.includes('sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin'; }
-         function wochenplanungIstChef(){ return wochenplanungIstBerechtigt(); }
+        function wochenplanungIstChef(){ return wochenplanungIstBerechtigt(); }
+        function abwesenheitDaten(name,key){ globalDaten.abwesenheiten=globalDaten.abwesenheiten||{};globalDaten.abwesenheiten[name]=globalDaten.abwesenheiten[name]||{};return globalDaten.abwesenheiten[name][key]||null; }
         window.wochenplanungAnzeigen=function(){
           const box=document.getElementById('mitarbeiter-wochenplanung');if(!box)return;const tage=wochenTage(wochenplanungOffset);const sichtbar=(globalDaten.mitarbeiterListe||[]).filter(m=>m.rolle==='Verleger');
           const mon=tage[0].date,fre=tage[4].date;const titleEl=document.getElementById('wochenplanung-titel');if(titleEl)titleEl.textContent=`${mon.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} – ${fre.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
           if(!sichtbar.length){box.innerHTML='<div class="p-5 rounded-xl bg-slate-50 text-sm text-slate-500">Keine Verleger gefunden.</div>';return;}
           const chef=wochenplanungIstChef();
-          box.innerHTML=`<div class="overflow-x-auto"><table class="w-full min-w-[900px] border-separate border-spacing-0"><thead><tr><th class="p-3 text-left bg-slate-100 rounded-tl-xl w-48">Verleger</th>${tage.map(t=>`<th class="p-3 text-center bg-slate-100">${t.label}<div class="text-[10px] font-normal text-slate-500">${t.date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></th>`).join('')}<th class="bg-slate-100 rounded-tr-xl"></th></tr></thead><tbody>${sichtbar.map(m=>`<tr><td class="p-3 border-b border-slate-200 font-bold text-slate-900">👷 ${escapeHtml(m.name)}</td>${tage.map(t=>{const vals=wochenplanungDaten(m.name,t.key),heute=lokalesDatumKey(new Date())===t.key;return `<td class="p-2 border-b border-slate-200 align-top ${heute?'bg-blue-50/50':''}"><div class="min-h-[72px] rounded-xl border ${heute?'border-blue-300':'border-slate-200'} bg-white p-2 cursor-pointer hover:border-blue-400" data-wochenplan-name="${escapeHtml(m.name)}" data-wochenplan-key="${escapeHtml(t.key)}" onclick="wochenplanungTagOeffnen(this.dataset.wochenplanName,this.dataset.wochenplanKey)">${vals.length?vals.map((v,i)=>`<div class="mb-1 rounded-lg bg-blue-50 border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-900 flex gap-1"><span class="truncate flex-1">${escapeHtml(v.baustelle||v)}</span>${chef?`<button type="button" onclick="event.stopPropagation();wochenplanungEintragEntfernen(${JSON.stringify(m.name)},${JSON.stringify(t.key)},${i})" class="text-red-500 font-bold">×</button>`:''}</div>`).join(''):'<span class="text-[10px] text-slate-400">'+(chef?'+ Baustelle':'Keine Baustelle')+'</span>'}</div></td>`}).join('')}<td class="border-b border-slate-200"></td></tr>`).join('')}</tbody></table></div>`;
+          box.innerHTML=`<div class="overflow-x-auto"><table class="w-full min-w-[900px] border-separate border-spacing-0"><thead><tr><th class="p-3 text-left bg-slate-100 rounded-tl-xl w-48">Verleger</th>${tage.map(t=>`<th class="p-3 text-center bg-slate-100">${t.label}<div class="text-[10px] font-normal text-slate-500">${t.date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></th>`).join('')}<th class="bg-slate-100 rounded-tr-xl"></th></tr></thead><tbody>${sichtbar.map(m=>`<tr><td class="p-3 border-b border-slate-200 font-bold text-slate-900">👷 ${escapeHtml(m.name)}</td>${tage.map(t=>{const vals=wochenplanungDaten(m.name,t.key),abs=abwesenheitDaten(m.name,t.key),heute=lokalesDatumKey(new Date())===t.key;return `<td class="p-2 border-b border-slate-200 align-top ${heute?'bg-blue-50/50':''}"><div class="min-h-[72px] rounded-xl border ${heute?'border-blue-300':'border-slate-200'} bg-white p-2 cursor-pointer hover:border-blue-400" data-wochenplan-name="${escapeHtml(m.name)}" data-wochenplan-key="${escapeHtml(t.key)}" onclick="wochenplanungTagOeffnen(this.dataset.wochenplanName,this.dataset.wochenplanKey)">${abs?.status==='urlaub'?'<div class="rounded-lg bg-amber-100 border border-amber-200 px-2 py-2 text-[11px] font-bold text-amber-900">🏖️ Urlaub</div>':abs?.status==='krank'?'<div class="rounded-lg bg-red-100 border border-red-200 px-2 py-2 text-[11px] font-bold text-red-900">🤒 Krank</div>':vals.length?vals.map((v,i)=>`<div class="mb-1 rounded-lg bg-blue-50 border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-900 flex gap-1"><span class="truncate flex-1">${escapeHtml(v.baustelle||v)}</span>${chef?`<button type="button" onclick="event.stopPropagation();wochenplanungEintragEntfernen(${JSON.stringify(m.name)},${JSON.stringify(t.key)},${i})" class="text-red-500 font-bold">×</button>`:''}</div>`).join(''):'<span class="text-[10px] text-slate-400">'+(chef?'+ Baustelle':'Keine Baustelle')+'</span>'}</div></td>`}).join('')}<td class="border-b border-slate-200"></td></tr>`).join('')}</tbody></table></div>`;
         };
         window.wochenplanungTagOeffnen=function(name,key){
-  try {
-    if(!wochenplanungIstBerechtigt()) { alert("Du hast keine Berechtigung für die Wochenplanung."); return; }
-    wochenplanungAuswahl={name:String(name||""),key:String(key||"")};
-    const modal=document.getElementById("wochenplanung-modal");
-    const sel=document.getElementById("wochenplanung-modal-baustelle");
-    if(!modal || !sel){ alert("Das Planungsfenster konnte nicht gefunden werden."); return; }
-    const d=new Date(String(key)+"T12:00:00");
-    const ver=document.getElementById("wochenplanung-modal-verleger");
-    const dat=document.getElementById("wochenplanung-modal-datum");
-    if(ver) ver.textContent=String(name||"");
-    if(dat) dat.textContent=isNaN(d.getTime())?String(key):d.toLocaleDateString("de-DE",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"});
-    const baustellen=Object.keys(globalDaten.projekte||{}).filter(Boolean);
-    sel.innerHTML="";
-    const first=document.createElement("option"); first.value=""; first.textContent="Baustelle auswählen..."; sel.appendChild(first);
-    baustellen.forEach(function(projekt){ const o=document.createElement("option"); o.value=projekt; o.textContent=projekt; sel.appendChild(o); });
-    if(!baustellen.length){ const o=document.createElement("option"); o.value=""; o.textContent="Keine Baustellen vorhanden"; o.disabled=true; sel.appendChild(o); }
-    sel.value="";
-    const notiz=document.getElementById("wochenplanung-modal-notiz"); if(notiz) notiz.value="";
-    modal.classList.remove("hidden"); modal.classList.add("flex");
-  } catch(e) { console.error("Wochenplanung öffnen:",e); alert("Fehler beim Öffnen der Baustellenauswahl: "+(e.message||e)); }
-};
-        window.wochenplanungModalSchliessen=function(){const m=document.getElementById('wochenplanung-modal');m.classList.add('hidden');m.classList.remove('flex');};
-        window.wochenplanungEintragSpeichern=async function(){if(!wochenplanungIstChef())return;const p=document.getElementById('wochenplanung-modal-baustelle').value;if(!p)return alert('Bitte eine Baustelle auswählen.');const n=document.getElementById('wochenplanung-modal-notiz').value.trim();const vals=wochenplanungDaten(wochenplanungAuswahl.name,wochenplanungAuswahl.key);vals.push({baustelle:p,notiz:n});try{await globalGlobalSpeichern();wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();}catch(e){alert('Wochenplanung konnte nicht gespeichert werden: '+(e.message||e));}};
+          try { if(!wochenplanungIstBerechtigt()) { alert('Du hast keine Berechtigung für die Wochenplanung.'); return; } wochenplanungAuswahl={name:String(name||''),key:String(key||'')}; const modal=document.getElementById('wochenplanung-modal'),sel=document.getElementById('wochenplanung-modal-baustelle'); if(!modal||!sel){alert('Das Planungsfenster konnte nicht gefunden werden.');return;} const d=new Date(String(key)+'T12:00:00'); const ver=document.getElementById('wochenplanung-modal-verleger'),dat=document.getElementById('wochenplanung-modal-datum'); if(ver)ver.textContent=String(name||''); if(dat)dat.textContent=isNaN(d.getTime())?String(key):d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}); const baustellen=Object.keys(globalDaten.projekte||{}).filter(Boolean); sel.innerHTML='<option value="">Baustelle auswählen...</option>'; baustellen.forEach(projekt=>{const o=document.createElement('option');o.value=projekt;o.textContent=projekt;sel.appendChild(o);}); if(!baustellen.length){const o=document.createElement('option');o.textContent='Keine Baustellen vorhanden';o.disabled=true;sel.appendChild(o);} sel.value=''; const notiz=document.getElementById('wochenplanung-modal-notiz');if(notiz)notiz.value=''; modal.classList.remove('hidden');modal.classList.add('flex');
+          } catch(e){console.error(e);alert('Fehler beim Öffnen der Wochenplanung: '+(e.message||e));}
+        };
+        window.wochenplanungAbwesenheitSetzen=async function(status){ if(!wochenplanungIstBerechtigt())return; if(!wochenplanungAuswahl?.name||!wochenplanungAuswahl?.key)return; globalDaten.abwesenheiten=globalDaten.abwesenheiten||{};globalDaten.abwesenheiten[wochenplanungAuswahl.name]=globalDaten.abwesenheiten[wochenplanungAuswahl.name]||{}; if(status==='frei') delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key]; else globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key]={status}; if(status!=='frei') globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key]=[]; await globalGlobalSpeichern(); wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();};
+        window.wochenplanungModalSchliessen=function(){const m=document.getElementById('wochenplanung-modal');if(m){m.classList.add('hidden');m.classList.remove('flex');}};
+        window.wochenplanungEintragSpeichern=async function(){if(!wochenplanungIstChef())return;const p=document.getElementById('wochenplanung-modal-baustelle').value;if(!p)return alert('Bitte eine Baustelle auswählen.');const n=document.getElementById('wochenplanung-modal-notiz').value.trim();const vals=wochenplanungDaten(wochenplanungAuswahl.name,wochenplanungAuswahl.key);vals.push({baustelle:p,notiz:n}); if(globalDaten.abwesenheiten?.[wochenplanungAuswahl.name]) delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key]; try{await globalGlobalSpeichern();wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();}catch(e){alert('Wochenplanung konnte nicht gespeichert werden: '+(e.message||e));}};
         window.wochenplanungEintragEntfernen=async function(name,key,index){if(!wochenplanungIstChef())return;const vals=wochenplanungDaten(name,key);vals.splice(index,1);await globalGlobalSpeichern();wochenplanungAnzeigen();startseiteAktualisieren();};
         window.wochenplanungVorherigeWoche=function(){wochenplanungOffset--;wochenplanungAnzeigen();};window.wochenplanungNaechsteWoche=function(){wochenplanungOffset++;wochenplanungAnzeigen();};window.wochenplanungHeute=function(){wochenplanungOffset=0;wochenplanungAnzeigen();};
 
@@ -3966,7 +3954,7 @@ window.verlegerWochenplanOeffnen = function(){
       const k=key(d), arr=Array.isArray(plan[k])?plan[k]:(plan[k]?[plan[k]]:[]), ist=k===key(heute);
       return `<div class="rounded-2xl border ${ist?'border-blue-400 bg-blue-50':'border-slate-200 bg-slate-50'} p-4 min-h-[180px]">
         <div class="flex items-center justify-between mb-3"><div class="font-black text-slate-900">${d.toLocaleDateString('de-DE',{weekday:'long'})}</div><div class="text-xs text-slate-500">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</div></div>
-        ${arr.length ? arr.map(item=>{ const b=typeof item==='object'?(item.baustelle||''):item; const n=typeof item==='object'?(item.notiz||''):''; const adr=g.projekte&&g.projekte[b]?g.projekte[b].adresse:''; return `<div class="bg-white rounded-xl border border-blue-200 p-3 mb-2"><div class="font-bold text-sm text-blue-900">🏗️ ${esc(b)}</div>${adr?`<div class="text-xs text-slate-500 mt-1">📍 ${esc(adr)}</div>`:''}${n?`<div class="text-xs text-slate-600 mt-1">📝 ${esc(n)}</div>`:''}</div>`; }).join('') : `<div class="text-sm text-slate-400 pt-3">Keine Baustelle eingeteilt</div>`}
+        ${(g.abwesenheiten&&g.abwesenheiten[name]&&g.abwesenheiten[name][k]&&g.abwesenheiten[name][k].status==='urlaub') ? `<div class="bg-amber-100 rounded-xl border border-amber-200 p-4 text-amber-900 font-bold">🏖️ Urlaub</div>` : (g.abwesenheiten&&g.abwesenheiten[name]&&g.abwesenheiten[name][k]&&g.abwesenheiten[name][k].status==='krank') ? `<div class="bg-red-100 rounded-xl border border-red-200 p-4 text-red-900 font-bold">🤒 Krank</div>` : (arr.length ? arr.map(item=>{ const b=typeof item==='object'?(item.baustelle||''):item; const n=typeof item==='object'?(item.notiz||''):''; const adr=g.projekte&&g.projekte[b]?g.projekte[b].adresse:''; return `<div class="bg-white rounded-xl border border-blue-200 p-3 mb-2"><div class="font-bold text-sm text-blue-900">🏗️ ${esc(b)}</div>${adr?`<div class="text-xs text-slate-500 mt-1">📍 ${esc(adr)}</div>`:''}${n?`<div class="text-xs text-slate-600 mt-1">📝 ${esc(n)}</div>`:''}</div>`; }).join('') : `<div class="text-sm text-slate-400 pt-3">Keine Baustelle eingeteilt</div>`)}
       </div>`;
     }).join('')}</div>`;
     modal.classList.remove('hidden');
