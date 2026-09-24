@@ -634,6 +634,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             </div>
             <div class="flex items-center gap-3">
                 <span id="user-badge" class="text-xs bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full font-medium text-slate-300"></span>
+                <button type="button" id="btn-abrechnungen-top" onclick="wechselnTab('abrechnungen')" class="hidden text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-full font-semibold transition whitespace-nowrap">💶 Abrechnungen</button>
                 <div class="inline-flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-full p-1" aria-label="Sprache">
                     <button type="button" id="language-de-app" onclick="setPortalLanguage('de')" class="px-2 py-1 rounded-full text-xs font-bold transition" title="Deutsch">🇩🇪</button>
                     <button type="button" id="language-fr-app" onclick="setPortalLanguage('fr')" class="px-2 py-1 rounded-full text-xs font-bold transition" title="Français">🇫🇷</button>
@@ -1151,6 +1152,32 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             </div>
         </main>
 
+        <!-- ABRECHNUNGEN -->
+        <main id="tab-abrechnungen" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900">💶 Abrechnungen</h2>
+                        <p class="text-xs text-slate-500 mt-1">Chef, Techniker und Sekretariat können Abrechnungen für einzelne Verleger hochladen. Verleger sehen nur ihre eigenen Abrechnungen.</p>
+                    </div>
+                    <span id="abrechnungen-berechtigungs-badge" class="inline-flex w-fit bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-full">Eigene Abrechnungen</span>
+                </div>
+                <form id="abrechnung-formular" onsubmit="abrechnungHochladen(event)" class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
+                    <div class="flex items-center justify-between"><h3 class="font-bold text-slate-900">➕ Abrechnung hochladen</h3><span class="text-[11px] text-slate-400">PDF, JPG oder PNG · max. 2 MB</span></div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Verleger</label><select id="abrechnung-mitarbeiter" required class="w-full px-3 py-2 border rounded-lg bg-white"></select></div>
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Bezeichnung</label><input type="text" id="abrechnung-bezeichnung" placeholder="z. B. Abrechnung September 2026" required class="w-full px-3 py-2 border rounded-lg bg-white"></div>
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Datei</label><input type="file" id="abrechnung-datei" accept="image/jpeg,image/png,application/pdf" required class="w-full px-2 py-1.5 border rounded-lg bg-white text-xs"></div>
+                    </div>
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow transition">📤 Abrechnung speichern</button>
+                </form>
+                <div class="overflow-x-auto"><table class="w-full text-left text-sm">
+                    <thead class="bg-slate-100 text-slate-700"><tr><th class="p-3">Datum</th><th class="p-3">Verleger</th><th class="p-3">Bezeichnung</th><th class="p-3">Datei</th><th class="p-3">Hochgeladen von</th><th class="p-3">Aktion</th></tr></thead>
+                    <tbody id="abrechnungen-tabelle-koerper"><tr><td colspan="6" class="p-6 text-center text-slate-400">Noch keine Abrechnungen vorhanden.</td></tr></tbody>
+                </table></div>
+            </div>
+        </main>
+
         <!-- ZEITERFASSUNG & URLAUB -->
         <main id="tab-urlaub" class="tab-content max-w-7xl mx-auto p-4 md:p-6 hidden space-y-6">
             <div id="mitarbeiter-zeiterfassung-bereich" class="space-y-6">
@@ -1375,6 +1402,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.__brisboisStorageRef = storageRef;
 
         let belegeDaten = [];
+        let abrechnungenDaten = [];
 
         const basisMitarbeiter = [
             { name: "Jeff Brisbois", tel: "", email: "jeff@brisbois-bembe.lu", rolle: "Chef" },
@@ -1574,6 +1602,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             snapshot.forEach((belegSnap) => belegeDaten.push({ id: belegSnap.id, ...belegSnap.data() }));
             belegeAnzeigen();
         }, (error) => console.error("Fehler beim Laden der Belege:", error));
+
+        onSnapshot(collection(db, "abrechnungen"), (snapshot) => {
+            abrechnungenDaten = [];
+            snapshot.forEach((snap) => abrechnungenDaten.push({ id: snap.id, ...snap.data() }));
+            try { abrechnungenAnzeigen(); } catch(e) { console.warn("Abrechnungen konnten nicht angezeigt werden:", e); }
+        }, (error) => console.error("Fehler beim Laden der Abrechnungen:", error));
 
         // Krankmeldungen separat in Firestore speichern/laden.
         onSnapshot(collection(db, "krankmeldungen"), (snapshot) => {
@@ -1971,6 +2005,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             document.querySelectorAll('.wochenplanung-only').forEach(el => el.classList.toggle('hidden', !darfWochenplanung));
             document.querySelectorAll('.dashboard-only').forEach(el => el.classList.toggle('hidden', !dashboardIstBerechtigt()));
             document.querySelectorAll('.materialliste-only').forEach(el => el.classList.toggle('hidden', !darfMaterialliste));
+            try { abrechnungenAnzeigen(); } catch(e) { console.warn('Abrechnungen beim Login übersprungen:', e); }
             materiallisteAnzeigen();
             urlaubsantraegeAnzeigen();
             const mitarbeiterNeuanlage = document.querySelector('#tab-mitarbeiter > div:first-child');
@@ -4521,6 +4556,70 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try { await deleteDoc(doc(db,"belege",belegId)); } catch(error) { console.error(error); alert("Der Beleg konnte nicht gelöscht werden."); }
         };
 
+        function darfAbrechnungenVerwalten() {
+            const r = String(eingeloggteRolle || '').toLowerCase();
+            return r.includes('chef') || r.includes('techniker') || r.includes('sekretariat');
+        }
+
+        function abrechnungenVerlegerBefuellen() {
+            const select = document.getElementById('abrechnung-mitarbeiter');
+            if (!select) return;
+            const liste = (globalDaten.mitarbeiterListe || []).filter(m => String(m.rolle || '').toLowerCase().includes('verleger'));
+            const basis = (typeof basisMitarbeiter !== 'undefined' ? basisMitarbeiter : []).filter(m => String(m.rolle || '').toLowerCase().includes('verleger'));
+            const kombiniert = [...liste, ...basis].filter((m,i,a) => m && a.findIndex(x => x.name === m.name) === i);
+            select.innerHTML = kombiniert.map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('');
+        }
+
+        function abrechnungDarfGesehenWerden(a) {
+            return darfAbrechnungenVerwalten() || a.verleger === eingeloggterMitarbeiter;
+        }
+
+        function abrechnungenAnzeigen() {
+            const tbody = document.getElementById('abrechnungen-tabelle-koerper');
+            const form = document.getElementById('abrechnung-formular');
+            const badge = document.getElementById('abrechnungen-berechtigungs-badge');
+            const topBtn = document.getElementById('btn-abrechnungen-top');
+            if (!tbody || !eingeloggterMitarbeiter) return;
+            const buero = darfAbrechnungenVerwalten();
+            if (topBtn) topBtn.classList.toggle('hidden', !buero);
+            if (form) form.classList.toggle('hidden', !buero);
+            if (badge) { badge.textContent = buero ? 'Alle Abrechnungen sichtbar' : 'Nur eigene Abrechnungen'; badge.className = buero ? 'inline-flex w-fit bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1.5 rounded-full' : 'inline-flex w-fit bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-full'; }
+            if (buero) abrechnungenVerlegerBefuellen();
+            const sichtbar = abrechnungenDaten.filter(abrechnungDarfGesehenWerden).sort((a,b) => String(b.erstelltAm || '').localeCompare(String(a.erstelltAm || '')));
+            if (!sichtbar.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">Keine Abrechnungen vorhanden.</td></tr>'; return; }
+            tbody.innerHTML = sichtbar.map(a => {
+                const datum = a.erstelltAm ? new Date(a.erstelltAm).toLocaleDateString('de-DE') : '-';
+                const datei = a.dateiUrl ? `<a href="${a.dateiUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-semibold">📎 ${escapeHtml(a.dateiname || 'Abrechnung öffnen')}</a>` : '-';
+                const loeschen = buero ? `<button type="button" onclick="abrechnungLoeschen('${a.id}')" class="text-red-600 hover:text-red-800 text-xs font-bold">🗑️ Löschen</button>` : '';
+                return `<tr class="border-b border-slate-100 hover:bg-slate-50"><td class="p-3 whitespace-nowrap">${datum}</td><td class="p-3 font-semibold">${escapeHtml(a.verleger || '-')}</td><td class="p-3">${escapeHtml(a.bezeichnung || '-')}</td><td class="p-3">${datei}</td><td class="p-3">${escapeHtml(a.hochgeladenVon || '-')}</td><td class="p-3">${loeschen}</td></tr>`;
+            }).join('');
+        }
+
+        window.abrechnungHochladen = async function(event) {
+            event.preventDefault();
+            if (!darfAbrechnungenVerwalten()) return alert('Nur Chef, Techniker und Sekretariat dürfen Abrechnungen hochladen.');
+            const verleger = document.getElementById('abrechnung-mitarbeiter')?.value;
+            const bezeichnung = document.getElementById('abrechnung-bezeichnung')?.value.trim();
+            const datei = document.getElementById('abrechnung-datei')?.files?.[0];
+            if (!verleger || !bezeichnung || !datei) return alert('Bitte Verleger, Bezeichnung und Datei auswählen.');
+            if (!['image/jpeg','image/png','application/pdf'].includes(datei.type)) return alert('Bitte PDF, JPG oder PNG auswählen.');
+            if (datei.size > 2 * 1024 * 1024) return alert('Die Abrechnung darf maximal 2 MB groß sein.');
+            try {
+                const dataUrl = await new Promise((resolve,reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(datei); });
+                await setDoc(doc(db, 'abrechnungen', crypto.randomUUID()), { verleger, bezeichnung, dateiname: datei.name, dateityp: datei.type, dateiUrl: dataUrl, hochgeladenVon: eingeloggterMitarbeiter, hochgeladenRolle: eingeloggteRolle, erstelltAm: new Date().toISOString() });
+                document.getElementById('abrechnung-formular').reset();
+                abrechnungenVerlegerBefuellen();
+                alert('Abrechnung wurde gespeichert.');
+            } catch(error) { console.error(error); alert('Die Abrechnung konnte nicht gespeichert werden. Prüfe die Firestore-Regeln.'); }
+        };
+
+        window.abrechnungLoeschen = async function(id) {
+            if (!darfAbrechnungenVerwalten()) return alert('Keine Berechtigung.');
+            const a = abrechnungenDaten.find(x => x.id === id);
+            if (!a || !confirm('Diese Abrechnung wirklich löschen?')) return;
+            try { await deleteDoc(doc(db, 'abrechnungen', id)); } catch(error) { console.error(error); alert('Die Abrechnung konnte nicht gelöscht werden.'); }
+        };
+
         // ==================== MATERIALVERWALTUNG ====================
         function materiallisteBerechtigt(){
             const r=String(eingeloggteRolle||'').toLowerCase();
@@ -4678,6 +4777,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
             if (tabName === 'dashboard') { window.dashboardAktualisieren(); }
             if (tabName === 'materialliste') { materiallisteAnzeigen(); }
+            if (tabName === 'abrechnungen') { abrechnungenAnzeigen(); }
             if (tabName === 'startseite') {
                 wetterLaden();
                 startseiteAktualisieren();
