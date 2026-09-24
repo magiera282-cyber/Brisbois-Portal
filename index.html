@@ -622,6 +622,26 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         </div>
     </div>
 
+    <!-- ABRECHNUNG-VORSCHAU -->
+    <div id="abrechnung-viewer-modal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[80] p-4 md:p-8">
+        <div class="bg-white rounded-2xl shadow-2xl w-full h-full max-w-6xl mx-auto flex flex-col overflow-hidden">
+            <div class="flex items-center justify-between gap-3 p-4 border-b bg-slate-50">
+                <div class="min-w-0">
+                    <h3 id="abrechnung-viewer-titel" class="font-bold text-slate-900 truncate">Abrechnung</h3>
+                    <p class="text-xs text-slate-500">Dokumentvorschau</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a id="abrechnung-viewer-download" href="#" download class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-sm">⬇️ Herunterladen</a>
+                    <button type="button" onclick="abrechnungViewerSchliessen()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold text-sm">✕ Schließen</button>
+                </div>
+            </div>
+            <div class="flex-1 bg-slate-200 overflow-auto flex items-center justify-center p-3">
+                <img id="abrechnung-viewer-bild" class="hidden max-w-full max-h-full object-contain bg-white shadow" alt="Abrechnung">
+                <iframe id="abrechnung-viewer-pdf" class="hidden w-full h-full bg-white" title="Abrechnung PDF"></iframe>
+            </div>
+        </div>
+    </div>
+
     <!-- HAUPT-APP -->
     <div id="app-container" class="hidden">
         <header class="bg-slate-900 text-white p-4 md:px-6 shadow-md flex justify-between items-center border-b-2 border-amber-600">
@@ -4589,7 +4609,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (!sichtbar.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">Keine Abrechnungen vorhanden.</td></tr>'; return; }
             tbody.innerHTML = sichtbar.map(a => {
                 const datum = a.erstelltAm ? new Date(a.erstelltAm).toLocaleDateString('de-DE') : '-';
-                const datei = a.dateiUrl ? `<a href="${a.dateiUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">📂 Abrechnung öffnen</a>` : '-';
+                const datei = a.dateiUrl ? `<button type="button" onclick="abrechnungOeffnen('${a.id}')" class="inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">📂 Abrechnung öffnen</button>` : '-';
                 const loeschen = buero ? `<button type="button" onclick="abrechnungLoeschen('${a.id}')" class="text-red-600 hover:text-red-800 text-xs font-bold">🗑️ Löschen</button>` : '';
                 return `<tr class="border-b border-slate-100 hover:bg-slate-50"><td class="p-3 whitespace-nowrap">${datum}</td><td class="p-3 font-semibold">${escapeHtml(a.verleger || '-')}</td><td class="p-3">${escapeHtml(a.bezeichnung || '-')}</td><td class="p-3">${datei}</td><td class="p-3">${escapeHtml(a.hochgeladenVon || '-')}</td><td class="p-3">${loeschen}</td></tr>`;
             }).join('');
@@ -4611,6 +4631,51 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 abrechnungenVerlegerBefuellen();
                 alert('Abrechnung wurde gespeichert.');
             } catch(error) { console.error(error); alert('Die Abrechnung konnte nicht gespeichert werden. Prüfe die Firestore-Regeln.'); }
+        };
+
+        window.abrechnungOeffnen = function(id) {
+            const a = abrechnungenDaten.find(x => x.id === id);
+            if (!a || !a.dateiUrl) return alert('Die Datei ist nicht verfügbar.');
+            if (!abrechnungDarfGesehenWerden(a)) return alert('Du hast keine Berechtigung für diese Abrechnung.');
+
+            const modal = document.getElementById('abrechnung-viewer-modal');
+            const titel = document.getElementById('abrechnung-viewer-titel');
+            const bild = document.getElementById('abrechnung-viewer-bild');
+            const pdf = document.getElementById('abrechnung-viewer-pdf');
+            const download = document.getElementById('abrechnung-viewer-download');
+            if (!modal || !bild || !pdf || !download) return alert('Die Anzeige für die Abrechnung konnte nicht geöffnet werden.');
+
+            titel.textContent = a.bezeichnung || a.dateiname || 'Abrechnung';
+            download.href = a.dateiUrl;
+            download.download = a.dateiname || 'Abrechnung';
+            bild.classList.add('hidden');
+            pdf.classList.add('hidden');
+            bild.removeAttribute('src');
+            pdf.removeAttribute('src');
+
+            const typ = String(a.dateityp || '').toLowerCase();
+            if (typ === 'application/pdf' || String(a.dateiname || '').toLowerCase().endsWith('.pdf')) {
+                pdf.src = a.dateiUrl;
+                pdf.classList.remove('hidden');
+            } else {
+                bild.src = a.dateiUrl;
+                bild.classList.remove('hidden');
+            }
+            modal.classList.remove('hidden');
+        };
+
+        window.abrechnungViewerSchliessen = function() {
+            const modal = document.getElementById('abrechnung-viewer-modal');
+            const bild = document.getElementById('abrechnung-viewer-bild');
+            const pdf = document.getElementById('abrechnung-viewer-pdf');
+            if (modal) modal.classList.add('hidden');
+            if (bild) bild.removeAttribute('src');
+            if (pdf) pdf.removeAttribute('src');
+            const download = document.getElementById('abrechnung-viewer-download');
+            if (download) {
+                download.removeAttribute('href');
+                download.removeAttribute('download');
+            }
         };
 
         window.abrechnungLoeschen = async function(id) {
