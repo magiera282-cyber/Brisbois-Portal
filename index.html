@@ -1418,11 +1418,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             { name: "Nino Zenzola", tel: "691 100 044", rolle: "Verleger" }
         ];
 
-        // Dauerhafter System-Administrator: Patrick Magiera bleibt gleichzeitig Verleger.
-        // Der Name wird bewusst nicht aus Firebase überschrieben.
-        const DAUERHAFTER_ADMIN = "Patrick Magiera";
-        function istDauerhafterAdmin(name = eingeloggterMitarbeiter) {
-            return String(name || "").trim() === DAUERHAFTER_ADMIN;
+        // Patrick Magiera ist ausschließlich Verleger.
+        // Die Funktion bleibt als neutrale Kompatibilität bestehen, damit andere Bereiche
+        // des bestehenden Systems nicht verändert werden.
+        const DAUERHAFTER_ADMIN = "";
+        function istDauerhafterAdmin() {
+            return false;
         }
         window.istDauerhafterAdmin = istDauerhafterAdmin;
 
@@ -1595,25 +1596,25 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.passwoerter = cloudDaten.passwoerter || {};
                 globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || {};
 
-                // Patrick Magiera ist der dauerhaft hinterlegte Admin und bleibt zugleich Verleger.
-                // Falls ein alter Datenstand ihn entfernt oder die Rolle verändert hat, wird nur dieser
-                // eine Datensatz automatisch korrigiert; alle anderen Mitarbeiter bleiben unverändert.
-                const patrickBasis = basisMitarbeiter.find(m => m.name === DAUERHAFTER_ADMIN);
-                const patrickIndex = globalDaten.mitarbeiterListe.findIndex(m => m.name === DAUERHAFTER_ADMIN);
+                // Patrick Magiera bleibt ausschließlich Verleger.
+                // Falls ein alter Datenstand noch ein Admin-Flag enthält, wird nur dieses Flag entfernt.
+                const patrickName = "Patrick Magiera";
+                const patrickBasis = basisMitarbeiter.find(m => m.name === patrickName);
+                const patrickIndex = globalDaten.mitarbeiterListe.findIndex(m => m.name === patrickName);
                 let patrickKorrekturNoetig = false;
                 if (patrickBasis) {
                     if (patrickIndex === -1) {
-                        globalDaten.mitarbeiterListe.push({...patrickBasis, rolle: "Verleger", admin: true});
+                        globalDaten.mitarbeiterListe.push({...patrickBasis, rolle: "Verleger"});
                         patrickKorrekturNoetig = true;
                     } else {
-                        if (globalDaten.mitarbeiterListe[patrickIndex].rolle !== "Verleger" || globalDaten.mitarbeiterListe[patrickIndex].admin !== true) patrickKorrekturNoetig = true;
+                        if (globalDaten.mitarbeiterListe[patrickIndex].rolle !== "Verleger" || Object.prototype.hasOwnProperty.call(globalDaten.mitarbeiterListe[patrickIndex], "admin")) patrickKorrekturNoetig = true;
                         globalDaten.mitarbeiterListe[patrickIndex].rolle = "Verleger";
-                        globalDaten.mitarbeiterListe[patrickIndex].admin = true;
+                        delete globalDaten.mitarbeiterListe[patrickIndex].admin;
                     }
-                    globalDaten.passwoerter[DAUERHAFTER_ADMIN] = globalDaten.passwoerter[DAUERHAFTER_ADMIN] || "start123";
-                    globalDaten.mitarbeiterProfil[DAUERHAFTER_ADMIN] = globalDaten.mitarbeiterProfil[DAUERHAFTER_ADMIN] || {tel: patrickBasis.tel, email: patrickBasis.email};
+                    globalDaten.passwoerter[patrickName] = globalDaten.passwoerter[patrickName] || "start123";
+                    globalDaten.mitarbeiterProfil[patrickName] = globalDaten.mitarbeiterProfil[patrickName] || {tel: patrickBasis.tel, email: patrickBasis.email};
                     if (patrickKorrekturNoetig) {
-                        try { await globalGlobalSpeichern(); } catch(e) { console.warn("Patrick-Adminstatus konnte nicht sofort gespeichert werden:", e); }
+                        try { await globalGlobalSpeichern(); } catch(e) { console.warn("Patrick-Rollenbereinigung konnte nicht sofort gespeichert werden:", e); }
                     }
                 }
                 globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
