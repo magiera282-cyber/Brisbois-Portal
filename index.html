@@ -639,6 +639,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             <button onclick="wechselnTab('startseite')" id="btn-startseite" class="tab-btn text-blue-600 border-b-2 border-blue-600 pb-1 whitespace-nowrap">🏠 Startseite</button>
             <button onclick="wechselnTab('auftraege')" id="btn-auftraege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📁 Projekt & Baustelle</button>
             <button onclick="wechselnTab('dashboard')" id="btn-dashboard" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap dashboard-only hidden">📊 Chef-Dashboard</button>
+            <button onclick="wechselnTab('materialliste')" id="btn-materialliste" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap materialliste-only hidden">📦 Materialliste</button>
             <button onclick="wechselnTab('benachrichtigungen')" id="btn-benachrichtigungen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap flex items-center gap-1">
                 <span>🔔 Benachrichtigungen</span>
                 <span id="badge-count" class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full hidden">1</span>
@@ -955,6 +956,36 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
               <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><h3 class="font-black text-lg mb-3">📅 Heute im Einsatz</h3><div id="dashboard-heute" class="space-y-2"></div></section>
               <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-lg">⚠️ Baustellen-Probleme</h3><div class="flex items-center gap-2"><span id="dashboard-problem-info" class="text-xs text-slate-500"></span><span id="dashboard-probleme-count" class="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded-full"></span></div></div><div id="dashboard-probleme" class="space-y-2"></div></section>
               <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 lg:col-span-2"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-lg">🤒 Krankmeldungen</h3><span id="dashboard-krank-count" class="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded-full"></span></div><div id="dashboard-krankmeldungen" class="space-y-2"></div></section>
+            </div>
+        </main>
+
+        <!-- MATERIALVERWALTUNG -->
+        <main id="tab-materialliste" class="tab-content max-w-7xl mx-auto p-4 md:p-8 hidden space-y-6">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b pb-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-900">📦 Materialliste</h2>
+                        <p class="text-sm text-slate-500 mt-1">Hier werden alle verwendeten Produkte mit Verbrauch hinterlegt. Die KI-Auftragserstellung greift automatisch auf diese Liste zurück.</p>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" onclick="materiallisteStandardwerteAnlegen()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-2 rounded-xl text-xs font-bold">↺ Vorhandene KI-Produkte übernehmen</button>
+                        <button type="button" onclick="materiallisteNeueZeile()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow">＋ Material hinzufügen</button>
+                    </div>
+                </div>
+                <div class="mt-4 p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900">
+                    <b>So funktioniert es:</b> Produktname + Verbrauch eintragen. Bei Verbrauch pro m²/mm wird die vom Auftrag erkannte Spachteldicke automatisch berücksichtigt. Ein Gebindegewicht/-volumen kann zusätzlich hinterlegt werden, damit die KI auch Säcke, Eimer oder Kanister berechnen kann.
+                </div>
+                <div class="mt-5 overflow-x-auto">
+                    <table class="w-full text-sm min-w-[1050px]">
+                        <thead>
+                            <tr class="border-b text-left text-[11px] uppercase tracking-wide text-slate-500">
+                                <th class="p-2">Produkt</th><th class="p-2">Hersteller</th><th class="p-2">Kategorie</th><th class="p-2">Verbrauch von</th><th class="p-2">Verbrauch bis</th><th class="p-2">Einheit</th><th class="p-2">Gebinde</th><th class="p-2">Suchbegriffe</th><th class="p-2 text-right">Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody id="materialliste-tbody"></tbody>
+                    </table>
+                </div>
+                <div id="materialliste-leer" class="hidden text-center py-10 text-slate-400 text-sm">Noch keine Materialien hinterlegt. Klicke auf „Material hinzufügen“.</div>
             </div>
         </main>
 
@@ -1412,6 +1443,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 { bez: "Uzin MK 250 Parkettklebstoff (16 kg)", kat: "Verklebung", ort: "Regal C1", standardMenge: "10 Eimer", bild: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&auto=format&fit=crop&q=80" },
                 { bez: "Uzin KE 2000 S Dispersionsklebstoff (14 kg)", kat: "Verklebung", ort: "Regal C2", standardMenge: "5 Eimer", bild: "https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=400&auto=format&fit=crop&q=80" }
             ],
+            materialliste: [],
             benachrichtigungen: [
                 { von: "Jeff Brisbois (Chef)", empfaenger: "Alle", text: "Wichtige Anweisung: Materialanlieferung für alle Luxemburger Baustellen am Dienstag ab 07:00 Uhr beachten!", datum: "Heute, 08:30 Uhr", gelesenVon: [], geloeschtVon: [], projekt: "Wohnkomplex Kirchberg" }
             ],
@@ -1513,6 +1545,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || {};
                 globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
+                globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
                 globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
@@ -1561,6 +1594,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     mitarbeiterProfil: globalDaten.mitarbeiterProfil,
                     benachrichtigungen: globalDaten.benachrichtigungen,
                     uzinKatalog: globalDaten.uzinKatalog,
+                    materialliste: globalDaten.materialliste || [],
                     zuweisungen: globalDaten.zuweisungen,
                     wochenplanung: globalDaten.wochenplanung,
                     abwesenheiten: globalDaten.abwesenheiten,
@@ -1745,8 +1779,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const isChefOrTech = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin';
             const isSekretariat = eingeloggteRolle.includes('Sekretariat');
             const darfWochenplanung = isChefOrTech || isSekretariat;
+            const darfMaterialliste = isChefOrTech || isSekretariat;
             document.querySelectorAll('.wochenplanung-only').forEach(el => el.classList.toggle('hidden', !darfWochenplanung));
             document.querySelectorAll('.dashboard-only').forEach(el => el.classList.toggle('hidden', !dashboardIstBerechtigt()));
+            document.querySelectorAll('.materialliste-only').forEach(el => el.classList.toggle('hidden', !darfMaterialliste));
+            materiallisteAnzeigen();
             const mitarbeiterNeuanlage = document.querySelector('#tab-mitarbeiter > div:first-child');
             if (mitarbeiterNeuanlage) mitarbeiterNeuanlage.classList.toggle('hidden', !isChefOrTech);
 
@@ -3972,6 +4009,134 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try { await deleteDoc(doc(db,"belege",belegId)); } catch(error) { console.error(error); alert("Der Beleg konnte nicht gelöscht werden."); }
         };
 
+        // ==================== MATERIALVERWALTUNG ====================
+        function materiallisteBerechtigt(){
+            const r=String(eingeloggteRolle||'').toLowerCase();
+            return r.includes('chef') || r.includes('techniker') || r.includes('sekretariat') || r.includes('admin') || eingeloggterMitarbeiter==='Christian Leppin';
+        }
+        function materiallisteEscape(v){ return String(v??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+        function materiallisteNormalisieren(){
+            if(!Array.isArray(globalDaten.materialliste)) globalDaten.materialliste=[];
+            globalDaten.materialliste = globalDaten.materialliste.map((m,i)=>({
+                id:m.id || ('MAT_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,7)),
+                produkt:String(m.produkt||m.bez||'').trim(),
+                hersteller:String(m.hersteller||'').trim(),
+                kategorie:String(m.kategorie||m.typ||'Material').trim(),
+                verbrauchVon:m.verbrauchVon!=null?Number(m.verbrauchVon):(m.faktor!=null?Number(m.faktor):(m.min!=null?Number(m.min):'')),
+                verbrauchBis:m.verbrauchBis!=null?Number(m.verbrauchBis):(m.max!=null?Number(m.max):(m.faktor!=null?Number(m.faktor):'')),
+                einheit:String(m.einheit||'kg/m²').trim(),
+                gebinde:m.gebinde!=null?Number(m.gebinde):(m.packung!=null?Number(m.packung):''),
+                suchbegriffe:String(m.suchbegriffe||'').trim(),
+                aktiv:m.aktiv!==false
+            }));
+        }
+        function materiallisteAnzeigen(){
+            const tbody=document.getElementById('materialliste-tbody');
+            const leer=document.getElementById('materialliste-leer');
+            if(!tbody) return;
+            if(!materiallisteBerechtigt()) return;
+            materiallisteNormalisieren();
+            tbody.innerHTML='';
+            if(!globalDaten.materialliste.length){ if(leer) leer.classList.remove('hidden'); return; }
+            if(leer) leer.classList.add('hidden');
+            globalDaten.materialliste.forEach((m,i)=>{
+                tbody.innerHTML += `<tr class="border-b border-slate-100 align-top ${m.aktiv?'':'opacity-50'}">
+                    <td class="p-2"><input id="mat-p-${i}" value="${materiallisteEscape(m.produkt)}" class="w-44 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-h-${i}" value="${materiallisteEscape(m.hersteller)}" class="w-28 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-k-${i}" value="${materiallisteEscape(m.kategorie)}" class="w-32 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-v1-${i}" type="number" step="0.001" min="0" value="${m.verbrauchVon!==''?m.verbrauchVon:''}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-v2-${i}" type="number" step="0.001" min="0" value="${m.verbrauchBis!==''?m.verbrauchBis:''}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><select id="mat-e-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['kg/m²','kg/m²/mm','l/m²','l/m²/mm','Stk/m²','kg/lfm','l/lfm','Stk'].map(x=>`<option ${m.einheit===x?'selected':''}>${x}</option>`).join('')}</select></td>
+                    <td class="p-2"><input id="mat-g-${i}" type="number" step="0.01" min="0" value="${m.gebinde!==''?m.gebinde:''}" placeholder="z.B. 25" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-s-${i}" value="${materiallisteEscape(m.suchbegriffe)}" placeholder="z.B. NC160, Ausgleichsmasse" class="w-48 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2 text-right whitespace-nowrap"><button type="button" onclick="materiallisteZeileSpeichern(${i})" class="bg-emerald-600 text-white px-2.5 py-2 rounded-lg text-xs font-bold">💾</button> <button type="button" onclick="materiallisteZeileLoeschen(${i})" class="bg-red-100 text-red-700 px-2.5 py-2 rounded-lg text-xs font-bold">✕</button></td>
+                </tr>`;
+            });
+        }
+        window.materiallisteNeueZeile=function(){
+            if(!materiallisteBerechtigt()) return alert('Nur Chef, Techniker und Sekretariat dürfen die Materialliste verwalten.');
+            materiallisteNormalisieren();
+            globalDaten.materialliste.push({id:'MAT_'+Date.now(),produkt:'',hersteller:'UZIN',kategorie:'Material',verbrauchVon:'',verbrauchBis:'',einheit:'kg/m²',gebinde:'',suchbegriffe:'',aktiv:true});
+            materiallisteAnzeigen();
+            setTimeout(()=>document.getElementById('mat-p-'+(globalDaten.materialliste.length-1))?.focus(),50);
+        };
+        window.materiallisteZeileSpeichern=async function(i){
+            if(!materiallisteBerechtigt()) return;
+            materiallisteNormalisieren(); const m=globalDaten.materialliste[i]; if(!m)return;
+            m.produkt=document.getElementById('mat-p-'+i)?.value.trim()||'';
+            m.hersteller=document.getElementById('mat-h-'+i)?.value.trim()||'';
+            m.kategorie=document.getElementById('mat-k-'+i)?.value.trim()||'Material';
+            m.verbrauchVon=parseFloat(document.getElementById('mat-v1-'+i)?.value)||'';
+            m.verbrauchBis=parseFloat(document.getElementById('mat-v2-'+i)?.value)||m.verbrauchVon;
+            m.einheit=document.getElementById('mat-e-'+i)?.value||'kg/m²';
+            m.gebinde=parseFloat(document.getElementById('mat-g-'+i)?.value)||'';
+            m.suchbegriffe=document.getElementById('mat-s-'+i)?.value.trim()||'';
+            if(!m.produkt || !m.verbrauchVon){ return alert('Bitte mindestens Produkt und Verbrauch eintragen.'); }
+            if(m.verbrauchBis==='' || m.verbrauchBis<m.verbrauchVon) m.verbrauchBis=m.verbrauchVon;
+            try{ await globalGlobalSpeichern(); materiallisteAnzeigen(); alert('Material gespeichert. Die KI verwendet diesen Eintrag ab sofort bei neuen Aufträgen.'); }catch(e){ console.error(e); alert('Material konnte nicht gespeichert werden: '+(e.message||e)); }
+        };
+        window.materiallisteZeileLoeschen=async function(i){
+            if(!materiallisteBerechtigt()) return;
+            materiallisteNormalisieren(); const m=globalDaten.materialliste[i]; if(!m)return;
+            if(!confirm(`„${m.produkt||'Material'}“ wirklich aus der Materialliste löschen?`))return;
+            globalDaten.materialliste.splice(i,1);
+            try{await globalGlobalSpeichern(); materiallisteAnzeigen();}catch(e){alert('Löschen konnte nicht gespeichert werden.');}
+        };
+        window.materiallisteStandardwerteAnlegen=async function(){
+            if(!materiallisteBerechtigt()) return;
+            materiallisteNormalisieren();
+            const vorhanden=new Set(globalDaten.materialliste.map(x=>String(x.produkt).toLowerCase()));
+            Object.entries(KI_MATERIALDATEN).forEach(([name,p])=>{
+                if(vorhanden.has(name.toLowerCase())) return;
+                globalDaten.materialliste.push({id:'MAT_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),produkt:name,hersteller:p.hersteller||'',kategorie:p.typ||'Material',verbrauchVon:p.faktor!=null?p.faktor:p.min,verbrauchBis:p.faktor!=null?p.faktor:p.max,einheit:p.einheit||'kg/m²',gebinde:p.packung||'',suchbegriffe:name.replace(/^UZIN\s*|^WAKOL\s*/i,''),aktiv:true});
+            });
+            try{await globalGlobalSpeichern();materiallisteAnzeigen();alert('Die bereits im Portal vorhandenen KI-Produkte wurden in die Materialliste übernommen.');}catch(e){alert('Die Standardwerte konnten nicht gespeichert werden.');}
+        };
+        function materiallisteFuerKI(){
+            materiallisteNormalisieren();
+            return globalDaten.materialliste.filter(m=>m.aktiv!==false && m.produkt && Number(m.verbrauchVon)>0);
+        }
+        function kiProduktAusMaterialliste(text, liste){
+            const t=String(text||'').toLowerCase();
+            let best=null,bestScore=0;
+            liste.forEach(m=>{
+                const begriffe=[m.produkt,m.suchbegriffe||''].join(',').split(/[,;|]+/).map(x=>x.trim().toLowerCase()).filter(Boolean);
+                let score=0;
+                begriffe.forEach(b=>{ if(b && t.includes(b)) score=Math.max(score,b.length); });
+                if(score>bestScore){bestScore=score;best=m;}
+            });
+            return best;
+        }
+        function kiMaterialBerechnungAusListe(name,qm,dicke,reserve){
+            const m=materiallisteFuerKI().find(x=>String(x.produkt).toLowerCase()===String(name).toLowerCase());
+            if(!m || !qm) return null;
+            const v1=Number(m.verbrauchVon), v2=Number(m.verbrauchBis)||v1;
+            let factor1=v1, factor2=v2;
+            if(/\/mm$/i.test(m.einheit)){ if(!dicke)return {produkt:m.produkt,status:'dicke-fehlt'}; factor1*=dicke; factor2*=dicke; }
+            let menge1=qm*factor1, menge2=qm*factor2;
+            if(reserve){menge1*=1.10;menge2*=1.10;}
+            const gebinde=Number(m.gebinde)||0;
+            return {produkt:m.produkt,minKg:menge1,maxKg:menge2,packung:gebinde,gebindeMin:gebinde?Math.ceil(menge1/gebinde):null,gebindeMax:gebinde?Math.ceil(menge2/gebinde):null,einheit:m.einheit,hersteller:m.hersteller,kategorie:m.kategorie};
+        }
+        // KI nutzt zuerst die vom Team gepflegte Materialliste; die alten eingebauten Werte bleiben als Fallback erhalten.
+        const _kiCalcAlt=kiCalc;
+        kiCalc=function(name,qm,dicke,reserve){
+            const dyn=kiMaterialBerechnungAusListe(name,qm,dicke,reserve);
+            return dyn || _kiCalcAlt(name,qm,dicke,reserve);
+        };
+        const _kiProduktErkennenAlt=kiProduktErkennen;
+        kiProduktErkennen=function(text){
+            const dyn=kiProduktAusMaterialliste(text,materiallisteFuerKI());
+            return dyn ? dyn.produkt : _kiProduktErkennenAlt(text);
+        };
+        const _kiAlleProdukteAlt=kiAlleProdukte;
+        kiAlleProdukte=function(text){
+            const liste=materiallisteFuerKI(); const t=String(text||'').toLowerCase();
+            const dyn=liste.filter(m=>[m.produkt,m.suchbegriffe||''].join(' ').split(/[,;|]+/).some(b=>b.trim() && t.includes(b.trim().toLowerCase()))).map(m=>m.produkt);
+            const old=_kiAlleProdukteAlt(text);
+            return [...new Set([...dyn,...old])];
+        };
+
         window.wechselnTab = function(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.getElementById('tab-' + tabName).classList.remove('hidden');
@@ -4000,6 +4165,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 benachrichtigungenAnzeigen();
             }
             if (tabName === 'dashboard') { window.dashboardAktualisieren(); }
+            if (tabName === 'materialliste') { materiallisteAnzeigen(); }
             if (tabName === 'startseite') {
                 wetterLaden();
                 startseiteAktualisieren();
