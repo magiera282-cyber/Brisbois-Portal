@@ -1418,6 +1418,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             { name: "Nino Zenzola", tel: "691 100 044", rolle: "Verleger" }
         ];
 
+        // Dauerhafter System-Administrator: Patrick Magiera bleibt gleichzeitig Verleger.
+        // Der Name wird bewusst nicht aus Firebase überschrieben.
+        const DAUERHAFTER_ADMIN = "Patrick Magiera";
+        function istDauerhafterAdmin(name = eingeloggterMitarbeiter) {
+            return String(name || "").trim() === DAUERHAFTER_ADMIN;
+        }
+        window.istDauerhafterAdmin = istDauerhafterAdmin;
+
         const basisProjekte = {
             "Wohnkomplex Kirchberg": {
                 adresse: "15 Avenue J.F. Kennedy, Luxemburg-Kirchberg",
@@ -1586,6 +1594,28 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 }
                 globalDaten.passwoerter = cloudDaten.passwoerter || {};
                 globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || {};
+
+                // Patrick Magiera ist der dauerhaft hinterlegte Admin und bleibt zugleich Verleger.
+                // Falls ein alter Datenstand ihn entfernt oder die Rolle verändert hat, wird nur dieser
+                // eine Datensatz automatisch korrigiert; alle anderen Mitarbeiter bleiben unverändert.
+                const patrickBasis = basisMitarbeiter.find(m => m.name === DAUERHAFTER_ADMIN);
+                const patrickIndex = globalDaten.mitarbeiterListe.findIndex(m => m.name === DAUERHAFTER_ADMIN);
+                let patrickKorrekturNoetig = false;
+                if (patrickBasis) {
+                    if (patrickIndex === -1) {
+                        globalDaten.mitarbeiterListe.push({...patrickBasis, rolle: "Verleger", admin: true});
+                        patrickKorrekturNoetig = true;
+                    } else {
+                        if (globalDaten.mitarbeiterListe[patrickIndex].rolle !== "Verleger" || globalDaten.mitarbeiterListe[patrickIndex].admin !== true) patrickKorrekturNoetig = true;
+                        globalDaten.mitarbeiterListe[patrickIndex].rolle = "Verleger";
+                        globalDaten.mitarbeiterListe[patrickIndex].admin = true;
+                    }
+                    globalDaten.passwoerter[DAUERHAFTER_ADMIN] = globalDaten.passwoerter[DAUERHAFTER_ADMIN] || "start123";
+                    globalDaten.mitarbeiterProfil[DAUERHAFTER_ADMIN] = globalDaten.mitarbeiterProfil[DAUERHAFTER_ADMIN] || {tel: patrickBasis.tel, email: patrickBasis.email};
+                    if (patrickKorrekturNoetig) {
+                        try { await globalGlobalSpeichern(); } catch(e) { console.warn("Patrick-Adminstatus konnte nicht sofort gespeichert werden:", e); }
+                    }
+                }
                 globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
                 // Alten Demo-Hinweis entfernen, falls er bereits in Firebase gespeichert wurde.
                 const benachrichtigungenVorher = JSON.stringify(globalDaten.benachrichtigungen || []);
@@ -1631,15 +1661,75 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     snapshot.forEach((snap) => {
                         const d = snap.data() || {};
                         if (!d.name || !d.key) return;
-                        globalDaten.wochenplanung[d.name] = globalDaten.wochenplanung[d.name] || {};
-                        globalDaten.wochenplanung[d.name][d.key] = Array.isArray(d.eintraege) ? d.eintraege : [];
+                        const gueltigeEintraege = (Array.isArray(d.eintraege) ? d.eintraege : [])
+                            .filter(e => e && Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, e.baustelle));
+
+                        if (gueltigeEintraege.length) {
+                            globalDaten.wochenplanung[d.name] = globalDaten.wochenplanung[d.name] || {};
+                            globalDaten.wochenplanung[d.name][d.key] = gueltigeEintraege;
+                        } else {
+                            if (globalDaten.wochenplanung[d.name]) delete globalDaten.wochenplanung[d.name][d.key];
+                            // Verwaisten Plan-Eintrag auch dauerhaft aus der separaten Collection entfernen.
+                            deleteDoc(doc(db, "wochenplanung", snap.id)).catch(e => console.warn("Alten Wochenplan konnte nicht gelöscht werden:", e));
+                        }
                     });
+                }
+                // Auch normale Zuweisungen sofort gegen die tatsächlich vorhandenen Baustellen prüfen.
+                if (veralteteBaustellenBereinigen()) {
+                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Verwaiste Zuweisungen konnten nicht gespeichert werden:", e); }
                 }
                 allesAktualisieren();
             } catch (e) {
                 console.error("Fehler beim Laden der Wochenplanung:", e);
             }
         }, (error) => console.error("Fehler beim Laden der Wochenplanung:", error));
+
+        async function verwaistePlanungenNachProjektenBereinigen() {
+            let changed = false;
+            const speichern = [];
+            const projekte = globalDaten.projekte || {};
+
+            Object.keys(globalDaten.zuweisungen || {}).forEach(ma => {
+                const alt = globalDaten.zuweisungen[ma] || [];
+                const neu = alt.filter(p => Object.prototype.hasOwnProperty.call(projekte, p));
+                if (JSON.stringify(alt) !== JSON.stringify(neu)) {
+                    globalDaten.zuweisungen[ma] = neu;
+                    changed = true;
+                }
+            });
+
+            Object.keys(globalDaten.wochenplanung || {}).forEach(ma => {
+                Object.keys(globalDaten.wochenplanung[ma] || {}).forEach(tag => {
+                    const alt = Array.isArray(globalDaten.wochenplanung[ma][tag]) ? globalDaten.wochenplanung[ma][tag] : [];
+                    const neu = alt.filter(e => e && Object.prototype.hasOwnProperty.call(projekte, e.baustelle));
+                    if (JSON.stringify(alt) !== JSON.stringify(neu)) {
+                        changed = true;
+                        if (neu.length) globalDaten.wochenplanung[ma][tag] = neu;
+                        else delete globalDaten.wochenplanung[ma][tag];
+                        speichern.push(wochenplanungSeparatSpeichern(ma, tag));
+                    }
+                });
+            });
+
+            Object.keys(globalDaten.zeiterfassung || {}).forEach(ma => {
+                Object.keys(globalDaten.zeiterfassung[ma] || {}).forEach(tag => {
+                    const z = globalDaten.zeiterfassung[ma][tag];
+                    if (!z || !Array.isArray(z.baustellen)) return;
+                    const neu = z.baustellen.filter(b => Object.prototype.hasOwnProperty.call(projekte, b));
+                    if (neu.length !== z.baustellen.length) {
+                        changed = true;
+                        if (neu.length) z.baustellen = neu;
+                        else if (z.automatischGeplant) delete globalDaten.zeiterfassung[ma][tag];
+                    }
+                });
+            });
+
+            try { await Promise.all(speichern); } catch(e) { console.warn("Wochenplanung konnte nicht vollständig bereinigt werden:", e); }
+            if (changed) {
+                try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Bereinigte Zuweisungen konnten nicht gespeichert werden:", e); }
+            }
+            return changed;
+        }
 
         onSnapshot(collection(db, "projekte"), (snapshot) => {
             if (!snapshot.empty) {
@@ -1648,8 +1738,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     neueProjekte[docSnap.id] = docSnap.data();
                 });
                 globalDaten.projekte = neueProjekte;
+                // Sobald Firebase die echte Projektliste geliefert hat, werden alte/gelöschte Baustellen
+                // aus Zuweisungen, Wochenplanung und automatischer Zeiterfassung entfernt.
+                verwaistePlanungenNachProjektenBereinigen().catch(e => console.warn("Projekt-Bereinigung:", e));
                 if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
-                    const isChefOrTechOrSekr = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+                    const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
                     if (isChefOrTechOrSekr) {
                         aktuellesProjekt = Object.keys(globalDaten.projekte)[0] || "";
                     } else {
@@ -1660,9 +1753,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 }
                 allesAktualisieren();
             } else {
-                Object.keys(basisProjekte).forEach(projName => {
-                    setDoc(doc(db, "projekte", projName), basisProjekte[projName]);
-                });
+                // Eine leere Projekte-Collection bleibt wirklich leer.
+                // Gelöschte Baustellen dürfen nicht automatisch aus basisProjekte wieder auftauchen.
+                globalDaten.projekte = {};
+                aktuellesProjekt = "";
+                allesAktualisieren();
             }
         });
 
@@ -1867,7 +1962,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const chefUrlaubsBereich = document.getElementById('chef-urlaubs-bereich');
             const mitarbeiterZeiterfassungBereich = document.getElementById('mitarbeiter-zeiterfassung-bereich');
 
-            const isChefOrTech = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin';
+            const isChefOrTech = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin';
             const isSekretariat = eingeloggteRolle.includes('Sekretariat');
             const darfWochenplanung = isChefOrTech || isSekretariat;
             const darfMaterialliste = isChefOrTech || isSekretariat;
@@ -2357,7 +2452,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             alert("Projektdaten erfolgreich aktualisiert!");
         }
 
-        window.projektLoeschenBestätigen = function() {
+        window.projektLoeschenBestätigen = async function() {
             if(!aktuellesProjekt) return;
             if(confirm(`Möchtest du das Projekt "${aktuellesProjekt}" wirklich unwiderruflich löschen?`)) {
                 const zuLoeschen = aktuellesProjekt;
@@ -2392,9 +2487,18 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     });
                 });
 
+                // Auch die separaten Wochenplan-Dokumente endgültig mit dem bereinigten Stand speichern.
+                const wochenplanSpeicherungen = [];
+                Object.keys(globalDaten.wochenplanung || {}).forEach(ma => {
+                    Object.keys(globalDaten.wochenplanung[ma] || {}).forEach(tag => {
+                        wochenplanSpeicherungen.push(wochenplanungSeparatSpeichern(ma, tag));
+                    });
+                });
+
                 delete globalDaten.projekte[zuLoeschen];
-                projektAusCloudLoeschen(zuLoeschen);
-                globalGlobalSpeichern();
+                await projektAusCloudLoeschen(zuLoeschen);
+                try { await Promise.all(wochenplanSpeicherungen); } catch(e) { console.warn("Wochenplan-Bereinigung nach Baustellenlöschung:", e); }
+                await globalGlobalSpeichern();
 
                 const verbleibendeProjekte = Object.keys(globalDaten.projekte);
                 if(verbleibendeProjekte.length > 0) {
@@ -2470,7 +2574,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const restUrlaubEl = document.getElementById('start-resturlaub');
             if(restUrlaubEl) restUrlaubEl.innerText = `${aktuellerResturlaub} Tage`;
 
-            const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+            const zugewieseneProjekte = (globalDaten.zuweisungen[eingeloggterMitarbeiter] || [])
+                .filter(p => Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, p));
             if(zugewieseneProjekte.length > 0) {
                 const erstesProj = zugewieseneProjekte[0];
                 document.getElementById('start-aktuelle-baustelle').innerText = erstesProj;
@@ -2521,7 +2626,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function wochenTage(offset=0){ const mon=wochenMontag(offset),out=[]; for(let i=0;i<6;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);out.push({key:lokalesDatumKey(d),date:d,label:d.toLocaleDateString('de-DE',{weekday:'short'}),voll:d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})});} return out; }
         function planungsBaustellenFuerMitarbeiter(name){ return Object.keys(globalDaten.projekte||{}); }
         function wochenplanungDaten(name,key){ globalDaten.wochenplanung=globalDaten.wochenplanung||{};globalDaten.wochenplanung[name]=globalDaten.wochenplanung[name]||{};const v=globalDaten.wochenplanung[name][key];if(Array.isArray(v))return v;if(typeof v==='string'&&v)return [v];globalDaten.wochenplanung[name][key]=[];return globalDaten.wochenplanung[name][key]; }
-        function wochenplanungIstBerechtigt(){ const r=String(eingeloggteRolle||'').toLowerCase(); return r.includes('chef') || r.includes('admin') || r.includes('techniker') || r.includes('sekretariat') || r.includes('büro') || r.includes('buero') || eingeloggterMitarbeiter === 'Christian Leppin'; }
+        function wochenplanungIstBerechtigt(){ const r=String(eingeloggteRolle||'').toLowerCase(); return istDauerhafterAdmin() || r.includes('chef') || r.includes('admin') || r.includes('techniker') || r.includes('sekretariat') || r.includes('büro') || r.includes('buero') || eingeloggterMitarbeiter === 'Christian Leppin'; }
         function wochenplanungIstChef(){ return wochenplanungIstBerechtigt(); }
         function abwesenheitDaten(name,key){ globalDaten.abwesenheiten=globalDaten.abwesenheiten||{};globalDaten.abwesenheiten[name]=globalDaten.abwesenheiten[name]||{};return globalDaten.abwesenheiten[name][key]||null; }
         window.wochenplanungAnzeigen=function(){
@@ -2722,7 +2827,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
 
             zugewieseneArbeiter.forEach(ma => {
-                const isChefOrTech = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggterMitarbeiter === 'Christian Leppin';
+                const isChefOrTech = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggterMitarbeiter === 'Christian Leppin';
                 let loeschBtn = isChefOrTech ? `<button onclick="mitarbeiterVomProjektEntfernen('${ma}')" class="text-red-500 hover:text-red-700 font-bold ml-1 text-xs" title="Von Baustelle entfernen">✕</button>` : '';
                 container.innerHTML += `
                     <span class="bg-blue-50 border border-blue-200 text-blue-900 text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 shadow-sm">
@@ -2862,7 +2967,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function istBuerorolleName(name) {
             const eintrag = (globalDaten.mitarbeiterListe || []).find(m => m && m.name === name);
             const rolle = String(eintrag?.rolle || '').toLowerCase();
-            return rolle.includes('chef') ||
+            return String(name || '').trim() === DAUERHAFTER_ADMIN ||
+                   rolle.includes('chef') ||
                    rolle.includes('techniker') ||
                    rolle.includes('sekretariat') ||
                    rolle.includes('admin') ||
@@ -3015,7 +3121,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (ausgewaehlteNachrichtIndex === null) return;
             const item = globalDaten.benachrichtigungen[ausgewaehlteNachrichtIndex];
             if (item && item.projekt && globalDaten.projekte[item.projekt]) {
-                const isChefOrTechOrSekr = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+                const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
                 const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
                 
                 if (isChefOrTechOrSekr || zugewieseneProjekte.includes(item.projekt)) {
@@ -3199,7 +3305,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function urlaubIstBuero() {
             const direkt = String(eingeloggteRolle || '').trim().toLowerCase();
             const ausListe = urlaubRolleAusListe();
-            return direkt.includes('chef') || direkt.includes('techniker') || direkt.includes('sekretariat') ||
+            return istDauerhafterAdmin() || direkt.includes('chef') || direkt.includes('techniker') || direkt.includes('sekretariat') ||
                    ausListe.includes('chef') || ausListe.includes('techniker') || ausListe.includes('sekretariat');
         }
 
@@ -3426,14 +3532,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.tagesberichtSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; const text=document.getElementById('tagesbericht-text')?.value.trim(); const st=document.getElementById('tagesbericht-stunden')?.value; if(!p||!text) return alert('Bitte einen Tagesbericht eingeben.'); p.tagesberichte=p.tagesberichte||[]; p.tagesberichte.push({datum:new Date().toLocaleDateString('de-DE'),mitarbeiter:eingeloggterMitarbeiter,text,stunden:st||'',erstelltAm:new Date().toISOString()}); document.getElementById('tagesbericht-text').value=''; document.getElementById('tagesbericht-stunden').value=''; await projektSpeichern(aktuellesProjekt); projektModuleAktualisieren(); };
         window.abnahmeSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; if(!p) return; const verantwortlicher=document.getElementById('abnahme-verantwortlicher')?.value.trim(); const notiz=document.getElementById('abnahme-notiz')?.value.trim(); if(!verantwortlicher) return alert('Bitte Kunde / Verantwortlichen eintragen.'); p.abnahme={verantwortlicher,notiz,datum:new Date().toLocaleDateString('de-DE'),durch:eingeloggterMitarbeiter}; p.status='Fertig'; await projektSpeichern(aktuellesProjekt); projektLaden(aktuellesProjekt); alert('Abnahme gespeichert und Baustelle auf Fertig gesetzt.'); };
 
-        function isChefOrPrivileged(){ return eingeloggteRolle.includes('Chef')||eingeloggteRolle.includes('Techniker')||eingeloggteRolle.includes('Admin')||eingeloggteRolle.includes('Sekretariat')||eingeloggterMitarbeiter==='Christian Leppin'; }
+        function isChefOrPrivileged(){ return istDauerhafterAdmin() || eingeloggteRolle.includes('Chef')||eingeloggteRolle.includes('Techniker')||eingeloggteRolle.includes('Admin')||eingeloggteRolle.includes('Sekretariat')||eingeloggterMitarbeiter==='Christian Leppin'; }
 
         // Neue Aufträge/Baustellen dürfen ausschließlich Sekretariat, Techniker
         // und alle Chef-/Admin-Rollen anlegen. Verleger dürfen nur bestehende
         // Baustellen sehen und bearbeiten, sofern sie ihnen zugewiesen sind.
         function darfNeueAuftraegeAnlegen(){
             const rolle = String(eingeloggteRolle || '');
-            return rolle.includes('Chef') || rolle.includes('Admin') || rolle.includes('Techniker') || rolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+            return istDauerhafterAdmin() || rolle.includes('Chef') || rolle.includes('Admin') || rolle.includes('Techniker') || rolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
         }
 
         function neueAuftragButtonsAktualisieren(){
@@ -3449,7 +3555,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if(!liste) return;
             liste.innerHTML = '';
 
-            const isChefOrTechOrSekr = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+            const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
 
             let anzahlAnzuigenderProjekte = 0;
 
@@ -3488,7 +3594,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         function projektLaden(titel) {
-            const isChefOrTechOrSekr = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+            const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
             if (!isChefOrTechOrSekr) {
                 const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
                 if (!zugewieseneProjekte.includes(titel)) {
@@ -3852,7 +3958,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if(!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             const p = globalDaten.projekte[aktuellesProjekt];
             const materialien = p ? (p.material || []) : [];
-            const manager = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Sekretariat') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin';
+            const manager = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Sekretariat') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin';
 
             materialien.forEach((mat, index) => {
                 if(mat.verbraucht===undefined) mat.verbraucht=0;
@@ -4417,7 +4523,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // ==================== MATERIALVERWALTUNG ====================
         function materiallisteBerechtigt(){
             const r=String(eingeloggteRolle||'').toLowerCase();
-            return r.includes('chef') || r.includes('techniker') || r.includes('sekretariat') || r.includes('admin') || eingeloggterMitarbeiter==='Christian Leppin';
+            return istDauerhafterAdmin() || r.includes('chef') || r.includes('techniker') || r.includes('sekretariat') || r.includes('admin') || eingeloggterMitarbeiter==='Christian Leppin';
         }
         function materiallisteEscape(v){ return String(v??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
         function materiallisteNormalisieren(){
@@ -5122,7 +5228,7 @@ window.verlegerWochenplanSchliessen = function(){ const m=document.getElementByI
 
 function dashboardIstBerechtigt(){
             const r=String(window.eingeloggteRolle||'').toLowerCase();
-            return r.includes('chef')||r.includes('admin')||r.includes('techniker')||r.includes('sekretariat')||r.includes('büro')||r.includes('buero')||window.eingeloggterMitarbeiter==='Christian Leppin';
+            return window.istDauerhafterAdmin ? window.istDauerhafterAdmin() : String(window.eingeloggterMitarbeiter||'').trim()==='Patrick Magiera' || r.includes('chef')||r.includes('admin')||r.includes('techniker')||r.includes('sekretariat')||r.includes('büro')||r.includes('buero')||window.eingeloggterMitarbeiter==='Christian Leppin';
         }
 
         function dashboardProjektListe(){
