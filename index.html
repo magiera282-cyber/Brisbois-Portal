@@ -235,19 +235,19 @@ function kiKurzbeschreibungAuswerten(){
             <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
                 <p class="text-xs font-bold text-slate-500 uppercase text-center">⚡ 1-Klick Schnell-Test:</p>
                 <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    <button type="button" id="quick-login-jeff" onclick="return window.schnellLoginDirekt ? window.schnellLoginDirekt('Jeff Brisbois', 'Chef') : false;" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                    <button type="button" id="quick-login-jeff" onclick="schnellLoginDirekt('Jeff Brisbois','Chef')" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         👑 Jeff (Chef)
                     </button>
-                    <button type="button" id="quick-login-christian" onclick="return window.schnellLoginDirekt ? window.schnellLoginDirekt('Christian Leppin', 'Techniker') : false;" class="bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                    <button type="button" id="quick-login-christian" onclick="schnellLoginDirekt('Christian Leppin','Techniker')" class="bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         🛠️ Christian (Tech)
                     </button>
-                    <button type="button" id="quick-login-tania" onclick="return window.schnellLoginDirekt ? window.schnellLoginDirekt('Tania Thill', 'Sekretariat') : false;" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                    <button type="button" id="quick-login-tania" onclick="schnellLoginDirekt('Tania Thill','Sekretariat')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         📋 Tania (Sekr.)
                     </button>
-                    <button type="button" id="quick-login-patrick" onclick="return window.schnellLoginDirekt ? window.schnellLoginDirekt('Patrick Magiera', 'Verleger') : false;" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                    <button type="button" id="quick-login-patrick" onclick="schnellLoginDirekt('Patrick Magiera','Verleger')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         👷 Patrick
                     </button>
-                    <button type="button" id="quick-login-wolfgang" onclick="return window.schnellLoginDirekt ? window.schnellLoginDirekt('Wolfgang Seimetz', 'Verleger') : false;" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                    <button type="button" id="quick-login-wolfgang" onclick="schnellLoginDirekt('Wolfgang Seimetz','Verleger')" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         👷 Wolfgang
                     </button>
                 </div>
@@ -1568,7 +1568,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try { if (typeof dashboardAktualisieren === "function") dashboardAktualisieren(); } catch(e) {}
         }, (error) => console.error("Fehler beim Laden der Krankmeldungen:", error));
 
-        onSnapshot(doc(db, "portal", "global"), (docSnap) => {
+        onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
             if (docSnap.exists()) {
                 const cloudDaten = docSnap.data();
                 if (Array.isArray(cloudDaten.mitarbeiterListe) && cloudDaten.mitarbeiterListe.length > 0) {
@@ -1764,9 +1764,15 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         window.schnellLoginDirekt = function(name, rolle) {
-            // Schnell-Test ist bewusst ein lokaler Test-Login und benötigt kein Firebase-Passwort.
+            // Schnell-Test: Benutzer zusätzlich in der Session merken, damit ein
+            // notwendiger Sprach-Reload den Schnell-Login nicht wieder verliert.
             eingeloggterMitarbeiter = name;
             eingeloggteRolle = rolle;
+            try {
+                sessionStorage.setItem('brisbois_quick_user', name);
+                sessionStorage.setItem('brisbois_quick_role', rolle);
+                sessionStorage.setItem('brisbois_quick_login', '1');
+            } catch(e) {}
             try { oeffneAppNachLogin(); } catch(e) {
                 console.error('Schnell-Login Fehler:', e);
                 const loginModal = document.getElementById('login-modal');
@@ -1802,15 +1808,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             window.__brisboisUserName = eingeloggterMitarbeiter;
             window.__brisboisUserRole = eingeloggteRolle;
             window.__brisboisGlobalDaten = globalDaten;
-            if (typeof window.portalLanguageAfterLogin === 'function') window.portalLanguageAfterLogin();
-            // Login-Oberfläche SOFORT schließen/Portal öffnen.
-            // Alle weiteren Aktualisierungen dürfen den Login nicht blockieren.
+            // WICHTIG: Portal sofort öffnen. Sprach-/Nebenfunktionen dürfen den Login niemals blockieren.
             const loginModal = document.getElementById('login-modal');
             const appContainer = document.getElementById('app-container');
             const userBadge = document.getElementById('user-badge');
             if (userBadge) userBadge.innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
             if (loginModal) loginModal.classList.add('hidden');
             if (appContainer) appContainer.classList.remove('hidden');
+            try { if (typeof window.portalLanguageAfterLogin === 'function') window.portalLanguageAfterLogin(); } catch(e) { console.warn('Sprachumschaltung nach Login übersprungen:', e); }
             // Erstellungsrechte sofort nach dem Login anwenden.
             neueAuftragButtonsAktualisieren();
 
@@ -5204,25 +5209,6 @@ body { top:0 !important; }
 </script>
 <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
-<script>
-// Sicherheits-Fix: Schnell-Login darf nicht von anderen Portal-Erweiterungen blockiert werden.
-document.addEventListener('DOMContentLoaded', function(){
-  const quick = [
-    ['quick-login-jeff','Jeff Brisbois','Chef'],
-    ['quick-login-christian','Christian Leppin','Techniker'],
-    ['quick-login-tania','Tania Thill','Sekretariat'],
-    ['quick-login-patrick','Patrick Magiera','Verleger'],
-    ['quick-login-wolfgang','Wolfgang Seimetz','Verleger']
-  ];
-  quick.forEach(function(item){
-    const el=document.getElementById(item[0]);
-    if(!el) return;
-    el.addEventListener('click', function(ev){
-      ev.preventDefault(); ev.stopPropagation();
-      if(typeof window.schnellLoginDirekt==='function'){ window.schnellLoginDirekt(item[1],item[2]); }
-    });
-  });
-});
-</script>
+
 </body>
 </html>
