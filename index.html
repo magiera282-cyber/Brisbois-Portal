@@ -1196,6 +1196,32 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     </div>
                 </div>
 
+                <!-- URLAUBSANTRAG MODAL -->
+                <div id="urlaubsantrag-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[145] hidden items-center justify-center p-4">
+                    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
+                        <div class="p-5 border-b flex items-center justify-between">
+                            <div><h3 class="text-lg font-black text-slate-900">🌴 Neuen Urlaubsantrag</h3><p class="text-xs text-slate-500 mt-1">Wähle den Zeitraum und sende deinen Antrag an das Büro.</p></div>
+                            <button type="button" onclick="urlaubsantragModalSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+                        </div>
+                        <form id="urlaubsantrag-form" onsubmit="urlaubsantragAbsenden(event)" class="p-5 space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Von</label><input id="urlaub-von" type="date" required class="w-full px-3 py-3 border rounded-xl"></div>
+                                <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Bis</label><input id="urlaub-bis" type="date" required class="w-full px-3 py-3 border rounded-xl"></div>
+                            </div>
+                            <div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Grund / Hinweis</label><input id="urlaub-grund" type="text" maxlength="250" placeholder="z. B. Familienurlaub" class="w-full px-3 py-3 border rounded-xl"></div>
+                            <div class="flex gap-2 pt-2"><button id="urlaub-submit-btn" type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl">📨 Antrag senden</button><button type="button" onclick="urlaubsantragModalSchliessen()" class="px-5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold">Abbrechen</button></div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- MEINE URLAUBSANTRÄGE: Nur der aktuell eingeloggte Verleger sieht seine eigenen Anträge -->
+                <div id="meine-urlaubsantraege-bereich" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex items-center justify-between border-b pb-3">
+                        <div><h3 class="font-bold text-slate-900 text-base">🌴 Meine Urlaubsanträge</h3><p class="text-xs text-slate-500 mt-1">Hier siehst nur du deine eigenen Anträge und deren Entscheidung.</p></div>
+                    </div>
+                    <div id="meine-urlaubsantraege-liste" class="space-y-2"></div>
+                </div>
+
                 <!-- KRANKHEITSTAGE-SAMMLER -->
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
                     <div class="flex items-center justify-between border-b pb-3">
@@ -1234,7 +1260,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="chef-stunden-grid"></div>
                 </div>
                 <div class="space-y-3 pt-4 border-t">
-                    <h3 class="font-semibold text-sm text-slate-700 uppercase">🌴 Offene Urlaubsanträge</h3>
+                    <div class="flex items-center justify-between gap-3 flex-wrap">
+                        <h3 class="font-semibold text-sm text-slate-700 uppercase">🌴 Offene Urlaubsanträge</h3>
+                        <span id="urlaubsantraege-hinweis" class="text-xs text-slate-500"></span>
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm" id="urlaubs-tabelle">
                             <thead class="bg-slate-100 text-slate-700">
@@ -1242,20 +1271,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                                     <th class="p-3 rounded-l">Mitarbeiter</th>
                                     <th class="p-3">Zeitraum</th>
                                     <th class="p-3">Grund</th>
+                                    <th class="p-3">Status</th>
                                     <th class="p-3 rounded-r text-center">Entscheidung</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-200">
-                                <tr>
-                                    <td class="p-3 font-semibold text-slate-900">Christophe Becker</td>
-                                    <td class="p-3">14.10.2026 – 21.10.2026</td>
-                                    <td class="p-3 text-slate-600">Herbsturlaub Familie</td>
-                                    <td class="p-3 text-center space-x-2">
-                                        <button onclick="urlaubEntscheidung(this, 'genehmigt')" class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded text-xs font-bold">✔ Genehmigen</button>
-                                        <button onclick="urlaubEntscheidung(this, 'abgelehnt')" class="bg-red-100 text-red-800 px-3 py-1 rounded text-xs font-bold">✖ Ablehnen</button>
-                                    </td>
-                                </tr>
-                            </tbody>
+                            <tbody class="divide-y divide-slate-200"></tbody>
                         </table>
                     </div>
                 </div>
@@ -1453,6 +1473,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             abwesenheiten: {},
             probleme: [],
             krankmeldungen: [],
+            urlaubsantraege: [],
             zeiterfassung: {},
             resturlaub: {}
         };
@@ -1551,6 +1572,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
                 // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
                 globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
+                globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
                 // Krankmeldungen werden ausschließlich über die separate Firestore-Sammlung geladen.
                 // So kann ein Foto/PDF niemals das Größenlimit des globalen Portal-Dokuments sprengen.
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
@@ -1599,6 +1621,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     wochenplanung: globalDaten.wochenplanung,
                     abwesenheiten: globalDaten.abwesenheiten,
                     probleme: globalDaten.probleme || [],
+                    urlaubsantraege: globalDaten.urlaubsantraege || [],
                     zeiterfassung: globalDaten.zeiterfassung,
                     resturlaub: globalDaten.resturlaub
                 });
@@ -1689,6 +1712,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             startseiteAktualisieren();
             if (typeof window.dashboardAktualisieren === 'function') { try { window.dashboardAktualisieren(); } catch(e) { console.warn('Dashboard-Start fehlgeschlagen:', e); } }
             zeiterfassungAnzeigen();
+            urlaubsantraegeAnzeigen();
             if (aktuellesProjekt && globalDaten.projekte[aktuellesProjekt]) projektLaden(aktuellesProjekt);
             if (map) karteAktualisieren();
         }
@@ -1780,10 +1804,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const isSekretariat = eingeloggteRolle.includes('Sekretariat');
             const darfWochenplanung = isChefOrTech || isSekretariat;
             const darfMaterialliste = isChefOrTech || isSekretariat;
+            const darfUrlaubBuero = urlaubIstBuero();
             document.querySelectorAll('.wochenplanung-only').forEach(el => el.classList.toggle('hidden', !darfWochenplanung));
             document.querySelectorAll('.dashboard-only').forEach(el => el.classList.toggle('hidden', !dashboardIstBerechtigt()));
             document.querySelectorAll('.materialliste-only').forEach(el => el.classList.toggle('hidden', !darfMaterialliste));
             materiallisteAnzeigen();
+            urlaubsantraegeAnzeigen();
             const mitarbeiterNeuanlage = document.querySelector('#tab-mitarbeiter > div:first-child');
             if (mitarbeiterNeuanlage) mitarbeiterNeuanlage.classList.toggle('hidden', !isChefOrTech);
 
@@ -1795,7 +1821,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 });
                 if(projektListenTitel) projektListenTitel.innerText = "Aktive & Nächste Projekte";
 
-                if(isChefOrTech) {
+                if(darfUrlaubBuero) {
                     if(chefUrlaubsBereich) chefUrlaubsBereich.classList.remove('hidden');
                     if(mitarbeiterZeiterfassungBereich) mitarbeiterZeiterfassungBereich.classList.add('hidden');
                 } else {
@@ -2962,18 +2988,201 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             });
         }
 
-        window.urlaubsantragStellen = function() {
-            prompt("Urlaub beantragen von/bis:", "12.11.2026 - 16.11.2026");
-            alert("Urlaubsantrag erfolgreich an die Geschäftsleitung übermittelt!");
+        /* ==================== URLAUBSSYSTEM – NEU ====================
+           Eigenständiges System: Antrag + Chefentscheidung + Benachrichtigungen.
+           Die Entscheidung wird über einen normalen Hash-Link ausgelöst und
+           anschließend direkt in portal/global gespeichert. Dadurch hängt die
+           Funktion nicht von inline onclick-Handlern oder dynamischen Listenern ab.
+        */
+        function urlaubRolleAusListe() {
+            const name = String(eingeloggterMitarbeiter || '').trim().toLowerCase();
+            const profil = (globalDaten.mitarbeiterListe || []).find(m => String(m?.name || '').trim().toLowerCase() === name);
+            return String(profil?.rolle || '').trim().toLowerCase();
         }
 
-        window.urlaubEntscheidung = function(button, entscheidung) {
-            if (entscheidung === 'genehmigt') {
-                button.closest('tr').cells[3].innerHTML = `<span class="bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded text-xs">✔ Genehmigt</span>`;
-            } else {
-                button.closest('tr').cells[3].innerHTML = `<span class="bg-red-100 text-red-800 font-bold px-2 py-1 rounded text-xs">✖ Abgelehnt</span>`;
+        function urlaubIstBuero() {
+            const direkt = String(eingeloggteRolle || '').trim().toLowerCase();
+            const ausListe = urlaubRolleAusListe();
+            return direkt.includes('chef') || direkt.includes('techniker') || direkt.includes('sekretariat') ||
+                   ausListe.includes('chef') || ausListe.includes('techniker') || ausListe.includes('sekretariat');
+        }
+
+        function urlaubDarfEntscheiden() {
+            return urlaubIstBuero();
+        }
+
+        function urlaubDatumFormat(iso) {
+            if (!iso) return '–';
+            const d = new Date(String(iso) + 'T00:00:00');
+            return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString('de-DE');
+        }
+
+        function urlaubIdSicher(id) {
+            return String(id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+        }
+
+        function urlaubsantragModalOeffnen() {
+            if (!eingeloggterMitarbeiter) { alert('Bitte zuerst anmelden.'); return; }
+            const modal = document.getElementById('urlaubsantrag-modal');
+            const heute = new Date().toISOString().slice(0,10);
+            const von = document.getElementById('urlaub-von');
+            const bis = document.getElementById('urlaub-bis');
+            const grund = document.getElementById('urlaub-grund');
+            if (von) von.value = heute;
+            if (bis) bis.value = heute;
+            if (grund) grund.value = '';
+            if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+        }
+        window.urlaubsantragStellen = urlaubsantragModalOeffnen;
+
+        function urlaubsantragModalSchliessen() {
+            const modal = document.getElementById('urlaubsantrag-modal');
+            if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+        }
+        window.urlaubsantragModalSchliessen = urlaubsantragModalSchliessen;
+
+        async function urlaubsantragAbsenden(event) {
+            if (event) event.preventDefault();
+            if (!eingeloggterMitarbeiter) { alert('Bitte zuerst anmelden.'); return; }
+            const von = document.getElementById('urlaub-von')?.value || '';
+            const bis = document.getElementById('urlaub-bis')?.value || '';
+            const grund = (document.getElementById('urlaub-grund')?.value || '').trim() || 'Urlaub';
+            if (!von || !bis) { alert('Bitte Von und Bis auswählen.'); return; }
+            if (von > bis) { alert('Das Bis-Datum darf nicht vor dem Von-Datum liegen.'); return; }
+
+            const btn = document.getElementById('urlaub-submit-btn');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Wird gespeichert…'; }
+            try {
+                globalDaten.urlaubsantraege = Array.isArray(globalDaten.urlaubsantraege) ? globalDaten.urlaubsantraege : [];
+                const id = 'urlaub_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+                const antrag = {
+                    id, mitarbeiter: eingeloggterMitarbeiter, von, bis, grund,
+                    status: 'offen', erstelltAm: new Date().toISOString(),
+                    entschiedenVon: '', entschiedenAm: ''
+                };
+                globalDaten.urlaubsantraege.unshift(antrag);
+
+                globalDaten.benachrichtigungen = Array.isArray(globalDaten.benachrichtigungen) ? globalDaten.benachrichtigungen : [];
+                const buero = (globalDaten.mitarbeiterListe || [])
+                    .filter(m => {
+                        const r = String(m?.rolle || '').toLowerCase();
+                        return r.includes('chef') || r.includes('techniker') || r.includes('sekretariat');
+                    })
+                    .map(m => m.name).filter(Boolean);
+                const text = `🌴 Neuer Urlaubsantrag von ${eingeloggterMitarbeiter}: ${urlaubDatumFormat(von)} – ${urlaubDatumFormat(bis)} (${grund})`;
+                buero.forEach(emp => globalDaten.benachrichtigungen.unshift({
+                    von: `${eingeloggterMitarbeiter} (Urlaubsantrag)`, empfaenger: emp, text,
+                    datum: new Date().toLocaleString('de-DE'), gelesenVon: [], geloeschtVon: [], projekt: ''
+                }));
+
+                await window.globalGlobalSpeichern();
+                urlaubsantraegeAnzeigen();
+                benachrichtigungenAnzeigen();
+                urlaubsantragModalSchliessen();
+                alert('✅ Urlaubsantrag wurde gespeichert und an das Büro gesendet.');
+            } catch (e) {
+                console.error(e);
+                alert('❌ Urlaubsantrag konnte nicht gespeichert werden.\n\n' + (e?.message || e));
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = '📨 Antrag senden'; }
             }
         }
+        window.urlaubsantragAbsenden = urlaubsantragAbsenden;
+
+        function urlaubsantraegeAnzeigen() {
+            const tbody = document.querySelector('#urlaubs-tabelle tbody');
+            const listeEl = document.getElementById('meine-urlaubsantraege-liste');
+            const alle = (Array.isArray(globalDaten.urlaubsantraege) ? globalDaten.urlaubsantraege : []).slice().sort((a,b) => String(b.erstelltAm||'').localeCompare(String(a.erstelltAm||'')));
+            const istBuero = urlaubIstBuero();
+
+            // Büro sieht alle Anträge; ein Verleger sieht ausschließlich seine eigenen Anträge.
+            const sichtbarFuerAktuellenNutzer = istBuero ? alle : alle.filter(a => String(a.mitarbeiter || '') === String(eingeloggterMitarbeiter || ''));
+
+            if (tbody) {
+                const offene = alle.filter(a => String(a.status||'offen') === 'offen').length;
+                const hinweis = document.getElementById('urlaubsantraege-hinweis');
+                if (hinweis) hinweis.textContent = `${offene} offen`;
+
+                if (!istBuero) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-400">Dieser Bereich ist nur für Chef, Techniker und Sekretariat.</td></tr>';
+                } else if (!sichtbarFuerAktuellenNutzer.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-400">Keine Urlaubsanträge vorhanden.</td></tr>';
+                } else {
+                    tbody.innerHTML = sichtbarFuerAktuellenNutzer.map(a => {
+                        const status = String(a.status || 'offen');
+                        const offen = status === 'offen';
+                        const statusHtml = status === 'genehmigt'
+                            ? '<span class="bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded text-xs">✔ Genehmigt</span>'
+                            : status === 'abgelehnt'
+                                ? '<span class="bg-red-100 text-red-800 font-bold px-2 py-1 rounded text-xs">✖ Abgelehnt</span>'
+                                : '<span class="bg-amber-100 text-amber-800 font-bold px-2 py-1 rounded text-xs">⏳ Offen</span>';
+                        let entscheidung = '<span class="text-xs text-slate-400">–</span>';
+                        if (offen && urlaubDarfEntscheiden()) {
+                            const sid = urlaubIdSicher(a.id);
+                            entscheidung = `<div class="flex flex-wrap justify-center gap-2 relative z-20">
+                                <button type="button" data-urlaub-id="${sid}" data-urlaub-status="genehmigt" onclick="window.urlaubEntscheidungNeu(this.dataset.urlaubId, this.dataset.urlaubStatus); return false;" class="urlaub-entscheidung-btn bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow cursor-pointer">✔ Genehmigen</button>
+                                <button type="button" data-urlaub-id="${sid}" data-urlaub-status="abgelehnt" onclick="window.urlaubEntscheidungNeu(this.dataset.urlaubId, this.dataset.urlaubStatus); return false;" class="urlaub-entscheidung-btn bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow cursor-pointer">✖ Ablehnen</button>
+                            </div>`;
+                        } else if (offen) {
+                            entscheidung = '<span class="text-xs text-slate-400">Wartet auf Büro</span>';
+                        } else if (a.entschiedenVon) {
+                            entscheidung = `<span class="text-xs text-slate-500">von ${escapeHtml(a.entschiedenVon)}</span>`;
+                        }
+                        return `<tr><td class="p-3 font-semibold text-slate-900">${escapeHtml(a.mitarbeiter || 'Unbekannt')}</td><td class="p-3 whitespace-nowrap">${urlaubDatumFormat(a.von)} – ${urlaubDatumFormat(a.bis)}</td><td class="p-3 text-slate-600">${escapeHtml(a.grund || 'Urlaub')}</td><td class="p-3">${statusHtml}</td><td class="p-3 text-center">${entscheidung}</td></tr>`;
+                    }).join('');
+                }
+            }
+
+            if (listeEl) {
+                const eigene = alle.filter(a => String(a.mitarbeiter || '') === String(eingeloggterMitarbeiter || ''));
+                if (!eingeloggterMitarbeiter || istBuero) {
+                    listeEl.innerHTML = istBuero ? '<p class="text-xs text-slate-400">Als Büro-Benutzer verwaltest du die Anträge oben.</p>' : '';
+                } else if (!eigene.length) {
+                    listeEl.innerHTML = '<p class="text-xs text-slate-400">Du hast noch keinen Urlaubsantrag eingereicht.</p>';
+                } else {
+                    listeEl.innerHTML = eigene.map(a => {
+                        const status = String(a.status || 'offen');
+                        const badge = status === 'genehmigt' ? '<span class="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-bold">✔ Genehmigt</span>' : status === 'abgelehnt' ? '<span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">✖ Abgelehnt</span>' : '<span class="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-bold">⏳ Wartet auf Büro</span>';
+                        return `<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border rounded-xl p-3 bg-slate-50"><div><div class="font-bold text-sm">${urlaubDatumFormat(a.von)} – ${urlaubDatumFormat(a.bis)}</div><div class="text-xs text-slate-500 mt-1">${escapeHtml(a.grund || 'Urlaub')}</div></div><div>${badge}</div></div>`;
+                    }).join('');
+                }
+            }
+        }
+        window.urlaubsantraegeAnzeigen = urlaubsantraegeAnzeigen;
+
+        async function urlaubEntscheidungNeu(antragId, entscheidung) {
+            if (!urlaubDarfEntscheiden()) { alert('Nur Chef, Techniker und Sekretariat dürfen Urlaubsanträge entscheiden.'); return false; }
+            const antraege = Array.isArray(globalDaten.urlaubsantraege) ? globalDaten.urlaubsantraege : [];
+            const antrag = antraege.find(a => String(a.id) === String(antragId));
+            if (!antrag) { alert('Urlaubsantrag nicht gefunden.'); return false; }
+            if (String(antrag.status || 'offen') !== 'offen') { alert('Dieser Antrag wurde bereits entschieden.'); return false; }
+            if (entscheidung !== 'genehmigt' && entscheidung !== 'abgelehnt') { alert('Ungültige Entscheidung.'); return false; }
+            const text = entscheidung === 'genehmigt' ? 'genehmigen' : 'ablehnen';
+            if (!confirm(`Urlaubsantrag von ${antrag.mitarbeiter} wirklich ${text}?`)) return false;
+            try {
+                antrag.status = entscheidung;
+                antrag.entschiedenVon = eingeloggterMitarbeiter;
+                antrag.entschiedenAm = new Date().toISOString();
+                globalDaten.benachrichtigungen = Array.isArray(globalDaten.benachrichtigungen) ? globalDaten.benachrichtigungen : [];
+                globalDaten.benachrichtigungen.unshift({
+                    von: `${eingeloggterMitarbeiter} (Urlaubsentscheidung)`,
+                    empfaenger: antrag.mitarbeiter,
+                    text: entscheidung === 'genehmigt' ? `🌴 Dein Urlaubsantrag vom ${urlaubDatumFormat(antrag.von)} bis ${urlaubDatumFormat(antrag.bis)} wurde genehmigt.` : `🌴 Dein Urlaubsantrag vom ${urlaubDatumFormat(antrag.von)} bis ${urlaubDatumFormat(antrag.bis)} wurde abgelehnt.`,
+                    datum: new Date().toLocaleString('de-DE'), gelesenVon: [], geloeschtVon: [], projekt: ''
+                });
+                await window.globalGlobalSpeichern();
+                urlaubsantraegeAnzeigen();
+                benachrichtigungenAnzeigen();
+                alert(entscheidung === 'genehmigt' ? '✅ Urlaub wurde genehmigt.' : '✖ Urlaub wurde abgelehnt.');
+                return true;
+            } catch (e) {
+                console.error(e);
+                alert('❌ Entscheidung konnte nicht gespeichert werden.\n\n' + (e?.message || e));
+                return false;
+            }
+        }
+        window.urlaubEntscheidungNeu = urlaubEntscheidungNeu;
+        window.urlaubEntscheidung = urlaubEntscheidungNeu;
 
         window.abmelden = function() {
             document.getElementById('app-container').classList.add('hidden');
@@ -4172,6 +4381,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
             if (tabName === 'urlaub') {
                 zeiterfassungAnzeigen();
+                urlaubsantraegeAnzeigen();
             }
             if (tabName === 'belege') {
                 const belegDatum = document.getElementById('beleg-datum');
