@@ -4862,8 +4862,9 @@ body { top:0 !important; }
 /* ==========================================================
    PERSÖNLICHE PORTAL-SPRACHE
    Deutsch / Français – pro Mitarbeiter gespeichert.
-   Die Übersetzung erfolgt für die komplette sichtbare Seite,
-   inklusive dynamisch erzeugter Bereiche, über Google Translate.
+   Beim Sprachwechsel wird die komplette SPA neu geladen, damit
+   auch bereits vorhandene und dynamisch angezeigte Bereiche
+   zuverlässig von Google Translate übersetzt werden.
    ========================================================== */
 (function(){
     window.portalLanguage = localStorage.getItem('brisbois_language') || 'de';
@@ -4877,6 +4878,17 @@ body { top:0 !important; }
         } catch(e){ return null; }
     }
 
+    function setTranslateCookie(lang){
+        const value = lang === 'fr' ? '/de/fr' : '/de/de';
+        document.cookie = 'googtrans=' + value + ';path=/';
+        document.cookie = 'googtrans=' + value + ';path=/;domain=' + location.hostname;
+    }
+
+    function updateLanguageButtons(lang){
+        document.querySelectorAll('#language-de-login,#language-de-app').forEach(function(b){ b.classList.toggle('language-active',lang==='de'); });
+        document.querySelectorAll('#language-fr-login,#language-fr-app').forEach(function(b){ b.classList.toggle('language-active',lang==='fr'); });
+    }
+
     window.portalGoogleTranslateReady = false;
     window.googleTranslateElementInit = function(){
         try {
@@ -4887,19 +4899,8 @@ body { top:0 !important; }
                 layout: google.translate.TranslateElement.InlineLayout.SIMPLE
             }, 'google_translate_element');
             window.portalGoogleTranslateReady = true;
-            setTimeout(function(){ window.portalApplyLanguage(window.portalLanguage); }, 250);
         } catch(e){ console.warn('Sprachmodul konnte nicht gestartet werden:', e); }
     };
-
-    function waitForSelect(lang, tries){
-        const select = document.querySelector('.goog-te-combo');
-        if(select){
-            select.value = lang === 'fr' ? 'fr' : 'de';
-            select.dispatchEvent(new Event('change'));
-            return;
-        }
-        if((tries||0) < 30) setTimeout(function(){ waitForSelect(lang,(tries||0)+1); }, 150);
-    }
 
     window.portalApplyLanguage = function(lang){
         lang = lang === 'fr' ? 'fr' : 'de';
@@ -4907,12 +4908,18 @@ body { top:0 !important; }
         localStorage.setItem('brisbois_language', lang);
         document.documentElement.lang = lang;
         document.body.setAttribute('data-portal-language', lang);
-        document.querySelectorAll('#language-de-login,#language-de-app').forEach(function(b){ b.classList.toggle('language-active',lang==='de'); });
-        document.querySelectorAll('#language-fr-login,#language-fr-app').forEach(function(b){ b.classList.toggle('language-active',lang==='fr'); });
-        if(window.portalGoogleTranslateReady || document.querySelector('.goog-te-combo')) waitForSelect(lang,0);
+        updateLanguageButtons(lang);
+        setTranslateCookie(lang);
+
+        // Falls Google Translate bereits aktiv ist, zusätzlich direkt umschalten.
+        const select = document.querySelector('.goog-te-combo');
+        if(select && select.value !== lang){
+            try { select.value = lang; select.dispatchEvent(new Event('change')); } catch(e) {}
+        }
     };
 
     window.setPortalLanguage = async function(lang){
+        lang = lang === 'fr' ? 'fr' : 'de';
         window.portalApplyLanguage(lang);
         try{
             const userName = window.__brisboisUserName || '';
@@ -4924,16 +4931,38 @@ body { top:0 !important; }
                 if(typeof window.globalGlobalSpeichern === 'function') await window.globalGlobalSpeichern();
             }
         }catch(e){ console.warn('Sprache konnte nicht in der Cloud gespeichert werden:',e); }
+
+        // Kompletter Reload: dadurch wird wirklich die gesamte Seite übersetzt,
+        // nicht nur der Teil, der beim ersten Laden vorhanden war.
+        setTimeout(function(){ location.reload(); }, 150);
     };
 
     window.portalLanguageAfterLogin = function(){
-        let lang = profileLanguage() || localStorage.getItem('brisbois_language') || 'de';
-        window.portalApplyLanguage(lang);
+        const profileLang = profileLanguage();
+        const lang = profileLang || localStorage.getItem('brisbois_language') || 'de';
+        const cookieLang = document.cookie.indexOf('googtrans=/de/fr') >= 0 ? 'fr' : 'de';
+        window.portalLanguage = lang;
+        localStorage.setItem('brisbois_language', lang);
+        document.documentElement.lang = lang;
+        document.body.setAttribute('data-portal-language', lang);
+        updateLanguageButtons(lang);
+        if(cookieLang !== lang){
+            setTranslateCookie(lang);
+            // Nur einmal nach dem Login neu laden, damit die komplette Oberfläche
+            // in der gespeicherten Benutzersprache aufgebaut wird.
+            if(!sessionStorage.getItem('brisbois_language_reload')){
+                sessionStorage.setItem('brisbois_language_reload','1');
+                setTimeout(function(){ location.reload(); }, 150);
+            }
+        } else {
+            sessionStorage.removeItem('brisbois_language_reload');
+        }
     };
 
-    // Falls die bestehende Login-/Logout-Funktion globale Variablen nicht am window ablegt,
-    // werden sie über kleine Getter sichtbar gemacht, ohne die vorhandene Loginlogik umzubauen.
-    setTimeout(function(){ window.portalApplyLanguage(window.portalLanguage); }, 300);
+    setTimeout(function(){
+        const lang = localStorage.getItem('brisbois_language') || 'de';
+        window.portalApplyLanguage(lang);
+    }, 300);
 })();
 </script>
 <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
