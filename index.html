@@ -223,6 +223,12 @@ function kiKurzbeschreibungAuswerten(){
                 </div>
                 <h2 class="text-2xl font-bold text-slate-900">brisbois; bembé</h2>
                 <p class="text-slate-500 text-sm">Portal-Login (Komplettes Team)</p>
+                <div class="flex justify-center pt-2">
+                    <div class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl p-1 shadow-sm" aria-label="Sprache wählen">
+                        <button type="button" id="language-de-login" onclick="setPortalLanguage('de')" class="px-3 py-1.5 rounded-lg text-sm font-bold transition">🇩🇪 Deutsch</button>
+                        <button type="button" id="language-fr-login" onclick="setPortalLanguage('fr')" class="px-3 py-1.5 rounded-lg text-sm font-bold transition">🇫🇷 Français</button>
+                    </div>
+                </div>
             </div>
 
             <!-- 1-KLICK SCHNELL-LOGIN -->
@@ -628,6 +634,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             </div>
             <div class="flex items-center gap-3">
                 <span id="user-badge" class="text-xs bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full font-medium text-slate-300"></span>
+                <div class="inline-flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-full p-1" aria-label="Sprache">
+                    <button type="button" id="language-de-app" onclick="setPortalLanguage('de')" class="px-2 py-1 rounded-full text-xs font-bold transition" title="Deutsch">🇩🇪</button>
+                    <button type="button" id="language-fr-app" onclick="setPortalLanguage('fr')" class="px-2 py-1 rounded-full text-xs font-bold transition" title="Français">🇫🇷</button>
+                </div>
                 <button onclick="abmelden()" class="text-xs bg-red-600/80 hover:bg-red-700 text-white px-3 py-1.5 rounded-full font-semibold transition">
                     Abmelden
                 </button>
@@ -1781,6 +1791,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         function oeffneAppNachLogin() {
+            window.__brisboisUserName = eingeloggterMitarbeiter;
+            window.__brisboisUserRole = eingeloggteRolle;
+            window.__brisboisGlobalDaten = globalDaten;
+            if (typeof window.portalLanguageAfterLogin === 'function') window.portalLanguageAfterLogin();
             // Login-Oberfläche SOFORT schließen/Portal öffnen.
             // Alle weiteren Aktualisierungen dürfen den Login nicht blockieren.
             const loginModal = document.getElementById('login-modal');
@@ -4833,5 +4847,96 @@ window.problemMeldenSchliessen=function(){const m=document.getElementById('probl
 </div></div>
 <textarea id="problem-text" rows="4" class="w-full border rounded-xl px-3 py-3" placeholder="Was ist passiert? Was muss der Chef wissen?"></textarea>
 <div class="flex justify-end gap-2"><button type="button" onclick="problemMeldenSchliessen()" class="px-4 py-2 rounded-xl bg-slate-100">Abbrechen</button><button type="button" onclick="problemMeldenSpeichern()" class="px-4 py-2 rounded-xl bg-red-600 text-white font-bold">⚠️ Problem melden</button></div>
-</div></div></body>
+</div></div>
+<style>
+/* Sprachumschalter: Google-Translate-Leiste selbst bleibt unsichtbar. */
+.goog-te-banner-frame.skiptranslate, .goog-te-banner-frame { display:none !important; }
+body { top:0 !important; }
+.goog-te-gadget { font-size:0 !important; }
+#google_translate_element { position:fixed; width:1px; height:1px; overflow:hidden; left:-10000px; top:-10000px; opacity:0; pointer-events:none; }
+.language-active { background:rgba(255,255,255,.18) !important; box-shadow:0 1px 4px rgba(0,0,0,.18); }
+#language-de-login, #language-fr-login { color:#0f172a; }
+</style>
+<div id="google_translate_element" aria-hidden="true"></div>
+<script>
+/* ==========================================================
+   PERSÖNLICHE PORTAL-SPRACHE
+   Deutsch / Français – pro Mitarbeiter gespeichert.
+   Die Übersetzung erfolgt für die komplette sichtbare Seite,
+   inklusive dynamisch erzeugter Bereiche, über Google Translate.
+   ========================================================== */
+(function(){
+    window.portalLanguage = localStorage.getItem('brisbois_language') || 'de';
+
+    function profileLanguage(){
+        try {
+            const userName = window.__brisboisUserName || '';
+            const gd = window.__brisboisGlobalDaten || window.globalDaten;
+            const p = (gd && userName && gd.mitarbeiterProfil) ? gd.mitarbeiterProfil[userName] : null;
+            return (p && (p.sprache === 'fr' || p.sprache === 'de')) ? p.sprache : null;
+        } catch(e){ return null; }
+    }
+
+    window.portalGoogleTranslateReady = false;
+    window.googleTranslateElementInit = function(){
+        try {
+            new google.translate.TranslateElement({
+                pageLanguage:'de',
+                includedLanguages:'de,fr',
+                autoDisplay:false,
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+            }, 'google_translate_element');
+            window.portalGoogleTranslateReady = true;
+            setTimeout(function(){ window.portalApplyLanguage(window.portalLanguage); }, 250);
+        } catch(e){ console.warn('Sprachmodul konnte nicht gestartet werden:', e); }
+    };
+
+    function waitForSelect(lang, tries){
+        const select = document.querySelector('.goog-te-combo');
+        if(select){
+            select.value = lang === 'fr' ? 'fr' : 'de';
+            select.dispatchEvent(new Event('change'));
+            return;
+        }
+        if((tries||0) < 30) setTimeout(function(){ waitForSelect(lang,(tries||0)+1); }, 150);
+    }
+
+    window.portalApplyLanguage = function(lang){
+        lang = lang === 'fr' ? 'fr' : 'de';
+        window.portalLanguage = lang;
+        localStorage.setItem('brisbois_language', lang);
+        document.documentElement.lang = lang;
+        document.body.setAttribute('data-portal-language', lang);
+        document.querySelectorAll('#language-de-login,#language-de-app').forEach(function(b){ b.classList.toggle('language-active',lang==='de'); });
+        document.querySelectorAll('#language-fr-login,#language-fr-app').forEach(function(b){ b.classList.toggle('language-active',lang==='fr'); });
+        if(window.portalGoogleTranslateReady || document.querySelector('.goog-te-combo')) waitForSelect(lang,0);
+    };
+
+    window.setPortalLanguage = async function(lang){
+        window.portalApplyLanguage(lang);
+        try{
+            const userName = window.__brisboisUserName || '';
+            const gd = window.__brisboisGlobalDaten || window.globalDaten;
+            if(userName && gd){
+                if(!gd.mitarbeiterProfil) gd.mitarbeiterProfil = {};
+                const old = gd.mitarbeiterProfil[userName] || {};
+                gd.mitarbeiterProfil[userName] = Object.assign({}, old, {sprache:lang});
+                if(typeof window.globalGlobalSpeichern === 'function') await window.globalGlobalSpeichern();
+            }
+        }catch(e){ console.warn('Sprache konnte nicht in der Cloud gespeichert werden:',e); }
+    };
+
+    window.portalLanguageAfterLogin = function(){
+        let lang = profileLanguage() || localStorage.getItem('brisbois_language') || 'de';
+        window.portalApplyLanguage(lang);
+    };
+
+    // Falls die bestehende Login-/Logout-Funktion globale Variablen nicht am window ablegt,
+    // werden sie über kleine Getter sichtbar gemacht, ohne die vorhandene Loginlogik umzubauen.
+    setTimeout(function(){ window.portalApplyLanguage(window.portalLanguage); }, 300);
+})();
+</script>
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+</body>
 </html>
