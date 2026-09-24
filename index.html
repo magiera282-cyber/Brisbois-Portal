@@ -1177,7 +1177,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                             <button type="button" onclick="feierabendMachen()" id="btn-feierabend" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg text-xs transition shadow" disabled>
                                 🏁 Feierabend
                             </button>
+                            <button type="button" onclick="ueberstundenUmschalten()" id="btn-ueberstunden" class="hidden bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 rounded-lg text-xs transition shadow">
+                                ⏱️ Überstunden starten
+                            </button>
                         </div>
+                        <div id="automatische-zeitinfo" class="hidden text-xs rounded-xl border border-blue-200 bg-blue-50 text-blue-900 p-3"></div>
                     </div>
 
                     <!-- URLAUB-REST BEARBEITEN BEREICH -->
@@ -4403,6 +4407,159 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 belegeAnzeigen();
             }
         }
+
+        // ================= AUTOMATISCHE ZEITERFASSUNG FÜR VERLEGER =================
+        const AUTO_ARBEITSSTART = '06:45';
+        const AUTO_PAUSE_START = '12:00';
+        const AUTO_PAUSE_ENDE = '12:30';
+        const AUTO_ARBEITSENDE = '15:15';
+
+        function autoZeitMinuten(t){
+            const p=String(t||'').split(':').map(Number);
+            return (p[0]||0)*60+(p[1]||0);
+        }
+        function autoJetztMinuten(){ const d=new Date(); return d.getHours()*60+d.getMinutes(); }
+        function autoHeuteKey(){ return lokalesDatumKey(new Date()); }
+        function autoIstVerleger(name){
+            const n=name || eingeloggterMitarbeiter;
+            const m=(globalDaten.mitarbeiterListe||[]).find(x=>x && x.name===n);
+            const r=String(m?.rolle|| (n===eingeloggterMitarbeiter?eingeloggteRolle:'')).toLowerCase();
+            return r.includes('verleger');
+        }
+        function autoStatusFuerDatum(key){
+            const heute=autoHeuteKey();
+            if(key>heute) return 'Geplant';
+            if(key<heute) return 'Fertig';
+            const now=autoJetztMinuten();
+            if(now<autoZeitMinuten(AUTO_ARBEITSSTART)) return 'Geplant';
+            if(now<autoZeitMinuten(AUTO_PAUSE_START)) return 'Aktiv';
+            if(now<autoZeitMinuten(AUTO_PAUSE_ENDE)) return 'Pause';
+            if(now<autoZeitMinuten(AUTO_ARBEITSENDE)) return 'Aktiv';
+            return 'Fertig';
+        }
+        function autoBaustellenFuerTag(name,key){
+            const vals=globalDaten.wochenplanung?.[name]?.[key];
+            if(!Array.isArray(vals)) return [];
+            return vals.filter(v=>v && v.baustelle).map(v=>v.baustelle);
+        }
+        function automatischeZeitFuerVerlegerAnlegen(name,key){
+            if(!autoIstVerleger(name)) return false;
+            const baustellen=autoBaustellenFuerTag(name,key);
+            if(!baustellen.length) return false;
+            globalDaten.zeiterfassung=globalDaten.zeiterfassung||{};
+            globalDaten.zeiterfassung[name]=globalDaten.zeiterfassung[name]||{};
+            const alt=globalDaten.zeiterfassung[name][key];
+            const status=autoStatusFuerDatum(key);
+            const neu={
+                datum:key,
+                automatischGeplant:true,
+                start:AUTO_ARBEITSSTART,
+                geplantePauseStart:AUTO_PAUSE_START,
+                geplantePauseEnde:AUTO_PAUSE_ENDE,
+                feierabend:AUTO_ARBEITSENDE,
+                pauseMinuten:30,
+                nettoStunden:'08:00 Std',
+                status,
+                baustellen,
+                ueberstundenStart:alt?.ueberstundenStart||null,
+                ueberstundenEnde:alt?.ueberstundenEnde||null,
+                ueberstundenMinuten:Number(alt?.ueberstundenMinuten||0),
+                aktualisiertAm:new Date().toISOString()
+            };
+            if(alt && !alt.automatischGeplant){
+                // Bereits manuell erfasste Bürozeit niemals überschreiben.
+                return false;
+            }
+            const changed=JSON.stringify(alt||{})!==JSON.stringify(neu);
+            globalDaten.zeiterfassung[name][key]=neu;
+            return changed;
+        }
+        async function automatischeZeitFuerZuweisungSpeichern(name,key){
+            if(automatischeZeitFuerVerlegerAnlegen(name,key)) await window.globalGlobalSpeichern();
+        }
+        function automatischeZeiterfassungAktualisieren(){
+            if(!eingeloggterMitarbeiter || !autoIstVerleger()) return;
+            const key=autoHeuteKey();
+            const changed=automatischeZeitFuerVerlegerAnlegen(eingeloggterMitarbeiter,key);
+            if(changed) window.globalGlobalSpeichern();
+            automatischeZeiterfassungUI();
+        }
+        function automatischeZeiterfassungUI(){
+            const start=document.getElementById('btn-start-zeit'),pause=document.getElementById('btn-pause-zeit'),ende=document.getElementById('btn-feierabend'),ot=document.getElementById('btn-ueberstunden'),info=document.getElementById('automatische-zeitinfo');
+            if(!autoIstVerleger()){
+                [start,pause,ende].forEach(b=>b&&b.classList.remove('hidden'));
+                if(ot) ot.classList.add('hidden');
+                if(info) info.classList.add('hidden');
+                return;
+            }
+            [start,pause,ende].forEach(b=>{if(b){b.classList.add('hidden');b.disabled=true;}});
+            if(ot) ot.classList.remove('hidden');
+            const key=autoHeuteKey(), e=globalDaten.zeiterfassung?.[eingeloggterMitarbeiter]?.[key];
+            const vals=autoBaustellenFuerTag(eingeloggterMitarbeiter,key);
+            if(info){
+                info.classList.remove('hidden');
+                if(!vals.length){
+                    info.innerHTML='<b>Keine Baustelle für heute zugewiesen.</b><br>Die automatische Zeiterfassung startet erst mit einer Zuteilung.';
+                }else if(e){
+                    const otText=e.ueberstundenStart&&!e.ueberstundenEnde ? `seit ${e.ueberstundenStart}` : `${Math.floor((e.ueberstundenMinuten||0)/60).toString().padStart(2,'0')}:${((e.ueberstundenMinuten||0)%60).toString().padStart(2,'0')} Std`;
+                    info.innerHTML=`<b>Automatische Arbeitszeit:</b> ${AUTO_ARBEITSSTART}–${AUTO_ARBEITSENDE} Uhr · Pause ${AUTO_PAUSE_START}–${AUTO_PAUSE_ENDE} Uhr.<br><b>Baustelle:</b> ${escapeHtmlUI(vals.join(', '))}<br><b>Überstunden:</b> ${otText}`;
+                }
+            }
+            if(ot && e) ot.innerText=(e.ueberstundenStart&&!e.ueberstundenEnde)?'⏹️ Überstunden beenden':'⏱️ Überstunden starten';
+        }
+        window.ueberstundenUmschalten=async function(){
+            if(!autoIstVerleger()) return;
+            const key=autoHeuteKey();
+            const e=globalDaten.zeiterfassung?.[eingeloggterMitarbeiter]?.[key];
+            if(!e || !e.automatischGeplant) return alert('Für heute ist keine automatische Arbeitszeit angelegt.');
+            if(e.ueberstundenStart && !e.ueberstundenEnde){
+                const now=new Date();
+                const ende=now.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+                const diff=Math.max(0,autoJetztMinuten()-autoZeitMinuten(e.ueberstundenStart));
+                e.ueberstundenEnde=ende;
+                e.ueberstundenMinuten=Number(e.ueberstundenMinuten||0)+diff;
+                e.ueberstundenStart=null;
+            }else{
+                e.ueberstundenStart=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+                e.ueberstundenEnde=null;
+            }
+            e.aktualisiertAm=new Date().toISOString();
+            await window.globalGlobalSpeichern();
+            automatischeZeiterfassungUI();
+            zeiterfassungAnzeigen();
+        };
+        const zeiterfassungAnzeigenOriginal=window.zeiterfassungAnzeigen;
+        window.zeiterfassungAnzeigen=async function(){
+            try{ if(typeof zeiterfassungAnzeigenOriginal==='function') await zeiterfassungAnzeigenOriginal(); }catch(e){ console.warn(e); }
+            automatischeZeiterfassungAktualisieren();
+        };
+        const arbeitszeitStartenOriginal=window.arbeitszeitStarten;
+        const pauseUmschaltenOriginal=window.pauseUmschalten;
+        const feierabendOriginal=window.feierabendMachen;
+        window.arbeitszeitStarten=function(){ if(autoIstVerleger()) return automatischeZeiterfassungAktualisieren(); return arbeitszeitStartenOriginal&&arbeitszeitStartenOriginal(); };
+        window.pauseUmschalten=function(){ if(autoIstVerleger()) return automatischeZeiterfassungAktualisieren(); return pauseUmschaltenOriginal&&pauseUmschaltenOriginal(); };
+        window.feierabendMachen=function(){ if(autoIstVerleger()) return automatischeZeiterfassungAktualisieren(); return feierabendOriginal&&feierabendOriginal(); };
+
+        // Bei jeder Zuteilung wird die automatische Zeit für den betreffenden Tag sofort angelegt.
+        const wochenplanungSpeichernOriginal=window.wochenplanungEintragSpeichern;
+        window.wochenplanungEintragSpeichern=async function(){
+            if(typeof wochenplanungSpeichernOriginal==='function') await wochenplanungSpeichernOriginal();
+            if(wochenplanungAuswahl?.name && wochenplanungAuswahl?.key && autoIstVerleger(wochenplanungAuswahl.name)){
+                await automatischeZeitFuerZuweisungSpeichern(wochenplanungAuswahl.name,wochenplanungAuswahl.key);
+                wochenplanungAnzeigen();
+            }
+        };
+
+        // Tägliche automatische Aktualisierung: Status wechselt selbstständig über den Tag.
+        setInterval(()=>{
+            try{
+                if(eingeloggterMitarbeiter && autoIstVerleger()){
+                    automatischeZeiterfassungAktualisieren();
+                    if(typeof zeiterfassungAnzeigen==='function') zeiterfassungAnzeigen();
+                }
+            }catch(e){ console.warn('Automatische Zeiterfassung:',e); }
+        },30000);
+
     </script>
 
 <script>
