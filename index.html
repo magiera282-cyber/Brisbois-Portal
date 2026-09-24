@@ -2473,7 +2473,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         let wochenplanungAuswahl = { name: '', key: '' };
         function wochenMontag(offset=0){ const d=new Date(); d.setHours(0,0,0,0); const day=d.getDay()||7; d.setDate(d.getDate()-day+1+(offset*7)); return d; }
         function lokalesDatumKey(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
-        function wochenTage(offset=0){ const mon=wochenMontag(offset),out=[]; for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);out.push({key:lokalesDatumKey(d),date:d,label:d.toLocaleDateString('de-DE',{weekday:'short'}),voll:d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})});} return out; }
+        function wochenTage(offset=0){ const mon=wochenMontag(offset),out=[]; for(let i=0;i<6;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);out.push({key:lokalesDatumKey(d),date:d,label:d.toLocaleDateString('de-DE',{weekday:'short'}),voll:d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})});} return out; }
         function planungsBaustellenFuerMitarbeiter(name){ return Object.keys(globalDaten.projekte||{}); }
         function wochenplanungDaten(name,key){ globalDaten.wochenplanung=globalDaten.wochenplanung||{};globalDaten.wochenplanung[name]=globalDaten.wochenplanung[name]||{};const v=globalDaten.wochenplanung[name][key];if(Array.isArray(v))return v;if(typeof v==='string'&&v)return [v];globalDaten.wochenplanung[name][key]=[];return globalDaten.wochenplanung[name][key]; }
         function wochenplanungIstBerechtigt(){ const r=String(eingeloggteRolle||'').toLowerCase(); return r.includes('chef') || r.includes('admin') || r.includes('techniker') || r.includes('sekretariat') || r.includes('büro') || r.includes('buero') || eingeloggterMitarbeiter === 'Christian Leppin'; }
@@ -2483,7 +2483,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
           const box=document.getElementById('mitarbeiter-wochenplanung');if(!box)return;
           const tage=wochenTage(wochenplanungOffset);
           const sichtbar=(globalDaten.mitarbeiterListe||[]).filter(m=>String(m.rolle||'').toLowerCase().includes('verleger'));
-          const mon=tage[0].date,fre=tage[4].date;
+          const mon=tage[0].date,fre=tage[5].date;
           const titleEl=document.getElementById('wochenplanung-titel');
           if(titleEl)titleEl.textContent=`${mon.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} – ${fre.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
           if(!sichtbar.length){box.innerHTML='<div class="p-5 rounded-xl bg-slate-50 text-sm text-slate-500">Keine Verleger gefunden.</div>';return;}
