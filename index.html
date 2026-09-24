@@ -250,6 +250,9 @@ function kiKurzbeschreibungAuswerten(){
                     <button type="button" id="quick-login-wolfgang" onclick="schnellLoginDirekt('Wolfgang Seimetz','Verleger')" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         👷 Wolfgang
                     </button>
+                    <button type="button" id="quick-login-michel" onclick="schnellLoginDirekt('Didier Michel','2. Chef')" class="bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                        👑 Michel (2. Chef)
+                    </button>
                 </div>
             </div>
 
@@ -1427,7 +1430,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         const basisMitarbeiter = [
             { name: "Jeff Brisbois", tel: "", email: "jeff@brisbois-bembe.lu", rolle: "Chef" },
             { name: "Patrick Magiera", tel: "00 49 176 363 370 77", email: "patrick@brisbois-bembe.lu", rolle: "Verleger" },
-            { name: "Michel Didier", tel: "691 344 737", email: "michel@brisbois-bembe.lu", rolle: "2. Chef" },
+            { name: "Didier Michel", tel: "691 344 737", email: "michel@brisbois-bembe.lu", rolle: "2. Chef" },
             { name: "Tania Thill", tel: "691 710 722", email: "tania@brisbois-bembe.lu", rolle: "Sekretariat" },
             { name: "Dagmar Stejskalova", tel: "691 254 705", email: "dagmar@brisbois-bembe.lu", rolle: "Sekretariat" },
             { name: "Marie-Christine Mathieu", tel: "691 337 448", email: "marie@brisbois-bembe.lu", rolle: "Sekretariat" },
@@ -1931,7 +1934,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const aktuellerWert = select.value;
             select.innerHTML = '';
 
-            const chefs = globalDaten.mitarbeiterListe.filter(m => m.rolle && (m.rolle.includes('Chef') || m.rolle.includes('Admin') || m.rolle.includes('Sekretariat') || m.rolle.includes('Techniker') || m.rolle.includes('Lagerist')) || m.name === 'Jeff Brisbois' || m.name === 'Michel Didier' || m.name === 'Tania Thill' || m.name === 'Dagmar Stejskalova' || m.name === 'Marie-Christine Mathieu' || m.name === 'Christian Leppin' || m.name === 'Sylvain Zuliani' || m.name === 'Claude Gaita');
+            const chefs = globalDaten.mitarbeiterListe.filter(m => m.rolle && (m.rolle.includes('Chef') || m.rolle.includes('Admin') || m.rolle.includes('Sekretariat') || m.rolle.includes('Techniker') || m.rolle.includes('Lagerist')) || m.name === 'Jeff Brisbois' || m.name === 'Didier Michel' || m.name === 'Tania Thill' || m.name === 'Dagmar Stejskalova' || m.name === 'Marie-Christine Mathieu' || m.name === 'Christian Leppin' || m.name === 'Sylvain Zuliani' || m.name === 'Claude Gaita');
             const verleger = globalDaten.mitarbeiterListe.filter(m => !chefs.includes(m));
 
             let chefHtml = `<optgroup label="👑 Chefs, Verwaltung, Technik & Lager">`;
