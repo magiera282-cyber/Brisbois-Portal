@@ -1479,9 +1479,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 { bez: "Uzin KE 2000 S Dispersionsklebstoff (14 kg)", kat: "Verklebung", ort: "Regal C2", standardMenge: "5 Eimer", bild: "https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=400&auto=format&fit=crop&q=80" }
             ],
             materialliste: [],
-            benachrichtigungen: [
-                { von: "Jeff Brisbois (Chef)", empfaenger: "Alle", text: "Wichtige Anweisung: Materialanlieferung für alle Luxemburger Baustellen am Dienstag ab 07:00 Uhr beachten!", datum: "Heute, 08:30 Uhr", gelesenVon: [], geloeschtVon: [], projekt: "Wohnkomplex Kirchberg" }
-            ],
+            benachrichtigungen: [],
             projekte: basisProjekte,
             zuweisungen: {},
             wochenplanung: {},
@@ -1492,6 +1490,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             zeiterfassung: {},
             resturlaub: {}
         };
+
+        // Entfernt den alten Demo-Eintrag, falls er bereits in Firebase gespeichert wurde.
+        globalDaten.benachrichtigungen = (globalDaten.benachrichtigungen || []).filter(item =>
+            !(String(item.von || '') === "Jeff Brisbois (Chef)" &&
+              String(item.text || '') === "Wichtige Anweisung: Materialanlieferung für alle Luxemburger Baustellen am Dienstag ab 07:00 Uhr beachten!" &&
+              String(item.datum || '') === "Heute, 08:30 Uhr")
+        );
 
         window.globalDaten = globalDaten;
 
@@ -1580,6 +1585,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.passwoerter = cloudDaten.passwoerter || {};
                 globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || {};
                 globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
+                // Alten Demo-Hinweis entfernen, falls er bereits in Firebase gespeichert wurde.
+                const benachrichtigungenVorher = JSON.stringify(globalDaten.benachrichtigungen || []);
+                globalDaten.benachrichtigungen = (globalDaten.benachrichtigungen || []).filter(item =>
+                    !(String(item.von || '') === "Jeff Brisbois (Chef)" &&
+                      String(item.text || '') === "Wichtige Anweisung: Materialanlieferung für alle Luxemburger Baustellen am Dienstag ab 07:00 Uhr beachten!" &&
+                      String(item.datum || '') === "Heute, 08:30 Uhr")
+                );
+                if (JSON.stringify(globalDaten.benachrichtigungen || []) !== benachrichtigungenVorher) {
+                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Alter Demo-Hinweis konnte nicht bereinigt werden:", e); }
+                }
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
                 globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
@@ -2797,6 +2812,23 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             document.getElementById('uzin-auswahl-modal').classList.add('hidden');
         }
 
+        // Nur Büro-Rollen dürfen allgemeine Aufträge/Nachrichten an Verleger senden.
+        // Die Prüfung erfolgt über das echte Mitarbeiterprofil, nicht über den angezeigten Namen.
+        function istBuerorolleName(name) {
+            const eintrag = (globalDaten.mitarbeiterListe || []).find(m => m && m.name === name);
+            const rolle = String(eintrag?.rolle || '').toLowerCase();
+            return rolle.includes('chef') ||
+                   rolle.includes('techniker') ||
+                   rolle.includes('sekretariat') ||
+                   rolle.includes('admin') ||
+                   rolle.includes('büro') ||
+                   rolle.includes('buero');
+        }
+
+        function istEingeloggterBueroMitarbeiter() {
+            return istBuerorolleName(eingeloggterMitarbeiter);
+        }
+
         function empfaengerDropdownBefuellen() {
             const select = document.getElementById('nachricht-empfaenger');
             if(!select) return;
@@ -2823,17 +2855,26 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 if(item.geloeschtVon.includes(eingeloggterMitarbeiter)) return null;
 
                 let anzeigen = false;
-                if (item.empfaenger === "Alle" || item.empfaenger === eingeloggterMitarbeiter || item.von.startsWith(eingeloggterMitarbeiter)) {
-                    anzeigen = true;
-                } else if (item.von && item.von.includes("🚨")) {
-                    const isChefOrTechOrSekr = eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
-                    if (isChefOrTechOrSekr) {
+
+                // Verleger sehen ausschließlich echte Büro-Nachrichten/Aufträge.
+                // Automatische Meldungen oder Nachrichten anderer Verleger können damit
+                // nicht mehr als Nachricht von Chef/Team erscheinen.
+                if (!istEingeloggterBueroMitarbeiter()) {
+                    const absenderName = String(item.von || '')
+                        .replace(/^📢\s*/, '')
+                        .replace(/^🚨\s*/, '')
+                        .replace(/^🤖\s*/, '')
+                        .replace(/\s*\((?:Chef|Team|Baustellen-Pin|Baustellen-Plan|Urlaubsantrag|Urlaubsentscheidung)\).*$/i, '')
+                        .trim();
+                    anzeigen = istBuerorolleName(absenderName);
+                } else {
+                    // Büro-Mitarbeiter behalten ihre bisherigen Empfängerregeln.
+                    if (item.empfaenger === "Alle" ||
+                        item.empfaenger === eingeloggterMitarbeiter ||
+                        String(item.von || '').startsWith(eingeloggterMitarbeiter)) {
                         anzeigen = true;
-                    } else {
-                        const zugewieseneProj = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
-                        if (zugewieseneProj.includes(item.projekt)) {
-                            anzeigen = true;
-                        }
+                    } else if (item.von && item.von.includes("🚨")) {
+                        anzeigen = true;
                     }
                 }
 
@@ -2999,6 +3040,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         window.nachrichtAbsenden = function() {
+            if (!istEingeloggterBueroMitarbeiter()) {
+                alert("Nur Chef, Techniker und Sekretariat können Aufträge und allgemeine Nachrichten senden.");
+                return;
+            }
+
             const empfaenger = document.getElementById('nachricht-empfaenger').value;
             const text = document.getElementById('nachricht-text-input').value;
             if(!text.trim()) {
@@ -3010,13 +3056,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             
             if(!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
             globalDaten.benachrichtigungen.unshift({
-                von: eingeloggterMitarbeiter + (eingeloggteRolle.includes('Chef') ? " (Chef)" : " (Team)"),
+                von: eingeloggterMitarbeiter + ` (${(globalDaten.mitarbeiterListe || []).find(m => m.name === eingeloggterMitarbeiter)?.rolle || eingeloggteRolle})`,
                 empfaenger: empfaenger,
                 text: text,
                 datum: datum,
                 gelesenVon: [eingeloggterMitarbeiter],
                 geloeschtVon: [],
-                projekt: aktuellesProjekt
+                projekt: aktuellesProjekt,
+                typ: 'nachricht'
             });
 
             globalGlobalSpeichern();
