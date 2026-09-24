@@ -5396,8 +5396,9 @@ window.verlegerWochenplanSchliessen = function(){ const m=document.getElementByI
         });
 
 function dashboardIstBerechtigt(){
-            const r=String(window.eingeloggteRolle||'').toLowerCase();
-            return window.istDauerhafterAdmin ? window.istDauerhafterAdmin() : String(window.eingeloggterMitarbeiter||'').trim()==='Patrick Magiera' || r.includes('chef')||r.includes('admin')||r.includes('techniker')||r.includes('sekretariat')||r.includes('büro')||r.includes('buero')||window.eingeloggterMitarbeiter==='Christian Leppin';
+            const r=String(window.eingeloggteRolle||'').toLowerCase().trim();
+            const name=String(window.eingeloggterMitarbeiter||'').trim();
+            return r.includes('chef') || r.includes('admin') || r.includes('techniker') || r.includes('sekretariat') || r.includes('büro') || r.includes('buero') || name === 'Jeff Brisbois' || name === 'Didier Michel' || name === 'Christian Leppin';
         }
 
         function dashboardProjektListe(){
