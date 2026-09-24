@@ -1574,6 +1574,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try { if (typeof dashboardAktualisieren === "function") dashboardAktualisieren(); } catch(e) {}
         }, (error) => console.error("Fehler beim Laden der Krankmeldungen:", error));
 
+        let wochenplanungSeparatGeladen = false;
+
         onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
             if (docSnap.exists()) {
                 const cloudDaten = docSnap.data();
@@ -1598,7 +1600,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
                 globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
-                globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
+                if (!wochenplanungSeparatGeladen) {
+                    globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
+                }
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
                 // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
                 globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
@@ -1616,6 +1620,26 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalGlobalSpeichern();
             }
         });
+
+        // Wochenplanung separat speichern/laden, damit Tageszuweisungen nicht durch
+        // parallele globale Speichervorgänge überschrieben werden.
+        onSnapshot(collection(db, "wochenplanung"), (snapshot) => {
+            try {
+                wochenplanungSeparatGeladen = !snapshot.empty;
+                globalDaten.wochenplanung = globalDaten.wochenplanung || {};
+                if (!snapshot.empty) {
+                    snapshot.forEach((snap) => {
+                        const d = snap.data() || {};
+                        if (!d.name || !d.key) return;
+                        globalDaten.wochenplanung[d.name] = globalDaten.wochenplanung[d.name] || {};
+                        globalDaten.wochenplanung[d.name][d.key] = Array.isArray(d.eintraege) ? d.eintraege : [];
+                    });
+                }
+                allesAktualisieren();
+            } catch (e) {
+                console.error("Fehler beim Laden der Wochenplanung:", e);
+            }
+        }, (error) => console.error("Fehler beim Laden der Wochenplanung:", error));
 
         onSnapshot(collection(db, "projekte"), (snapshot) => {
             if (!snapshot.empty) {
@@ -2558,6 +2582,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
           if(!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen=[];
           globalDaten.benachrichtigungen.unshift({von: eingeloggterMitarbeiter + (eingeloggteRolle.includes('Chef')?' (Chef)':' (Team)'),empfaenger,text,datum:new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}),gelesenVon:[eingeloggterMitarbeiter],geloeschtVon:[],projekt});
         }
+        async function wochenplanungSeparatSpeichern(name,key){
+          const eintraege = wochenplanungDaten(name,key);
+          const id = `${encodeURIComponent(String(name))}__${String(key)}`;
+          if (eintraege.length) {
+            await setDoc(doc(db, "wochenplanung", id), {name:String(name), key:String(key), eintraege, aktualisiertAm:new Date().toISOString()});
+          } else {
+            await deleteDoc(doc(db, "wochenplanung", id));
+          }
+        }
+
         window.wochenplanungEintragSpeichern=async function(){
           if(!wochenplanungIstBerechtigt())return;
           if(!wochenplanungAuswahl?.name||!wochenplanungAuswahl?.key)return;
@@ -2571,15 +2605,25 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
           else globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key]=[{baustelle:p,notiz:n}];
           if(globalDaten.abwesenheiten?.[wochenplanungAuswahl.name]) delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key];
           await wochenplanBenachrichtigung(wochenplanungAuswahl.name, `Neue Wochenplanung: ${p} am ${wochenplanungAuswahl.key}.` , p);
+          await wochenplanungSeparatSpeichern(wochenplanungAuswahl.name,wochenplanungAuswahl.key);
           await window.globalGlobalSpeichern();
           wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();
         };
-        window.wochenplanungTagLoeschen=async function(){if(!wochenplanungIstBerechtigt())return;if(!wochenplanungAuswahl?.name||!wochenplanungAuswahl?.key)return; if(globalDaten.wochenplanung?.[wochenplanungAuswahl.name]) delete globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key]; if(globalDaten.abwesenheiten?.[wochenplanungAuswahl.name]) delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key]; await window.globalGlobalSpeichern();wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();};
+        window.wochenplanungTagLoeschen=async function(){
+          if(!wochenplanungIstBerechtigt())return;
+          if(!wochenplanungAuswahl?.name||!wochenplanungAuswahl?.key)return;
+          if(globalDaten.wochenplanung?.[wochenplanungAuswahl.name]) delete globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key];
+          if(globalDaten.abwesenheiten?.[wochenplanungAuswahl.name]) delete globalDaten.abwesenheiten[wochenplanungAuswahl.name][wochenplanungAuswahl.key];
+          await wochenplanungSeparatSpeichern(wochenplanungAuswahl.name,wochenplanungAuswahl.key);
+          await window.globalGlobalSpeichern();
+          wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();
+        };
         window.wochenplanungEintragEntfernen=async function(name,key,index){
           if(!wochenplanungIstBerechtigt())return;
           const vals=wochenplanungDaten(name,key);
           vals.splice(index,1);
           if(!vals.length && globalDaten.wochenplanung?.[name]) delete globalDaten.wochenplanung[name][key];
+          await wochenplanungSeparatSpeichern(name,key);
           await window.globalGlobalSpeichern();wochenplanungAnzeigen();startseiteAktualisieren();
         };
         window.wochenplanungAbwesenheitSetzen=async function(status){
@@ -2595,6 +2639,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             delete globalDaten.wochenplanung[wochenplanungAuswahl.name][wochenplanungAuswahl.key];
           }
           await wochenplanBenachrichtigung(wochenplanungAuswahl.name, status==='frei' ? `Wochenplanung gelöscht am ${wochenplanungAuswahl.key}.` : `${status==='urlaub'?'🏖️ Urlaub':'🤒 Krank'} eingetragen am ${wochenplanungAuswahl.key}.`);
+          await wochenplanungSeparatSpeichern(wochenplanungAuswahl.name,wochenplanungAuswahl.key);
           await window.globalGlobalSpeichern();wochenplanungModalSchliessen();wochenplanungAnzeigen();startseiteAktualisieren();
         };
 
