@@ -1586,6 +1586,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
                 // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
                 globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
+                // Alte Wochenplan-/Zeiterfassungsreste von bereits gelöschten Baustellen entfernen.
+                if (veralteteBaustellenBereinigen()) {
+                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Bereinigung alter Baustellen fehlgeschlagen", e); }
+                }
                 globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
                 // Krankmeldungen werden ausschließlich über die separate Firestore-Sammlung geladen.
                 // So kann ein Foto/PDF niemals das Größenlimit des globalen Portal-Dokuments sprengen.
@@ -1610,7 +1614,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         aktuellesProjekt = Object.keys(globalDaten.projekte)[0] || "";
                     } else {
                         try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {}
-            const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+            const zugewieseneProjekte = (globalDaten.zuweisungen[eingeloggterMitarbeiter] || []).filter(p => Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, p));
                         aktuellesProjekt = zugewieseneProjekte.length > 0 ? zugewieseneProjekte[0] : "";
                     }
                 }
@@ -2313,8 +2317,34 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if(confirm(`Möchtest du das Projekt "${aktuellesProjekt}" wirklich unwiderruflich löschen?`)) {
                 const zuLoeschen = aktuellesProjekt;
                 
-                Object.keys(globalDaten.zuweisungen).forEach(ma => {
-                    globalDaten.zuweisungen[ma] = globalDaten.zuweisungen[ma].filter(p => p !== zuLoeschen);
+                // Projekt aus allen dauerhaften Zuweisungen entfernen.
+                Object.keys(globalDaten.zuweisungen || {}).forEach(ma => {
+                    globalDaten.zuweisungen[ma] = (globalDaten.zuweisungen[ma] || []).filter(p => p !== zuLoeschen);
+                });
+
+                // WICHTIG: Auch bereits geplante Wochentage müssen die gelöschte Baustelle verlieren.
+                // Sonst würde sie beim Verleger weiterhin auf der Startseite erscheinen.
+                Object.keys(globalDaten.wochenplanung || {}).forEach(ma => {
+                    Object.keys(globalDaten.wochenplanung[ma] || {}).forEach(tag => {
+                        const eintraege = Array.isArray(globalDaten.wochenplanung[ma][tag])
+                            ? globalDaten.wochenplanung[ma][tag]
+                            : [];
+                        const gefiltert = eintraege.filter(e => String(e?.baustelle || '') !== String(zuLoeschen));
+                        if (gefiltert.length) globalDaten.wochenplanung[ma][tag] = gefiltert;
+                        else delete globalDaten.wochenplanung[ma][tag];
+                    });
+                });
+
+                // Auch die automatisch erzeugten Zeiteinträge dürfen keine gelöschte Baustelle behalten.
+                Object.keys(globalDaten.zeiterfassung || {}).forEach(ma => {
+                    Object.keys(globalDaten.zeiterfassung[ma] || {}).forEach(tag => {
+                        const z = globalDaten.zeiterfassung[ma][tag];
+                        if (!z) return;
+                        if (Array.isArray(z.baustellen)) {
+                            z.baustellen = z.baustellen.filter(b => String(b) !== String(zuLoeschen));
+                            if (!z.baustellen.length && z.automatischGeplant) delete globalDaten.zeiterfassung[ma][tag];
+                        }
+                    });
                 });
 
                 delete globalDaten.projekte[zuLoeschen];
@@ -2329,6 +2359,56 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 }
                 allesAktualisieren();
             }
+        }
+
+        // Entfernt veraltete Baustellen aus alten Wochenplanungen/Zuweisungen,
+        // z.B. wenn eine Baustelle in einer älteren Portalversion gelöscht wurde.
+        function veralteteBaustellenBereinigen() {
+            const projekte = globalDaten.projekte || {};
+            let changed = false;
+
+            Object.keys(globalDaten.zuweisungen || {}).forEach(ma => {
+                const alt = globalDaten.zuweisungen[ma] || [];
+                const neu = alt.filter(p => Object.prototype.hasOwnProperty.call(projekte, p));
+                if (JSON.stringify(alt) !== JSON.stringify(neu)) {
+                    globalDaten.zuweisungen[ma] = neu;
+                    changed = true;
+                }
+            });
+
+            Object.keys(globalDaten.wochenplanung || {}).forEach(ma => {
+                Object.keys(globalDaten.wochenplanung[ma] || {}).forEach(tag => {
+                    const alt = Array.isArray(globalDaten.wochenplanung[ma][tag])
+                        ? globalDaten.wochenplanung[ma][tag] : [];
+                    const neu = alt.filter(e => e && Object.prototype.hasOwnProperty.call(projekte, e.baustelle));
+                    if (neu.length) {
+                        if (JSON.stringify(alt) !== JSON.stringify(neu)) {
+                            globalDaten.wochenplanung[ma][tag] = neu;
+                            changed = true;
+                        }
+                    } else if (Object.prototype.hasOwnProperty.call(globalDaten.wochenplanung[ma], tag)) {
+                        delete globalDaten.wochenplanung[ma][tag];
+                        changed = true;
+                    }
+                });
+            });
+
+            Object.keys(globalDaten.zeiterfassung || {}).forEach(ma => {
+                Object.keys(globalDaten.zeiterfassung[ma] || {}).forEach(tag => {
+                    const z = globalDaten.zeiterfassung[ma][tag];
+                    if (!z || !Array.isArray(z.baustellen)) return;
+                    const neu = z.baustellen.filter(b => Object.prototype.hasOwnProperty.call(projekte, b));
+                    if (!neu.length && z.automatischGeplant) {
+                        delete globalDaten.zeiterfassung[ma][tag];
+                        changed = true;
+                    } else if (neu.length !== z.baustellen.length) {
+                        z.baustellen = neu;
+                        changed = true;
+                    }
+                });
+            });
+
+            return changed;
         }
 
         function startseiteAktualisieren() {
