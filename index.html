@@ -235,19 +235,19 @@ function kiKurzbeschreibungAuswerten(){
             <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
                 <p class="text-xs font-bold text-slate-500 uppercase text-center">⚡ 1-Klick Schnell-Test:</p>
                 <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    <button type="button" onclick="schnellLoginDirekt('Jeff Brisbois', 'Chef')" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                    <button type="button" id="quick-login-jeff" onclick="return window.schnellLoginDirekt ? window.schnellLoginDirekt('Jeff Brisbois', 'Chef') : false;" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         👑 Jeff (Chef)
                     </button>
-                    <button type="button" onclick="schnellLoginDirekt('Christian Leppin', 'Techniker')" class="bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                    <button type="button" id="quick-login-christian" onclick="return window.schnellLoginDirekt ? window.schnellLoginDirekt('Christian Leppin', 'Techniker') : false;" class="bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         🛠️ Christian (Tech)
                     </button>
-                    <button type="button" onclick="schnellLoginDirekt('Tania Thill', 'Sekretariat')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                    <button type="button" id="quick-login-tania" onclick="return window.schnellLoginDirekt ? window.schnellLoginDirekt('Tania Thill', 'Sekretariat') : false;" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         📋 Tania (Sekr.)
                     </button>
-                    <button type="button" onclick="schnellLoginDirekt('Patrick Magiera', 'Verleger')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                    <button type="button" id="quick-login-patrick" onclick="return window.schnellLoginDirekt ? window.schnellLoginDirekt('Patrick Magiera', 'Verleger') : false;" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         👷 Patrick
                     </button>
-                    <button type="button" onclick="schnellLoginDirekt('Wolfgang Seimetz', 'Verleger')" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
+                    <button type="button" id="quick-login-wolfgang" onclick="return window.schnellLoginDirekt ? window.schnellLoginDirekt('Wolfgang Seimetz', 'Verleger') : false;" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-2 rounded-lg shadow-sm transition">
                         👷 Wolfgang
                     </button>
                 </div>
@@ -5204,5 +5204,25 @@ body { top:0 !important; }
 </script>
 <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
+<script>
+// Sicherheits-Fix: Schnell-Login darf nicht von anderen Portal-Erweiterungen blockiert werden.
+document.addEventListener('DOMContentLoaded', function(){
+  const quick = [
+    ['quick-login-jeff','Jeff Brisbois','Chef'],
+    ['quick-login-christian','Christian Leppin','Techniker'],
+    ['quick-login-tania','Tania Thill','Sekretariat'],
+    ['quick-login-patrick','Patrick Magiera','Verleger'],
+    ['quick-login-wolfgang','Wolfgang Seimetz','Verleger']
+  ];
+  quick.forEach(function(item){
+    const el=document.getElementById(item[0]);
+    if(!el) return;
+    el.addEventListener('click', function(ev){
+      ev.preventDefault(); ev.stopPropagation();
+      if(typeof window.schnellLoginDirekt==='function'){ window.schnellLoginDirekt(item[1],item[2]); }
+    });
+  });
+});
+</script>
 </body>
 </html>
