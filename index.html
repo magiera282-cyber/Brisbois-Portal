@@ -211,6 +211,22 @@ function kiKurzbeschreibungAuswerten(){
  const bereich=document.getElementById('ki-ergebnis-bereich');if(bereich)bereich.classList.remove('hidden');
 }
 </script>
+
+<style>
+@media (max-width: 640px){
+  #app-container > header{position:relative;}
+  #app-container > header > div:last-child{display:flex;align-items:center;gap:.35rem;}
+  #app-container > header > div:last-child #language-de-app,
+  #app-container > header > div:last-child #language-fr-app{position:relative;}
+  #app-container > header > div:last-child .inline-flex[aria-label="Sprache"]{
+    position:absolute;left:50%;transform:translateX(-50%);top:50%;margin-top:-18px;
+  }
+  #app-container > header > div:last-child > button[onclick="abmelden()"]{
+    position:absolute;left:calc(50% + 48px);top:50%;transform:translateY(-50%);
+    padding-left:.65rem;padding-right:.65rem;
+  }
+}
+</style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
