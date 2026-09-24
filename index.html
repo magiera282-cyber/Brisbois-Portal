@@ -1342,37 +1342,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
       </div>
     </div>
 
-    <!-- ROBUSTER 1-KLICK-LOGIN: bewusst unabhängig vom Firebase-Ladezeitpunkt -->
-    <script>
-    window.schnellLoginDirekt = function(name, rolle) {
-        const starten = function() {
-            if (typeof window.__brisboisSchnellLoginIntern === 'function') {
-                try { window.__brisboisSchnellLoginIntern(name, rolle); return; } catch (e) { console.error('Schnell-Login:', e); }
-            }
-            try {
-                sessionStorage.setItem('brisbois_quick_user', name);
-                sessionStorage.setItem('brisbois_quick_role', rolle);
-                sessionStorage.setItem('brisbois_quick_login', '1');
-            } catch (e) {}
-            // Fallback: Portal direkt öffnen, falls der Firebase-Teil noch lädt.
-            const loginModal = document.getElementById('login-modal');
-            const appContainer = document.getElementById('app-container');
-            if (loginModal) loginModal.classList.add('hidden');
-            if (appContainer) appContainer.classList.remove('hidden');
-            const badge = document.getElementById('user-badge');
-            if (badge) badge.innerHTML = `👤 <strong class="text-white">${String(name).replace(/[<>&"']/g, '')}</strong>`;
-            const startName = document.getElementById('start-user-name');
-            const startRole = document.getElementById('start-user-rolle');
-            if (startName) startName.textContent = name;
-            if (startRole) startRole.textContent = rolle;
-        };
-        starten();
-        // Falls das Modul gerade noch geladen wird, genau einmal kurz nachfassen.
-        setTimeout(starten, 250);
-        setTimeout(starten, 1000);
-    };
-    </script>
-
     <!-- Firebase SDK & Cloud Logik -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -1684,7 +1653,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         // Wochenplanung separat speichern/laden, damit Tageszuweisungen nicht durch
         // parallele globale Speichervorgänge überschrieben werden.
-        onSnapshot(collection(db, "wochenplanung"), (snapshot) => {
+        onSnapshot(collection(db, "wochenplanung"), async (snapshot) => {
             try {
                 wochenplanungSeparatGeladen = !snapshot.empty;
                 globalDaten.wochenplanung = globalDaten.wochenplanung || {};
@@ -1929,7 +1898,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (select) select.innerHTML = basisMitarbeiter.map(m => `<option value="${String(m.name).replace(/"/g, '&quot;')}">${m.name} (${m.rolle || 'Verleger'})</option>`).join('');
         }
 
-        window.__brisboisSchnellLoginIntern = function(name, rolle) {
+        window.schnellLoginDirekt = function(name, rolle) {
             // Schnell-Test: Benutzer zusätzlich in der Session merken, damit ein
             // notwendiger Sprach-Reload den Schnell-Login nicht wieder verliert.
             eingeloggterMitarbeiter = name;
