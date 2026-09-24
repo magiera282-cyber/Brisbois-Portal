@@ -724,6 +724,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 </div>
                 <div id="verleger-planung-start-heute" class="mb-5"></div>
                 <div id="verleger-planung-start-liste" class="space-y-2"></div>
+                <div id="verleger-ueberstunden-startseite" class="mt-4"></div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -4505,6 +4506,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
         function autoJetztMinuten(){ const d=new Date(); return d.getHours()*60+d.getMinutes(); }
         function autoHeuteKey(){ return lokalesDatumKey(new Date()); }
+        function autoIstSamstag(key){ return new Date(String(key)+'T00:00:00').getDay()===6; }
         function autoIstVerleger(name){
             const n=name || eingeloggterMitarbeiter;
             const m=(globalDaten.mitarbeiterListe||[]).find(x=>x && x.name===n);
@@ -4529,6 +4531,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
         function automatischeZeitFuerVerlegerAnlegen(name,key){
             if(!autoIstVerleger(name)) return false;
+            // Samstag wird NICHT automatisch angelegt: Samstagszeit startet der Verleger selbst.
+            if(autoIstSamstag(key)) return false;
             const baustellen=autoBaustellenFuerTag(name,key);
             if(!baustellen.length) return false;
             globalDaten.zeiterfassung=globalDaten.zeiterfassung||{};
@@ -4549,6 +4553,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 ueberstundenStart:alt?.ueberstundenStart||null,
                 ueberstundenEnde:alt?.ueberstundenEnde||null,
                 ueberstundenMinuten:Number(alt?.ueberstundenMinuten||0),
+                samstagUeberstundenMinuten: 0,
                 aktualisiertAm:new Date().toISOString()
             };
             if(alt && !alt.automatischGeplant){
@@ -4577,10 +4582,27 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 if(info) info.classList.add('hidden');
                 return;
             }
+            const key=autoHeuteKey();
+            const samstag=autoIstSamstag(key);
+            const e=globalDaten.zeiterfassung?.[eingeloggterMitarbeiter]?.[key];
+            const vals=autoBaustellenFuerTag(eingeloggterMitarbeiter,key);
+            // Samstag: normale Start/Pause/Feierabend-Schaltflächen bleiben aktiv.
+            if(samstag){
+                [start,pause,ende].forEach(b=>{if(b)b.classList.remove('hidden');});
+                if(ot) ot.classList.remove('hidden');
+                if(info){
+                    info.classList.remove('hidden');
+                    info.innerHTML=vals.length
+                        ? `<b>Samstag – manuelle Zeiterfassung.</b><br>Starte und beende deine Arbeitszeit selbst.${e?`<br><b>Baustelle:</b> ${escapeHtmlUI(vals.join(', '))}`:''}`
+                        : '<b>Samstag – manuelle Zeiterfassung.</b><br>Du kannst deine Samstagszeit selbst starten.';
+                }
+                if(e){
+                    if(ot) ot.innerText=(e.ueberstundenStart&&!e.ueberstundenEnde)?'⏹️ Überstunden beenden':'⏱️ Überstunden starten';
+                }
+                return;
+            }
             [start,pause,ende].forEach(b=>{if(b){b.classList.add('hidden');b.disabled=true;}});
             if(ot) ot.classList.remove('hidden');
-            const key=autoHeuteKey(), e=globalDaten.zeiterfassung?.[eingeloggterMitarbeiter]?.[key];
-            const vals=autoBaustellenFuerTag(eingeloggterMitarbeiter,key);
             if(info){
                 info.classList.remove('hidden');
                 if(!vals.length){
@@ -4621,9 +4643,18 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         const arbeitszeitStartenOriginal=window.arbeitszeitStarten;
         const pauseUmschaltenOriginal=window.pauseUmschalten;
         const feierabendOriginal=window.feierabendMachen;
-        window.arbeitszeitStarten=function(){ if(autoIstVerleger()) return automatischeZeiterfassungAktualisieren(); return arbeitszeitStartenOriginal&&arbeitszeitStartenOriginal(); };
-        window.pauseUmschalten=function(){ if(autoIstVerleger()) return automatischeZeiterfassungAktualisieren(); return pauseUmschaltenOriginal&&pauseUmschaltenOriginal(); };
-        window.feierabendMachen=function(){ if(autoIstVerleger()) return automatischeZeiterfassungAktualisieren(); return feierabendOriginal&&feierabendOriginal(); };
+        window.arbeitszeitStarten=function(){
+            if(autoIstVerleger() && !autoIstSamstag(autoHeuteKey())) return automatischeZeiterfassungAktualisieren();
+            return arbeitszeitStartenOriginal&&arbeitszeitStartenOriginal();
+        };
+        window.pauseUmschalten=function(){
+            if(autoIstVerleger() && !autoIstSamstag(autoHeuteKey())) return automatischeZeiterfassungAktualisieren();
+            return pauseUmschaltenOriginal&&pauseUmschaltenOriginal();
+        };
+        window.feierabendMachen=function(){
+            if(autoIstVerleger() && !autoIstSamstag(autoHeuteKey())) return automatischeZeiterfassungAktualisieren();
+            return feierabendOriginal&&feierabendOriginal();
+        };
 
         // Bei jeder Zuteilung wird die automatische Zeit für den betreffenden Tag sofort angelegt.
         const wochenplanungSpeichernOriginal=window.wochenplanungEintragSpeichern;
@@ -4667,6 +4698,20 @@ window.zeigeVerlegerPlanungAufStartseite=function(){
   const renderDay=d=>{const a=status(d),js=jobs(d);if(a==='urlaub')return '<div class="bg-amber-100 border border-amber-200 rounded-xl p-3 font-bold text-amber-900">🏖️ Urlaub</div>';if(a==='krank')return '<div class="bg-red-100 border border-red-200 rounded-xl p-3 font-bold text-red-900">🤒 Krank</div>';if(js.length)return js.map(x=>{const bn=typeof x==='object'?x.baustelle:x;const n=typeof x==='object'?x.notiz:'';const adr=g.projekte?.[bn]?.adresse||'';return `<div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-2"><div class="font-bold text-sm text-blue-900">🏗️ ${esc(bn)}</div>${adr?`<div class="text-xs text-slate-500 mt-1">📍 ${esc(adr)}</div>`:''}${n?`<div class="text-xs text-slate-600 mt-1">📝 ${esc(n)}</div>`:''}</div>`}).join('');return '<div class="text-sm text-slate-400">Keine Eintragung</div>';};
   h.innerHTML=`<div class="rounded-2xl border border-blue-200 bg-blue-50 p-4"><div class="text-xs font-black uppercase tracking-wider text-blue-700 mb-2">📍 Heute · ${heute.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit'})}</div>${renderDay(heute)}</div>`;
   l.innerHTML=`<div class="grid grid-cols-1 md:grid-cols-6 gap-3">${tage.map(d=>`<div class="rounded-2xl border ${key(d)===key(heute)?'border-blue-400 bg-blue-50':'border-slate-200 bg-slate-50'} p-4 min-h-[150px]"><div class="flex justify-between mb-3"><b>${d.toLocaleDateString('de-DE',{weekday:'long'})}</b><span class="text-xs text-slate-500">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span></div>${renderDay(d)}</div>`).join('')}</div>`;
+  const ueEl=document.getElementById('verleger-ueberstunden-startseite');
+  if(ueEl){
+    const zeiten=(g.zeiterfassung&&g.zeiterfassung[name])||{};
+    let minuten=0;
+    Object.values(zeiten).forEach(e=>{
+      if(!e)return;
+      minuten += Number(e.ueberstundenMinuten||0);
+      // Samstagsstunden werden jetzt ausschließlich über die manuelle Zeiterfassung erfasst.
+      // Alte pauschale 8-Stunden-Werte werden nicht mehr berücksichtigt.
+      minuten += 0;
+    });
+    const h=Math.floor(minuten/60), m=minuten%60;
+    ueEl.innerHTML=`<div class="rounded-2xl border border-purple-200 bg-purple-50 p-4 flex items-center justify-between gap-4"><div><div class="text-xs font-black uppercase tracking-wider text-purple-700">⏱️ Überstunden</div><div class="text-xs text-slate-500 mt-1">Samstagsstunden und gestartete Überstunden</div></div><div class="text-2xl font-black text-purple-900">${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')} Std.</div></div>`;
+  }
 };
 </script>
 
