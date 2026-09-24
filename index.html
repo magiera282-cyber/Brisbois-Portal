@@ -4581,7 +4581,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const topBtn = document.getElementById('btn-abrechnungen-top');
             if (!tbody || !eingeloggterMitarbeiter) return;
             const buero = darfAbrechnungenVerwalten();
-            if (topBtn) topBtn.classList.toggle('hidden', !buero);
+            if (topBtn) topBtn.classList.toggle('hidden', !eingeloggterMitarbeiter);
             if (form) form.classList.toggle('hidden', !buero);
             if (badge) { badge.textContent = buero ? 'Alle Abrechnungen sichtbar' : 'Nur eigene Abrechnungen'; badge.className = buero ? 'inline-flex w-fit bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1.5 rounded-full' : 'inline-flex w-fit bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-full'; }
             if (buero) abrechnungenVerlegerBefuellen();
@@ -4589,7 +4589,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (!sichtbar.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">Keine Abrechnungen vorhanden.</td></tr>'; return; }
             tbody.innerHTML = sichtbar.map(a => {
                 const datum = a.erstelltAm ? new Date(a.erstelltAm).toLocaleDateString('de-DE') : '-';
-                const datei = a.dateiUrl ? `<a href="${a.dateiUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-semibold">📎 ${escapeHtml(a.dateiname || 'Abrechnung öffnen')}</a>` : '-';
+                const datei = a.dateiUrl ? `<a href="${a.dateiUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">📂 Abrechnung öffnen</a>` : '-';
                 const loeschen = buero ? `<button type="button" onclick="abrechnungLoeschen('${a.id}')" class="text-red-600 hover:text-red-800 text-xs font-bold">🗑️ Löschen</button>` : '';
                 return `<tr class="border-b border-slate-100 hover:bg-slate-50"><td class="p-3 whitespace-nowrap">${datum}</td><td class="p-3 font-semibold">${escapeHtml(a.verleger || '-')}</td><td class="p-3">${escapeHtml(a.bezeichnung || '-')}</td><td class="p-3">${datei}</td><td class="p-3">${escapeHtml(a.hochgeladenVon || '-')}</td><td class="p-3">${loeschen}</td></tr>`;
             }).join('');
