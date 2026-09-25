@@ -1657,6 +1657,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }, (error) => console.error("Fehler beim Laden der Krankmeldungen:", error));
 
         let wochenplanungSeparatGeladen = false;
+        let projekteSnapshotGeladen = false;
 
         onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
             if (docSnap.exists()) {
@@ -1710,8 +1711,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
                 // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
                 globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
-                // Alte Wochenplan-/Zeiterfassungsreste von bereits gelöschten Baustellen entfernen.
-                if (veralteteBaustellenBereinigen()) {
+                // Erst bereinigen, wenn die echte Projektliste aus Firestore bereits geladen wurde.
+                // Sonst kann der Wochenplan beim Login kurzzeitig mit einer noch leeren
+                // Projektliste geladen und dadurch fälschlich gelöscht werden.
+                if (projekteSnapshotGeladen && veralteteBaustellenBereinigen()) {
                     try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Bereinigung alter Baustellen fehlgeschlagen", e); }
                 }
                 globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
@@ -1735,21 +1738,21 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     snapshot.forEach((snap) => {
                         const d = snap.data() || {};
                         if (!d.name || !d.key) return;
-                        const gueltigeEintraege = (Array.isArray(d.eintraege) ? d.eintraege : [])
-                            .filter(e => e && Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, e.baustelle));
-
-                        if (gueltigeEintraege.length) {
+                        // Die Wochenplanung zuerst immer vollständig übernehmen.
+                        // Die Projektprüfung darf erst erfolgen, nachdem der Projekt-Snapshot
+                        // geladen wurde; sonst werden gültige Zuweisungen beim Login gelöscht.
+                        const eintraege = Array.isArray(d.eintraege) ? d.eintraege : [];
+                        if (eintraege.length) {
                             globalDaten.wochenplanung[d.name] = globalDaten.wochenplanung[d.name] || {};
-                            globalDaten.wochenplanung[d.name][d.key] = gueltigeEintraege;
-                        } else {
-                            if (globalDaten.wochenplanung[d.name]) delete globalDaten.wochenplanung[d.name][d.key];
-                            // Verwaisten Plan-Eintrag auch dauerhaft aus der separaten Collection entfernen.
-                            deleteDoc(doc(db, "wochenplanung", snap.id)).catch(e => console.warn("Alten Wochenplan konnte nicht gelöscht werden:", e));
+                            globalDaten.wochenplanung[d.name][d.key] = eintraege;
+                        } else if (globalDaten.wochenplanung[d.name]) {
+                            delete globalDaten.wochenplanung[d.name][d.key];
                         }
                     });
                 }
-                // Auch normale Zuweisungen sofort gegen die tatsächlich vorhandenen Baustellen prüfen.
-                if (veralteteBaustellenBereinigen()) {
+                // Erst wenn die Projektliste sicher geladen ist, dürfen alte/verwaiste
+                // Baustellen-Zuweisungen bereinigt werden.
+                if (projekteSnapshotGeladen && veralteteBaustellenBereinigen()) {
                     try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Verwaiste Zuweisungen konnten nicht gespeichert werden:", e); }
                 }
                 allesAktualisieren();
@@ -1806,6 +1809,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         onSnapshot(collection(db, "projekte"), (snapshot) => {
+            projekteSnapshotGeladen = true;
             if (!snapshot.empty) {
                 const neueProjekte = {};
                 snapshot.forEach((docSnap) => {
