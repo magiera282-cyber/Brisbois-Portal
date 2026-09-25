@@ -1657,7 +1657,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }, (error) => console.error("Fehler beim Laden der Krankmeldungen:", error));
 
         let wochenplanungSeparatGeladen = false;
-        let projekteSnapshotGeladen = false;
 
         onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
             if (docSnap.exists()) {
@@ -1711,10 +1710,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
                 // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
                 globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
-                // Erst bereinigen, wenn die echte Projektliste aus Firestore bereits geladen wurde.
-                // Sonst kann der Wochenplan beim Login kurzzeitig mit einer noch leeren
-                // Projektliste geladen und dadurch fälschlich gelöscht werden.
-                if (projekteSnapshotGeladen && veralteteBaustellenBereinigen()) {
+                // Alte Wochenplan-/Zeiterfassungsreste von bereits gelöschten Baustellen entfernen.
+                if (veralteteBaustellenBereinigen()) {
                     try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Bereinigung alter Baustellen fehlgeschlagen", e); }
                 }
                 globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
@@ -1738,21 +1735,21 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     snapshot.forEach((snap) => {
                         const d = snap.data() || {};
                         if (!d.name || !d.key) return;
-                        // Die Wochenplanung zuerst immer vollständig übernehmen.
-                        // Die Projektprüfung darf erst erfolgen, nachdem der Projekt-Snapshot
-                        // geladen wurde; sonst werden gültige Zuweisungen beim Login gelöscht.
-                        const eintraege = Array.isArray(d.eintraege) ? d.eintraege : [];
-                        if (eintraege.length) {
+                        const gueltigeEintraege = (Array.isArray(d.eintraege) ? d.eintraege : [])
+                            .filter(e => e && Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, e.baustelle));
+
+                        if (gueltigeEintraege.length) {
                             globalDaten.wochenplanung[d.name] = globalDaten.wochenplanung[d.name] || {};
-                            globalDaten.wochenplanung[d.name][d.key] = eintraege;
-                        } else if (globalDaten.wochenplanung[d.name]) {
-                            delete globalDaten.wochenplanung[d.name][d.key];
+                            globalDaten.wochenplanung[d.name][d.key] = gueltigeEintraege;
+                        } else {
+                            if (globalDaten.wochenplanung[d.name]) delete globalDaten.wochenplanung[d.name][d.key];
+                            // Verwaisten Plan-Eintrag auch dauerhaft aus der separaten Collection entfernen.
+                            deleteDoc(doc(db, "wochenplanung", snap.id)).catch(e => console.warn("Alten Wochenplan konnte nicht gelöscht werden:", e));
                         }
                     });
                 }
-                // Erst wenn die Projektliste sicher geladen ist, dürfen alte/verwaiste
-                // Baustellen-Zuweisungen bereinigt werden.
-                if (projekteSnapshotGeladen && veralteteBaustellenBereinigen()) {
+                // Auch normale Zuweisungen sofort gegen die tatsächlich vorhandenen Baustellen prüfen.
+                if (veralteteBaustellenBereinigen()) {
                     try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Verwaiste Zuweisungen konnten nicht gespeichert werden:", e); }
                 }
                 allesAktualisieren();
@@ -1809,7 +1806,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         onSnapshot(collection(db, "projekte"), (snapshot) => {
-            projekteSnapshotGeladen = true;
             if (!snapshot.empty) {
                 const neueProjekte = {};
                 snapshot.forEach((docSnap) => {
@@ -3086,20 +3082,26 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
                 let anzeigen = false;
 
-                // Nachrichten werden immer nach dem tatsächlichen Empfänger gefiltert.
-                // Direktnachrichten erscheinen nur beim Empfänger (und beim Absender),
-                // Nachrichten an „Alle“ erscheinen bei allen. Automatische Meldungen
-                // für Büro/Verantwortliche bleiben weiterhin sichtbar.
-                const absenderText = String(item.von || '');
-                const istEigeneNachricht = absenderText.startsWith(eingeloggterMitarbeiter);
-                const istDirektEmpfaenger = item.empfaenger === eingeloggterMitarbeiter;
-                const istAnAlle = item.empfaenger === "Alle";
-                const istAutomatischeMeldung = absenderText.includes("🚨") || absenderText.includes("🤖");
-
-                if (istAnAlle || istDirektEmpfaenger || istEigeneNachricht) {
-                    anzeigen = true;
-                } else if (istAutomatischeMeldung && istEingeloggterBueroMitarbeiter()) {
-                    anzeigen = true;
+                // Verleger sehen ausschließlich echte Büro-Nachrichten/Aufträge.
+                // Automatische Meldungen oder Nachrichten anderer Verleger können damit
+                // nicht mehr als Nachricht von Chef/Team erscheinen.
+                if (!istEingeloggterBueroMitarbeiter()) {
+                    const absenderName = String(item.von || '')
+                        .replace(/^📢\s*/, '')
+                        .replace(/^🚨\s*/, '')
+                        .replace(/^🤖\s*/, '')
+                        .replace(/\s*\((?:Chef|Team|Baustellen-Pin|Baustellen-Plan|Urlaubsantrag|Urlaubsentscheidung)\).*$/i, '')
+                        .trim();
+                    anzeigen = istBuerorolleName(absenderName);
+                } else {
+                    // Büro-Mitarbeiter behalten ihre bisherigen Empfängerregeln.
+                    if (item.empfaenger === "Alle" ||
+                        item.empfaenger === eingeloggterMitarbeiter ||
+                        String(item.von || '').startsWith(eingeloggterMitarbeiter)) {
+                        anzeigen = true;
+                    } else if (item.von && item.von.includes("🚨")) {
+                        anzeigen = true;
+                    }
                 }
 
                 if (!anzeigen) return null;
@@ -3263,7 +3265,21 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        window.nachrichtAbsenden = async function() {
+        window.nachrichtModalOeffnen = function() {
+            if (!istEingeloggterBueroMitarbeiter()) {
+                alert("Nur Chef, Techniker und Sekretariat können Nachrichten verfassen.");
+                return;
+            }
+            const modal = document.getElementById('nachricht-modal');
+            if (!modal) return;
+            nachrichtenEmpfaengerListeAktualisieren();
+            const text = document.getElementById('nachricht-text-input');
+            if (text) text.value = '';
+            modal.classList.remove('hidden');
+            setTimeout(() => { if (text) text.focus(); }, 50);
+        };
+
+        window.nachrichtAbsenden = function() {
             if (!istEingeloggterBueroMitarbeiter()) {
                 alert("Nur Chef, Techniker und Sekretariat können Aufträge und allgemeine Nachrichten senden.");
                 return;
@@ -3290,15 +3306,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 typ: 'nachricht'
             });
 
-            try {
-                await globalGlobalSpeichern();
-            } catch (e) {
-                console.error("Nachricht konnte nicht gespeichert werden:", e);
-                alert("❌ Nachricht konnte nicht gespeichert werden.\n\n" + (e?.message || e));
-                return;
-            }
+            globalGlobalSpeichern();
             document.getElementById('nachricht-modal').classList.add('hidden');
-            document.getElementById('nachricht-text-input').value = '';
             benachrichtigungenAnzeigen();
         }
 
