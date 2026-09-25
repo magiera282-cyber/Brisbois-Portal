@@ -3086,26 +3086,20 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
                 let anzeigen = false;
 
-                // Verleger sehen ausschließlich echte Büro-Nachrichten/Aufträge.
-                // Automatische Meldungen oder Nachrichten anderer Verleger können damit
-                // nicht mehr als Nachricht von Chef/Team erscheinen.
-                if (!istEingeloggterBueroMitarbeiter()) {
-                    const absenderName = String(item.von || '')
-                        .replace(/^📢\s*/, '')
-                        .replace(/^🚨\s*/, '')
-                        .replace(/^🤖\s*/, '')
-                        .replace(/\s*\((?:Chef|Team|Baustellen-Pin|Baustellen-Plan|Urlaubsantrag|Urlaubsentscheidung)\).*$/i, '')
-                        .trim();
-                    anzeigen = istBuerorolleName(absenderName);
-                } else {
-                    // Büro-Mitarbeiter behalten ihre bisherigen Empfängerregeln.
-                    if (item.empfaenger === "Alle" ||
-                        item.empfaenger === eingeloggterMitarbeiter ||
-                        String(item.von || '').startsWith(eingeloggterMitarbeiter)) {
-                        anzeigen = true;
-                    } else if (item.von && item.von.includes("🚨")) {
-                        anzeigen = true;
-                    }
+                // Nachrichten werden immer nach dem tatsächlichen Empfänger gefiltert.
+                // Direktnachrichten erscheinen nur beim Empfänger (und beim Absender),
+                // Nachrichten an „Alle“ erscheinen bei allen. Automatische Meldungen
+                // für Büro/Verantwortliche bleiben weiterhin sichtbar.
+                const absenderText = String(item.von || '');
+                const istEigeneNachricht = absenderText.startsWith(eingeloggterMitarbeiter);
+                const istDirektEmpfaenger = item.empfaenger === eingeloggterMitarbeiter;
+                const istAnAlle = item.empfaenger === "Alle";
+                const istAutomatischeMeldung = absenderText.includes("🚨") || absenderText.includes("🤖");
+
+                if (istAnAlle || istDirektEmpfaenger || istEigeneNachricht) {
+                    anzeigen = true;
+                } else if (istAutomatischeMeldung && istEingeloggterBueroMitarbeiter()) {
+                    anzeigen = true;
                 }
 
                 if (!anzeigen) return null;
@@ -3269,7 +3263,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        window.nachrichtAbsenden = function() {
+        window.nachrichtAbsenden = async function() {
             if (!istEingeloggterBueroMitarbeiter()) {
                 alert("Nur Chef, Techniker und Sekretariat können Aufträge und allgemeine Nachrichten senden.");
                 return;
@@ -3296,8 +3290,15 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 typ: 'nachricht'
             });
 
-            globalGlobalSpeichern();
+            try {
+                await globalGlobalSpeichern();
+            } catch (e) {
+                console.error("Nachricht konnte nicht gespeichert werden:", e);
+                alert("❌ Nachricht konnte nicht gespeichert werden.\n\n" + (e?.message || e));
+                return;
+            }
             document.getElementById('nachricht-modal').classList.add('hidden');
+            document.getElementById('nachricht-text-input').value = '';
             benachrichtigungenAnzeigen();
         }
 
