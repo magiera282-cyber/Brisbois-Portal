@@ -3281,6 +3281,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
+        // Öffnet die Empfängerliste für Nachrichten.
+        // Alias für die bereits vorhandene Dropdown-Funktion, damit das Nachrichtenfenster
+        // bei allen Rollen (auch Verlegern) zuverlässig geöffnet werden kann.
+        window.nachrichtenEmpfaengerListeAktualisieren = function() {
+            empfaengerDropdownBefuellen();
+        };
+
         window.nachrichtModalOeffnen = function(vorbelegungEmpfaenger = '') {
             const modal = document.getElementById('nachricht-modal');
             if (!modal) return;
