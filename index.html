@@ -3092,7 +3092,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         .replace(/^🤖\s*/, '')
                         .replace(/\s*\((?:Chef|Team|Baustellen-Pin|Baustellen-Plan|Urlaubsantrag|Urlaubsentscheidung)\).*$/i, '')
                         .trim();
-                    anzeigen = istBuerorolleName(absenderName);
+                    // Verleger dürfen nur Nachrichten sehen, die an alle oder
+                    // ausdrücklich an sie selbst gerichtet sind. Nachrichten an
+                    // andere Verleger bleiben vollständig unsichtbar.
+                    anzeigen = istBuerorolleName(absenderName) &&
+                               (item.empfaenger === 'Alle' || item.empfaenger === eingeloggterMitarbeiter);
                 } else {
                     // Büro-Mitarbeiter behalten ihre bisherigen Empfängerregeln.
                     if (item.empfaenger === "Alle" ||
