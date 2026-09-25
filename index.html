@@ -405,6 +405,7 @@ function kiKurzbeschreibungAuswerten(){
                 <button type="button" onclick="benachrichtigungAusListeEntfernen()" class="flex-1 bg-red-100 hover:bg-red-200 text-red-800 font-semibold py-2.5 rounded-lg text-sm transition">
                     🗑️ Aus Benachrichtigungsliste löschen
                 </button>
+                <button type="button" onclick="nachrichtAufNachrichtAntworten()" id="modal-btn-antworten" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold">↩️ Antworten</button>
                 <button type="button" onclick="document.getElementById('benachrichtigung-detail-modal').classList.add('hidden')" class="bg-slate-200 px-4 py-2.5 rounded-lg text-sm font-semibold">
                     Schließen
                 </button>
@@ -1055,7 +1056,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         <button onclick="alleBenachrichtigungenLoeschen()" class="bg-red-100 hover:bg-red-200 text-red-800 font-semibold px-3 py-2 rounded-lg text-xs transition shadow-sm">
                             🗑️ Alle löschen
                         </button>
-                        <button type="button" onclick="if(typeof istEingeloggterBueroMitarbeiter==='function' && !istEingeloggterBueroMitarbeiter()){alert('Nur Chef, Techniker und Sekretariat können Nachrichten verfassen.');return;} var m=document.getElementById('nachricht-modal'); if(m){m.classList.remove('hidden');} if(typeof nachrichtenEmpfaengerListeAktualisieren==='function'){nachrichtenEmpfaengerListeAktualisieren();} var t=document.getElementById('nachricht-text-input'); if(t){t.value='';setTimeout(function(){t.focus();},50);}" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition shadow-sm">
+                        <button type="button" onclick="nachrichtModalOeffnen()" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition shadow-sm">
                             💬 Nachricht verfassen...
                         </button>
                     </div>
@@ -3196,6 +3197,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             benachrichtigungenAnzeigen();
         }
 
+        window.nachrichtAufNachrichtAntworten = function() {
+            if (ausgewaehlteNachrichtIndex === null) return;
+            const item = (globalDaten.benachrichtigungen || [])[ausgewaehlteNachrichtIndex];
+            if (!item) return;
+            let empfaenger = String(item.von || '').replace(/\s*\((?:Chef|Team|Verleger|Techniker|Sekretariat|Admin|Büro|Buero)\)\s*$/i, '').trim();
+            if (!empfaenger || empfaenger === eingeloggterMitarbeiter) return;
+            const modal = document.getElementById('benachrichtigung-detail-modal');
+            if (modal) modal.classList.add('hidden');
+            nachrichtModalOeffnen(empfaenger);
+        };
+
         window.benachrichtigungZuProjektWechseln = function() {
             if (ausgewaehlteNachrichtIndex === null) return;
             const item = globalDaten.benachrichtigungen[ausgewaehlteNachrichtIndex];
@@ -3269,14 +3281,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        window.nachrichtModalOeffnen = function() {
-            if (!istEingeloggterBueroMitarbeiter()) {
-                alert("Nur Chef, Techniker und Sekretariat können Nachrichten verfassen.");
-                return;
-            }
+        window.nachrichtModalOeffnen = function(vorbelegungEmpfaenger = '') {
             const modal = document.getElementById('nachricht-modal');
             if (!modal) return;
             nachrichtenEmpfaengerListeAktualisieren();
+            const emp = document.getElementById('nachricht-empfaenger');
+            if (emp && vorbelegungEmpfaenger) emp.value = vorbelegungEmpfaenger;
             const text = document.getElementById('nachricht-text-input');
             if (text) text.value = '';
             modal.classList.remove('hidden');
@@ -3284,11 +3294,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         };
 
         window.nachrichtAbsenden = function() {
-            if (!istEingeloggterBueroMitarbeiter()) {
-                alert("Nur Chef, Techniker und Sekretariat können Aufträge und allgemeine Nachrichten senden.");
-                return;
-            }
-
             const empfaenger = document.getElementById('nachricht-empfaenger').value;
             const text = document.getElementById('nachricht-text-input').value;
             if(!text.trim()) {
