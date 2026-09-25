@@ -1055,7 +1055,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         <button onclick="alleBenachrichtigungenLoeschen()" class="bg-red-100 hover:bg-red-200 text-red-800 font-semibold px-3 py-2 rounded-lg text-xs transition shadow-sm">
                             🗑️ Alle löschen
                         </button>
-                        <button onclick="nachrichtModalOeffnen()" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition shadow-sm">
+                        <button type="button" onclick="if(typeof istEingeloggterBueroMitarbeiter==='function' && !istEingeloggterBueroMitarbeiter()){alert('Nur Chef, Techniker und Sekretariat können Nachrichten verfassen.');return;} var m=document.getElementById('nachricht-modal'); if(m){m.classList.remove('hidden');} if(typeof nachrichtenEmpfaengerListeAktualisieren==='function'){nachrichtenEmpfaengerListeAktualisieren();} var t=document.getElementById('nachricht-text-input'); if(t){t.value='';setTimeout(function(){t.focus();},50);}" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition shadow-sm">
                             💬 Nachricht verfassen...
                         </button>
                     </div>
