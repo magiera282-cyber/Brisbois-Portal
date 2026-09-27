@@ -1733,7 +1733,24 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         try { await globalGlobalSpeichern(); } catch(e) { console.warn("Patrick-Rollenbereinigung konnte nicht sofort gespeichert werden:", e); }
                     }
                 }
-                globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
+                const neueBenachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen || [];
+                const vorherigerBenachrichtigungsStand = letzterBenachrichtigungsStand;
+                letzterBenachrichtigungsStand = JSON.stringify(neueBenachrichtigungen);
+                globalDaten.benachrichtigungen = neueBenachrichtigungen;
+
+                if (vorherigerBenachrichtigungsStand !== null && vorherigerBenachrichtigungsStand !== letzterBenachrichtigungsStand && eingeloggterMitarbeiter) {
+                    const vorherigeListe = (() => { try { return JSON.parse(vorherigerBenachrichtigungsStand) || []; } catch(e) { return []; } })();
+                    const vorherigeIds = new Set(vorherigeListe.map((item, i) => item.id || (String(item.datum || '') + '|' + String(item.von || '') + '|' + String(item.text || '') + '|' + i)));
+                    const neueFuerMich = neueBenachrichtigungen.filter((item, i) => {
+                        const emp = String(item.empfaenger || '');
+                        const sichtbar = emp === 'Alle' || emp === eingeloggterMitarbeiter || String(item.von || '').startsWith(eingeloggterMitarbeiter);
+                        const id = item.id || (String(item.datum || '') + '|' + String(item.von || '') + '|' + String(item.text || '') + '|' + i);
+                        return sichtbar && !vorherigeIds.has(id);
+                    });
+                    if (neueFuerMich.length > 0) {
+                        benachrichtigungstonAbspielen();
+                    }
+                }
                 // Alten Demo-Hinweis entfernen, falls er bereits in Firebase gespeichert wurde.
                 const benachrichtigungenVorher = JSON.stringify(globalDaten.benachrichtigungen || []);
                 globalDaten.benachrichtigungen = (globalDaten.benachrichtigungen || []).filter(item =>
@@ -3127,6 +3144,39 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 }
             });
             if(aktuellerWert) select.value = aktuellerWert;
+        }
+
+        // Benachrichtigungston: wird nach der ersten Benutzerinteraktion freigeschaltet.
+        let benachrichtigungsAudioFreigeschaltet = false;
+        let letzterBenachrichtigungsStand = null;
+
+        function benachrichtigungsAudioFreischalten() {
+            benachrichtigungsAudioFreigeschaltet = true;
+        }
+        ['click','touchstart','pointerdown','keydown'].forEach(evt => {
+            document.addEventListener(evt, benachrichtigungsAudioFreischalten, { once: true, passive: true });
+        });
+
+        function benachrichtigungstonAbspielen() {
+            if (!benachrichtigungsAudioFreigeschaltet) return;
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+                const ctx = new AudioContextClass();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                osc.frequency.setValueAtTime(1175, ctx.currentTime + 0.09);
+                gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.16, ctx.currentTime + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.23);
+                osc.onended = () => { try { ctx.close(); } catch(e) {} };
+            } catch(e) { console.warn('Benachrichtigungston konnte nicht abgespielt werden:', e); }
         }
 
         function benachrichtigungenAnzeigen() {
