@@ -2072,21 +2072,104 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (select) select.innerHTML = basisMitarbeiter.map(m => `<option value="${String(m.name).replace(/"/g, '&quot;')}">${m.name} (${m.rolle || 'Verleger'})</option>`).join('');
         }
 
+        // Dauerhaften Login speichern: localStorage + Cookie + IndexedDB.
+        // Der Cookie/IndexedDB-Fallback hilft besonders bei Safari/iPhone,
+        // wenn eine Web-App bzw. ein Tab neu aufgebaut wird.
+        const BRISBOIS_LOGIN_KEY = "brisbois_login_data_v2";
+
+        async function brisboisLoginDauerhaftSpeichern(name, rolle) {
+            const data = { name: String(name || ""), rolle: String(rolle || "") };
+
+            try {
+                localStorage.setItem("brisbois_login_user", data.name);
+                localStorage.setItem("brisbois_login_role", data.rolle);
+                localStorage.setItem("brisbois_login_persistent", "1");
+                localStorage.setItem(BRISBOIS_LOGIN_KEY, JSON.stringify(data));
+            } catch(e) {}
+
+            try {
+                document.cookie =
+                    "brisbois_login=" + encodeURIComponent(JSON.stringify(data)) +
+                    "; max-age=31536000; path=/; SameSite=Lax; Secure";
+            } catch(e) {}
+
+            try {
+                await new Promise((resolve) => {
+                    const req = indexedDB.open("BrisboisPortal", 1);
+                    req.onupgradeneeded = () => {
+                        try { req.result.createObjectStore("login"); } catch(e) {}
+                    };
+                    req.onsuccess = () => {
+                        try {
+                            const dbi = req.result;
+                            const tx = dbi.transaction("login", "readwrite");
+                            tx.objectStore("login").put(data, "current");
+                            tx.oncomplete = () => { try { dbi.close(); } catch(e) {} ; resolve(); };
+                            tx.onerror = () => resolve();
+                        } catch(e) { resolve(); }
+                    };
+                    req.onerror = () => resolve();
+                });
+            } catch(e) {}
+        }
+
+        async function brisboisLoginDauerhaftLesen() {
+            try {
+                const raw = localStorage.getItem(BRISBOIS_LOGIN_KEY);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    if (data && data.name) return data;
+                }
+            } catch(e) {}
+
+            try {
+                const match = document.cookie.match(/(?:^|; )brisbois_login=([^;]+)/);
+                if (match) {
+                    const data = JSON.parse(decodeURIComponent(match[1]));
+                    if (data && data.name) return data;
+                }
+            } catch(e) {}
+
+            try {
+                return await new Promise((resolve) => {
+                    const req = indexedDB.open("BrisboisPortal", 1);
+                    req.onupgradeneeded = () => {
+                        try { req.result.createObjectStore("login"); } catch(e) {}
+                    };
+                    req.onsuccess = () => {
+                        try {
+                            const dbi = req.result;
+                            const tx = dbi.transaction("login", "readonly");
+                            const getReq = tx.objectStore("login").get("current");
+                            getReq.onsuccess = () => {
+                                const data = getReq.result;
+                                try { dbi.close(); } catch(e) {}
+                                resolve(data && data.name ? data : null);
+                            };
+                            getReq.onerror = () => resolve(null);
+                        } catch(e) { resolve(null); }
+                    };
+                    req.onerror = () => resolve(null);
+                });
+            } catch(e) {}
+
+            return null;
+        }
+
         // Dauerhaften Login nach dem Laden der Daten wiederherstellen.
         // Nur ein lokal gespeicherter Benutzer wird automatisch angemeldet;
         // ein echter Klick auf "Abmelden" entfernt diese Daten.
-        function dauerhaftenLoginWiederherstellen() {
+        async function dauerhaftenLoginWiederherstellen() {
             try {
-                if (localStorage.getItem("brisbois_login_persistent") !== "1") return;
-                const name = localStorage.getItem("brisbois_login_user") || "";
-                const rolleGespeichert = localStorage.getItem("brisbois_login_role") || "";
-                if (!name) return;
+                const data = await brisboisLoginDauerhaftLesen();
+                if (!data || !data.name) return;
 
-                const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === name);
+                const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === data.name);
                 if (!maObjekt) return;
 
-                eingeloggterMitarbeiter = name;
-                eingeloggteRolle = maObjekt.rolle || rolleGespeichert || "Verleger";
+                eingeloggterMitarbeiter = data.name;
+                eingeloggteRolle = maObjekt.rolle || data.rolle || "Verleger";
+                await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
                 oeffneAppNachLogin();
             } catch(e) {
                 console.warn("Dauerhafter Login konnte nicht wiederhergestellt werden:", e);
@@ -2141,9 +2224,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             // Login dauerhaft auf diesem Gerät merken. Dadurch bleibt die
             // Anmeldung auch nach dem Schließen des Safari-Tabs erhalten.
             try {
-                localStorage.setItem("brisbois_login_user", eingeloggterMitarbeiter);
-                localStorage.setItem("brisbois_login_role", eingeloggteRolle);
-                localStorage.setItem("brisbois_login_persistent", "1");
+                brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
             } catch(e) {
                 console.warn("Dauerhafter Login konnte nicht gespeichert werden:", e);
             }
@@ -3763,6 +3844,23 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 localStorage.removeItem("brisbois_login_user");
                 localStorage.removeItem("brisbois_login_role");
                 localStorage.removeItem("brisbois_login_persistent");
+                localStorage.removeItem(BRISBOIS_LOGIN_KEY);
+            } catch(e) {}
+
+            try {
+                document.cookie = "brisbois_login=; max-age=0; path=/; SameSite=Lax; Secure";
+            } catch(e) {}
+
+            try {
+                const req = indexedDB.open("BrisboisPortal", 1);
+                req.onsuccess = () => {
+                    try {
+                        const dbi = req.result;
+                        const tx = dbi.transaction("login", "readwrite");
+                        tx.objectStore("login").delete("current");
+                        tx.oncomplete = () => { try { dbi.close(); } catch(e) {} };
+                    } catch(e) {}
+                };
             } catch(e) {}
 
             try {
