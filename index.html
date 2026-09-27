@@ -1658,6 +1658,48 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }, (error) => console.error("Fehler beim Laden der Krankmeldungen:", error));
 
         let wochenplanungSeparatGeladen = false;
+        // Neue Nachrichten werden in Echtzeit erkannt und als kurze Popup-Meldung angezeigt.
+        let benachrichtigungenEchtzeitInitialisiert = false;
+        let bekannteBenachrichtigungenSignaturen = new Set();
+
+        function benachrichtigungIstFuerAktuellenMitarbeiter(item) {
+            if (!item || !eingeloggterMitarbeiter) return false;
+            if (item.empfaenger === 'Alle' || item.empfaenger === eingeloggterMitarbeiter) return true;
+            if (String(item.von || '').startsWith(eingeloggterMitarbeiter)) return false;
+            if (istEingeloggterBueroMitarbeiter()) {
+                return !!(item.von && (item.von.includes('🚨') || item.von.includes('Chef')));
+            }
+            const absenderName = String(item.von || '')
+                .replace(/^📢\s*/, '')
+                .replace(/^🚨\s*/, '')
+                .replace(/^🤖\s*/, '')
+                .replace(/\s*\((?:Chef|Team|Verleger|Techniker|Sekretariat|Admin|Büro|Buero|Baustellen-Pin|Baustellen-Plan|Urlaubsantrag|Urlaubsentscheidung)\).*$/i, '')
+                .trim();
+            return istBuerorolleName(absenderName) && (item.empfaenger === 'Alle' || item.empfaenger === eingeloggterMitarbeiter);
+        }
+
+        function neueNachrichtPopupAnzeigen(item) {
+            if (!item || !item.text) return;
+            const alt = document.getElementById('nachricht-echtzeit-popup');
+            if (alt) alt.remove();
+            const popup = document.createElement('div');
+            popup.id = 'nachricht-echtzeit-popup';
+            popup.style.cssText = 'position:fixed;top:76px;right:18px;z-index:99999;width:min(380px,calc(100vw - 36px));background:#ffffff;border:2px solid #2563eb;border-radius:16px;box-shadow:0 12px 35px rgba(0,0,0,.22);padding:14px 16px;cursor:pointer;animation:brisboisNachrichtPlop .25s ease-out;';
+            popup.innerHTML = `<div style="display:flex;align-items:flex-start;gap:10px"><div style="font-size:24px">🔔</div><div style="flex:1"><div style="font-weight:800;color:#0f172a;font-size:14px">Neue Nachricht von ${item.von || 'Team'}</div><div style="margin-top:4px;color:#475569;font-size:13px;line-height:1.35">${String(item.text).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div></div><button type="button" style="border:0;background:transparent;color:#64748b;font-size:18px;cursor:pointer">✕</button></div>`;
+            popup.onclick = () => {
+                popup.remove();
+                try { wechselnTab('benachrichtigungen'); } catch(e) {}
+            };
+            document.body.appendChild(popup);
+            setTimeout(() => { if (popup.isConnected) popup.remove(); }, 7000);
+        }
+
+        if (!document.getElementById('brisbois-nachricht-plop-style')) {
+            const style = document.createElement('style');
+            style.id = 'brisbois-nachricht-plop-style';
+            style.textContent = '@keyframes brisboisNachrichtPlop{0%{transform:translateY(-18px) scale(.94);opacity:0}70%{transform:translateY(3px) scale(1.02);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}';
+            document.head.appendChild(style);
+        }
 
         onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
             if (docSnap.exists()) {
@@ -1720,6 +1762,22 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 // So kann ein Foto/PDF niemals das Größenlimit des globalen Portal-Dokuments sprengen.
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
                 globalDaten.resturlaub = cloudDaten.resturlaub || {};
+
+                // Nachrichten sofort aktualisieren und neue eingehende Nachrichten als Popup anzeigen.
+                const aktuelleNachrichten = Array.isArray(globalDaten.benachrichtigungen) ? globalDaten.benachrichtigungen : [];
+                const aktuelleSignaturen = new Set(aktuelleNachrichten.map(item => JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || ''])));
+                if (benachrichtigungenEchtzeitInitialisiert && eingeloggterMitarbeiter) {
+                    aktuelleNachrichten.slice(0, 20).forEach(item => {
+                        const signatur = JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || '']);
+                        if (!bekannteBenachrichtigungenSignaturen.has(signatur) &&
+                            !String(item.von || '').startsWith(eingeloggterMitarbeiter) &&
+                            benachrichtigungIstFuerAktuellenMitarbeiter(item)) {
+                            neueNachrichtPopupAnzeigen(item);
+                        }
+                    });
+                }
+                bekannteBenachrichtigungenSignaturen = aktuelleSignaturen;
+                benachrichtigungenEchtzeitInitialisiert = true;
                 allesAktualisieren();
             } else {
                 globalGlobalSpeichern();
