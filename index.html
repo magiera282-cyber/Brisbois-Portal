@@ -1865,56 +1865,24 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // parallele globale Speichervorgänge überschrieben werden.
         onSnapshot(collection(db, "wochenplanung"), async (snapshot) => {
             try {
-                // Wichtig: Die Wochenplanung darf beim Login nicht gelöscht werden,
-                // bevor die Projekte-Collection geladen wurde. Sonst sieht Firebase
-                // kurzfristig 0 Baustellen und alte Einträge würden fälschlich
-                // als "verwaist" gelöscht.
+                // Wochenplanung ist eine eigenständige Datenquelle.
+                // Niemals Einträge löschen, nur weil die Baustellen-Collection
+                // gerade noch nicht geladen ist oder eine Baustelle momentan
+                // nicht gefunden wird.
                 wochenplanungSeparatGeladen = !snapshot.empty;
                 globalDaten.wochenplanung = globalDaten.wochenplanung || {};
 
-                const projekteSindGeladen = Object.keys(globalDaten.projekte || {}).length > 0;
+                snapshot.forEach((snap) => {
+                    const d = snap.data() || {};
+                    if (!d.name || !d.key) return;
 
-                if (!snapshot.empty) {
-                    snapshot.forEach((snap) => {
-                        const d = snap.data() || {};
-                        if (!d.name || !d.key) return;
+                    const eintraege = Array.isArray(d.eintraege) ? d.eintraege : [];
 
-                        const alleEintraege = Array.isArray(d.eintraege) ? d.eintraege : [];
-
-                        // Solange die Projekte noch nicht geladen sind, Einträge
-                        // unverändert übernehmen und NICHT löschen.
-                        const gueltigeEintraege = projekteSindGeladen
-                            ? alleEintraege.filter(e =>
-                                e && Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, e.baustelle)
-                              )
-                            : alleEintraege;
-
-                        if (gueltigeEintraege.length) {
-                            globalDaten.wochenplanung[d.name] = globalDaten.wochenplanung[d.name] || {};
-                            globalDaten.wochenplanung[d.name][d.key] = gueltigeEintraege;
-                        } else if (projekteSindGeladen) {
-                            if (globalDaten.wochenplanung[d.name]) {
-                                delete globalDaten.wochenplanung[d.name][d.key];
-                            }
-                            // Nur wenn die Projekte wirklich geladen sind und der
-                            // Eintrag nachweislich keine vorhandene Baustelle enthält,
-                            // darf ein verwaister Plan-Eintrag gelöscht werden.
-                            deleteDoc(doc(db, "wochenplanung", snap.id)).catch(e =>
-                                console.warn("Alten Wochenplan konnte nicht gelöscht werden:", e)
-                            );
-                        }
-                    });
-                }
-
-                // Auch normale Zuweisungen erst gegen die tatsächlich geladenen
-                // Baustellen prüfen.
-                if (projekteSindGeladen && veralteteBaustellenBereinigen()) {
-                    try {
-                        await window.globalGlobalSpeichern();
-                    } catch(e) {
-                        console.warn("Verwaiste Zuweisungen konnten nicht gespeichert werden:", e);
+                    if (eintraege.length) {
+                        globalDaten.wochenplanung[d.name] = globalDaten.wochenplanung[d.name] || {};
+                        globalDaten.wochenplanung[d.name][d.key] = eintraege;
                     }
-                }
+                });
 
                 allesAktualisieren();
             } catch (e) {
@@ -1923,50 +1891,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }, (error) => console.error("Fehler beim Laden der Wochenplanung:", error));
 
         async function verwaistePlanungenNachProjektenBereinigen() {
-            let changed = false;
-            const speichern = [];
-            const projekte = globalDaten.projekte || {};
-
-            Object.keys(globalDaten.zuweisungen || {}).forEach(ma => {
-                const alt = globalDaten.zuweisungen[ma] || [];
-                const neu = alt.filter(p => Object.prototype.hasOwnProperty.call(projekte, p));
-                if (JSON.stringify(alt) !== JSON.stringify(neu)) {
-                    globalDaten.zuweisungen[ma] = neu;
-                    changed = true;
-                }
-            });
-
-            Object.keys(globalDaten.wochenplanung || {}).forEach(ma => {
-                Object.keys(globalDaten.wochenplanung[ma] || {}).forEach(tag => {
-                    const alt = Array.isArray(globalDaten.wochenplanung[ma][tag]) ? globalDaten.wochenplanung[ma][tag] : [];
-                    const neu = alt.filter(e => e && Object.prototype.hasOwnProperty.call(projekte, e.baustelle));
-                    if (JSON.stringify(alt) !== JSON.stringify(neu)) {
-                        changed = true;
-                        if (neu.length) globalDaten.wochenplanung[ma][tag] = neu;
-                        else delete globalDaten.wochenplanung[ma][tag];
-                        speichern.push(wochenplanungSeparatSpeichern(ma, tag));
-                    }
-                });
-            });
-
-            Object.keys(globalDaten.zeiterfassung || {}).forEach(ma => {
-                Object.keys(globalDaten.zeiterfassung[ma] || {}).forEach(tag => {
-                    const z = globalDaten.zeiterfassung[ma][tag];
-                    if (!z || !Array.isArray(z.baustellen)) return;
-                    const neu = z.baustellen.filter(b => Object.prototype.hasOwnProperty.call(projekte, b));
-                    if (neu.length !== z.baustellen.length) {
-                        changed = true;
-                        if (neu.length) z.baustellen = neu;
-                        else if (z.automatischGeplant) delete globalDaten.zeiterfassung[ma][tag];
-                    }
-                });
-            });
-
-            try { await Promise.all(speichern); } catch(e) { console.warn("Wochenplanung konnte nicht vollständig bereinigt werden:", e); }
-            if (changed) {
-                try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Bereinigte Zuweisungen konnten nicht gespeichert werden:", e); }
-            }
-            return changed;
+            // Wochenplanung und Zuweisungen sind dauerhaft und dürfen beim
+            // normalen Login/Refresh nicht anhand der momentan geladenen
+            // Baustellenliste gelöscht werden.
+            // Eine echte Baustellen-Löschung bereinigt die Planung bereits
+            // direkt in projektLoeschenBestätigen().
+            return false;
         }
 
         onSnapshot(collection(db, "projekte"), (snapshot) => {
@@ -2762,51 +2692,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // Entfernt veraltete Baustellen aus alten Wochenplanungen/Zuweisungen,
         // z.B. wenn eine Baustelle in einer älteren Portalversion gelöscht wurde.
         function veralteteBaustellenBereinigen() {
-            const projekte = globalDaten.projekte || {};
-            let changed = false;
-
-            Object.keys(globalDaten.zuweisungen || {}).forEach(ma => {
-                const alt = globalDaten.zuweisungen[ma] || [];
-                const neu = alt.filter(p => Object.prototype.hasOwnProperty.call(projekte, p));
-                if (JSON.stringify(alt) !== JSON.stringify(neu)) {
-                    globalDaten.zuweisungen[ma] = neu;
-                    changed = true;
-                }
-            });
-
-            Object.keys(globalDaten.wochenplanung || {}).forEach(ma => {
-                Object.keys(globalDaten.wochenplanung[ma] || {}).forEach(tag => {
-                    const alt = Array.isArray(globalDaten.wochenplanung[ma][tag])
-                        ? globalDaten.wochenplanung[ma][tag] : [];
-                    const neu = alt.filter(e => e && Object.prototype.hasOwnProperty.call(projekte, e.baustelle));
-                    if (neu.length) {
-                        if (JSON.stringify(alt) !== JSON.stringify(neu)) {
-                            globalDaten.wochenplanung[ma][tag] = neu;
-                            changed = true;
-                        }
-                    } else if (Object.prototype.hasOwnProperty.call(globalDaten.wochenplanung[ma], tag)) {
-                        delete globalDaten.wochenplanung[ma][tag];
-                        changed = true;
-                    }
-                });
-            });
-
-            Object.keys(globalDaten.zeiterfassung || {}).forEach(ma => {
-                Object.keys(globalDaten.zeiterfassung[ma] || {}).forEach(tag => {
-                    const z = globalDaten.zeiterfassung[ma][tag];
-                    if (!z || !Array.isArray(z.baustellen)) return;
-                    const neu = z.baustellen.filter(b => Object.prototype.hasOwnProperty.call(projekte, b));
-                    if (!neu.length && z.automatischGeplant) {
-                        delete globalDaten.zeiterfassung[ma][tag];
-                        changed = true;
-                    } else if (neu.length !== z.baustellen.length) {
-                        z.baustellen = neu;
-                        changed = true;
-                    }
-                });
-            });
-
-            return changed;
+            // Absichtlich keine automatische Bereinigung.
+            // Wochenplanung/Zuweisungen dürfen beim Login nicht verschwinden.
+            // Bei einer echten Baustellen-Löschung wird gezielt in
+            // projektLoeschenBestätigen() bereinigt.
+            return false;
         }
 
         function startseiteAktualisieren() {
