@@ -293,6 +293,12 @@ function kiKurzbeschreibungAuswerten(){
 }
 </style>
 
+<style id="mobile-pin-longpress-fix">
+@media (max-width: 640px) {
+  #vollbild-scroll-container { touch-action: pan-x pan-y pinch-zoom !important; }
+}
+</style>
+
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
@@ -384,7 +390,11 @@ function kiKurzbeschreibungAuswerten(){
              onmousemove="vollbildPanBewegen(event)"
              onmouseup="stopVollbildPan()"
              onmouseleave="stopVollbildPan()"
-             onclick="vollbildGrundrissKlickVerarbeiten(event)">
+             onclick="vollbildGrundrissKlickVerarbeiten(event)"
+             ontouchstart="vollbildPlanTouchStart(event)"
+             ontouchmove="vollbildPlanTouchMove(event)"
+             ontouchend="vollbildPlanTouchEnd(event)"
+             ontouchcancel="vollbildPlanTouchEnd(event)">
             
             <div id="vollbild-transform-wrapper" class="relative inline-block transition-transform duration-100 origin-center" style="transform: scale(1);">
                 <img id="vollbild-plan-bild" class="hidden block max-w-none select-none shadow-2xl rounded-lg" alt="Grundriss Vollbild">
@@ -405,6 +415,21 @@ function kiKurzbeschreibungAuswerten(){
                 <button onclick="document.getElementById('pin-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
             </div>
             <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Pin-Art</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" id="pin-typ-mangel" onclick="pinTypWaehlen('mangel')" class="pin-typ-btn bg-red-600 text-white border-red-600 px-2 py-2 rounded-lg text-xs font-bold">
+                            🔴 Mangel
+                        </button>
+                        <button type="button" id="pin-typ-frage" onclick="pinTypWaehlen('frage')" class="pin-typ-btn bg-blue-50 text-blue-700 border-blue-200 px-2 py-2 rounded-lg text-xs font-bold border">
+                            🔵 Frage
+                        </button>
+                        <button type="button" id="pin-typ-sonstiges" onclick="pinTypWaehlen('sonstiges')" class="pin-typ-btn bg-amber-50 text-amber-700 border-amber-200 px-2 py-2 rounded-lg text-xs font-bold border">
+                            🟡 Eigener Pin
+                        </button>
+                    </div>
+                    <input id="pin-eigener-name" type="text" maxlength="40" placeholder="Name des eigenen Pins" class="hidden mt-2 w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Beschreibung / Mangel</label>
                     <textarea id="pin-text-input" rows="3" placeholder="z.B. Unterboden feucht im Eingangsbereich..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
@@ -4259,8 +4284,92 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
+        let ausgewaehlterPinTyp = 'mangel';
+        let pinLongPressTimer = null;
+        let pinLongPressAktiv = false;
+        let pinTouchStartX = 0;
+        let pinTouchStartY = 0;
+
+        window.pinTypWaehlen = function(typ) {
+            ausgewaehlterPinTyp = typ;
+            document.querySelectorAll('.pin-typ-btn').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-slate-900');
+            });
+            const aktiv = document.getElementById('pin-typ-' + typ);
+            if (aktiv) aktiv.classList.add('ring-2', 'ring-slate-900');
+
+            const eigenerName = document.getElementById('pin-eigener-name');
+            if (eigenerName) {
+                eigenerName.classList.toggle('hidden', typ !== 'sonstiges');
+                if (typ === 'sonstiges') setTimeout(() => eigenerName.focus(), 50);
+            }
+        };
+
+        function pinPositionAusEvent(event) {
+            const wrapper = document.getElementById('vollbild-transform-wrapper');
+            if (!wrapper) return false;
+            const rect = wrapper.getBoundingClientRect();
+            const point = event.touches && event.touches[0] ? event.touches[0] : event;
+            const klickX = point.clientX - rect.left;
+            const klickY = point.clientY - rect.top;
+            if (klickX < 0 || klickY < 0 || klickX > rect.width || klickY > rect.height) return false;
+            temporärePinX = (klickX / rect.width) * 100;
+            temporärePinY = (klickY / rect.height) * 100;
+            return true;
+        }
+
+        function pinModalOeffnen() {
+            document.getElementById('pin-text-input').value = "";
+            document.getElementById('pin-foto-input').value = "";
+            const eigenerName = document.getElementById('pin-eigener-name');
+            if (eigenerName) eigenerName.value = "";
+            pinTypWaehlen(ausgewaehlterPinTyp || 'mangel');
+            document.getElementById('pin-modal').classList.remove('hidden');
+        }
+
+        window.vollbildPlanTouchStart = function(event) {
+            if (!pinModusAktiv || !event.touches || event.touches.length !== 1) return;
+            pinLongPressAktiv = true;
+            pinTouchStartX = event.touches[0].clientX;
+            pinTouchStartY = event.touches[0].clientY;
+            pinPositionAusEvent(event);
+            clearTimeout(pinLongPressTimer);
+            pinLongPressTimer = setTimeout(() => {
+                if (!pinLongPressAktiv) return;
+                pinLongPressAktiv = false;
+                if (pinPositionAusEvent(event)) pinModalOeffnen();
+            }, 650);
+        };
+
+        window.vollbildPlanTouchMove = function(event) {
+            if (!pinLongPressAktiv || !event.touches || event.touches.length !== 1) return;
+            const t = event.touches[0];
+            if (Math.hypot(t.clientX - pinTouchStartX, t.clientY - pinTouchStartY) > 12) {
+                pinLongPressAktiv = false;
+                clearTimeout(pinLongPressTimer);
+            }
+        };
+
+        window.vollbildPlanTouchEnd = function(event) {
+            if (!pinLongPressAktiv) {
+                clearTimeout(pinLongPressTimer);
+                return;
+            }
+            pinLongPressAktiv = false;
+            clearTimeout(pinLongPressTimer);
+            // On mobile, a normal tap only pans/zooms; long press is used for pins.
+            if (event && event.preventDefault) event.preventDefault();
+        };
+
         window.vollbildGrundrissKlickVerarbeiten = function(event) {
+            // Desktop: bisheriges Klick-Verhalten unverändert.
+            if (window.matchMedia('(max-width: 640px)').matches) return;
             if (!pinModusAktiv) return;
+            const p = globalDaten.projekte[aktuellesProjekt];
+            if (!p || !p.plaene || p.plaene.length === 0) return;
+            if (!pinPositionAusEvent(event)) return;
+            pinModalOeffnen();
+        }
             const p = globalDaten.projekte[aktuellesProjekt];
             if (!p || !p.plaene || p.plaene.length === 0) return;
 
@@ -4283,6 +4392,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.pinSpeichernBestätigen = async function() {
             const text = document.getElementById('pin-text-input').value.trim();
             const fotoInput = document.getElementById('pin-foto-input');
+            const eigenerName = (document.getElementById('pin-eigener-name')?.value || '').trim();
+
+            if (ausgewaehlterPinTyp === 'sonstiges' && !eigenerName) {
+                alert("Bitte gib einen Namen für den eigenen Pin ein!");
+                return;
+            }
 
             if (!text) {
                 alert("Bitte gib eine Beschreibung oder einen Mangel für den Pin ein!");
@@ -4304,6 +4419,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 const planIdx = p.aktiverPlanIndex !== undefined ? p.aktiverPlanIndex : 0;
                 if (!p.pins) p.pins = [];
 
+                const pinName = ausgewaehlterPinTyp === 'mangel'
+                    ? 'Mangel'
+                    : ausgewaehlterPinTyp === 'frage'
+                        ? 'Frage'
+                        : eigenerName;
+
                 p.pins.push({
                     x: temporärePinX,
                     y: temporärePinY,
@@ -4312,7 +4433,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     foto: fotoUrl,
                     von: eingeloggterMitarbeiter,
                     zeit: datum,
-                    gelesenVon: []
+                    gelesenVon: [],
+                    typ: ausgewaehlterPinTyp,
+                    name: pinName
                 });
 
                 if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
@@ -4360,10 +4483,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 if (pinPlanIdx !== aktiverPlanIdx) return;
 
                 const pinEl = document.createElement('div');
-                pinEl.className = "absolute -ml-4 -mt-8 bg-red-600 text-white font-black text-sm w-8 h-8 rounded-full flex items-center justify-center shadow-2xl border-2 border-white cursor-pointer hover:scale-125 transition pointer-events-auto";
+                const pinTyp = pin.typ || 'mangel';
+                const pinFarbe = pinTyp === 'frage' ? 'bg-blue-600' : pinTyp === 'sonstiges' ? 'bg-amber-500' : 'bg-red-600';
+                const pinSymbol = pinTyp === 'frage' ? '❓' : pinTyp === 'sonstiges' ? '📍' : '⚠️';
+                pinEl.className = `absolute -ml-4 -mt-8 ${pinFarbe} text-white font-black text-sm w-8 h-8 rounded-full flex items-center justify-center shadow-2xl border-2 border-white cursor-pointer hover:scale-125 transition pointer-events-auto`;
                 pinEl.style.left = pin.x + '%';
                 pinEl.style.top = pin.y + '%';
-                pinEl.innerHTML = `📌`;
+                pinEl.innerHTML = pinSymbol;
+                pinEl.title = pin.name || (pinTyp === 'frage' ? 'Frage' : pinTyp === 'sonstiges' ? 'Eigener Pin' : 'Mangel');
                 
                 pinEl.onclick = function(e) {
                     e.stopPropagation();
@@ -4375,7 +4502,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         projektSpeichern(aktuellesProjekt);
                     }
 
-                    document.getElementById('modal-pin-titel').innerText = `📌 Pin von ${pin.von}`;
+                    const detailTyp = pin.typ === 'frage' ? '🔵 Frage' : pin.typ === 'sonstiges' ? `🟡 ${pin.name || 'Eigener Pin'}` : '🔴 Mangel';
+                    document.getElementById('modal-pin-titel').innerText = `${detailTyp} – ${pin.von}`;
                     document.getElementById('modal-pin-meta').innerText = `Erstellt am: ${pin.zeit} auf Baustelle "${aktuellesProjekt}" (Plan ${pinPlanIdx + 1})`;
                     document.getElementById('modal-pin-text').innerText = pin.text;
 
