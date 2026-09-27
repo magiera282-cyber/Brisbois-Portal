@@ -3134,7 +3134,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     : (isChefMsg ? "border-amber-500 bg-amber-50/50 shadow-md font-medium" : "border-blue-300 bg-slate-50 shadow-md font-medium");
                 
                 const zielAnzeige = item.empfaenger !== "Alle" ? `<span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-bold">Direkt an: ${item.empfaenger}</span>` : `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded font-bold">An alle</span>`;
-                const zielBaustelleText = item.projekt ? `<span class="bg-purple-100 text-purple-900 text-[10px] px-2 py-0.5 rounded font-bold">📍 Baustelle: ${item.projekt}</span>` : '';
+                const zielBaustelleText = '';
                 const lesebestaetigungBadge = istGelesen ? `<span class="text-slate-400 text-[11px]">✔ Gelesen</span>` : `<span class="text-blue-600 font-bold text-[11px]">👉 Anklicken für Details</span>`;
 
                 container.innerHTML += `
@@ -3320,7 +3320,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 datum: datum,
                 gelesenVon: [eingeloggterMitarbeiter],
                 geloeschtVon: [],
-                projekt: aktuellesProjekt,
+                projekt: '',
                 typ: 'nachricht'
             });
 
