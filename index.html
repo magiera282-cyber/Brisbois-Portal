@@ -270,6 +270,29 @@ function kiKurzbeschreibungAuswerten(){
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Brisbois Portal">
+
+<style id="mobile-plan-pinch-zoom-fix">
+@media (max-width: 640px) {
+  /* Pläne: Finger-Gesten wieder zulassen. Keine Änderung an Desktop. */
+  .plan-container,
+  .plan-container *,
+  [id*="plan"],
+  [id*="Plan"],
+  [class*="plan"],
+  [class*="Plan"] {
+    touch-action: pinch-zoom !important;
+  }
+
+  /* Verhindert, dass ein allgemeiner Touch-Handler das Pinch-Zoomen
+     der eigentlichen Planfläche blockiert. */
+  img[src*="plan"],
+  img[alt*="Plan"],
+  canvas {
+    touch-action: pinch-zoom !important;
+  }
+}
+</style>
+
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
