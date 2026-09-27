@@ -3525,7 +3525,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        window.benachrichtigungAusListeEntfernen = function() {
+        window.benachrichtigungAusListeEntfernen = async function() {
             if (ausgewaehlteNachrichtIndex === null) return;
             const item = globalDaten.benachrichtigungen[ausgewaehlteNachrichtIndex];
             if(!item) return;
@@ -3533,21 +3533,21 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if(!item.geloeschtVon) item.geloeschtVon = [];
             if(!item.geloeschtVon.includes(eingeloggterMitarbeiter)) {
                 item.geloeschtVon.push(eingeloggterMitarbeiter);
-                globalGlobalSpeichern();
+                try { await globalGlobalSpeichern(); }
+                catch(e) { console.error("Benachrichtigung konnte nicht gelöscht werden:", e); return; }
             }
 
             document.getElementById('benachrichtigung-detail-modal').classList.add('hidden');
             benachrichtigungenAnzeigen();
         }
 
-        window.alleBenachrichtigungenAlsGelesenMarkieren = function() {
+        window.alleBenachrichtigungenAlsGelesenMarkieren = async function() {
             const liste = globalDaten.benachrichtigungen || [];
             let updated = false;
 
             liste.forEach(item => {
                 if(!item.geloeschtVon) item.geloeschtVon = [];
                 if(item.geloeschtVon.includes(eingeloggterMitarbeiter)) return;
-
                 if(!item.gelesenVon) item.gelesenVon = [];
                 if(!item.gelesenVon.includes(eingeloggterMitarbeiter)) {
                     item.gelesenVon.push(eingeloggterMitarbeiter);
@@ -3556,29 +3556,36 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             });
 
             if(updated) {
-                globalGlobalSpeichern();
-                benachrichtigungenAnzeigen();
+                try { await globalGlobalSpeichern(); }
+                catch(e) { console.error("Als gelesen konnte nicht gespeichert werden:", e); return; }
             }
+            benachrichtigungenAnzeigen();
         }
 
-        window.alleBenachrichtigungenLoeschen = function() {
-            if(confirm("Möchtest du wirklich alle sichtbaren Benachrichtigungen für dich löschen?")) {
-                const liste = globalDaten.benachrichtigungen || [];
-                let updated = false;
+        window.alleBenachrichtigungenLoeschen = async function() {
+            if(!confirm("Möchtest du wirklich alle sichtbaren Benachrichtigungen für dich löschen?")) return;
 
-                liste.forEach(item => {
-                    if(!item.geloeschtVon) item.geloeschtVon = [];
-                    if(!item.geloeschtVon.includes(eingeloggterMitarbeiter)) {
-                        item.geloeschtVon.push(eingeloggterMitarbeiter);
-                        updated = true;
-                    }
-                });
+            const liste = globalDaten.benachrichtigungen || [];
+            let updated = false;
 
-                if(updated) {
-                    globalGlobalSpeichern();
-                    benachrichtigungenAnzeigen();
+            liste.forEach(item => {
+                if(!item.geloeschtVon) item.geloeschtVon = [];
+                if(item.geloeschtVon.includes(eingeloggterMitarbeiter)) return;
+                item.geloeschtVon.push(eingeloggterMitarbeiter);
+                updated = true;
+            });
+
+            if(updated) {
+                try {
+                    await globalGlobalSpeichern();
+                } catch(e) {
+                    console.error("Benachrichtigungen konnten nicht gelöscht werden:", e);
+                    alert("Die Benachrichtigungen konnten nicht gespeichert werden. Bitte versuche es erneut.");
+                    return;
                 }
             }
+
+            benachrichtigungenAnzeigen();
         }
 
         // Öffnet die Empfängerliste für Nachrichten.
