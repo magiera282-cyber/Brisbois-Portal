@@ -1865,29 +1865,57 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // parallele globale Speichervorgänge überschrieben werden.
         onSnapshot(collection(db, "wochenplanung"), async (snapshot) => {
             try {
+                // Wichtig: Die Wochenplanung darf beim Login nicht gelöscht werden,
+                // bevor die Projekte-Collection geladen wurde. Sonst sieht Firebase
+                // kurzfristig 0 Baustellen und alte Einträge würden fälschlich
+                // als "verwaist" gelöscht.
                 wochenplanungSeparatGeladen = !snapshot.empty;
                 globalDaten.wochenplanung = globalDaten.wochenplanung || {};
+
+                const projekteSindGeladen = Object.keys(globalDaten.projekte || {}).length > 0;
+
                 if (!snapshot.empty) {
                     snapshot.forEach((snap) => {
                         const d = snap.data() || {};
                         if (!d.name || !d.key) return;
-                        const gueltigeEintraege = (Array.isArray(d.eintraege) ? d.eintraege : [])
-                            .filter(e => e && Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, e.baustelle));
+
+                        const alleEintraege = Array.isArray(d.eintraege) ? d.eintraege : [];
+
+                        // Solange die Projekte noch nicht geladen sind, Einträge
+                        // unverändert übernehmen und NICHT löschen.
+                        const gueltigeEintraege = projekteSindGeladen
+                            ? alleEintraege.filter(e =>
+                                e && Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, e.baustelle)
+                              )
+                            : alleEintraege;
 
                         if (gueltigeEintraege.length) {
                             globalDaten.wochenplanung[d.name] = globalDaten.wochenplanung[d.name] || {};
                             globalDaten.wochenplanung[d.name][d.key] = gueltigeEintraege;
-                        } else {
-                            if (globalDaten.wochenplanung[d.name]) delete globalDaten.wochenplanung[d.name][d.key];
-                            // Verwaisten Plan-Eintrag auch dauerhaft aus der separaten Collection entfernen.
-                            deleteDoc(doc(db, "wochenplanung", snap.id)).catch(e => console.warn("Alten Wochenplan konnte nicht gelöscht werden:", e));
+                        } else if (projekteSindGeladen) {
+                            if (globalDaten.wochenplanung[d.name]) {
+                                delete globalDaten.wochenplanung[d.name][d.key];
+                            }
+                            // Nur wenn die Projekte wirklich geladen sind und der
+                            // Eintrag nachweislich keine vorhandene Baustelle enthält,
+                            // darf ein verwaister Plan-Eintrag gelöscht werden.
+                            deleteDoc(doc(db, "wochenplanung", snap.id)).catch(e =>
+                                console.warn("Alten Wochenplan konnte nicht gelöscht werden:", e)
+                            );
                         }
                     });
                 }
-                // Auch normale Zuweisungen sofort gegen die tatsächlich vorhandenen Baustellen prüfen.
-                if (veralteteBaustellenBereinigen()) {
-                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Verwaiste Zuweisungen konnten nicht gespeichert werden:", e); }
+
+                // Auch normale Zuweisungen erst gegen die tatsächlich geladenen
+                // Baustellen prüfen.
+                if (projekteSindGeladen && veralteteBaustellenBereinigen()) {
+                    try {
+                        await window.globalGlobalSpeichern();
+                    } catch(e) {
+                        console.warn("Verwaiste Zuweisungen konnten nicht gespeichert werden:", e);
+                    }
                 }
+
                 allesAktualisieren();
             } catch (e) {
                 console.error("Fehler beim Laden der Wochenplanung:", e);
