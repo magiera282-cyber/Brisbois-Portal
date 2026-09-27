@@ -4207,6 +4207,18 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
 
             document.getElementById('plan-vollbild-modal').classList.remove('hidden');
+
+            if (window.innerWidth <= 640) {
+                const mobilePlan = document.getElementById('vollbild-scroll-container');
+                if (mobilePlan && mobilePlan.dataset.mobilePlanGestures !== '1') {
+                    mobilePlan.dataset.mobilePlanGestures = '1';
+                    mobilePlan.addEventListener('touchstart', mobilePinTouchStart, {passive:false});
+                    mobilePlan.addEventListener('touchmove', mobilePinTouchMove, {passive:false});
+                    mobilePlan.addEventListener('touchend', mobilePinTouchEnd, {passive:false});
+                    mobilePlan.addEventListener('touchcancel', mobilePinTouchEnd, {passive:false});
+                }
+            }
+
             vollbildPinsAnzeigen();
         }
 
@@ -4235,12 +4247,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function aktualisiereVollbildTransform() {
             const wrapper = document.getElementById('vollbild-transform-wrapper');
             if(wrapper) {
+                wrapper.style.transition = 'none';
                 wrapper.style.transform =
                     `translate3d(${mobilePlanOffsetX}px, ${mobilePlanOffsetY}px, 0) scale(${vollbildZoomFaktor})`;
             }
         }
 
         window.startVollbildPan = function(e) {
+            if (window.matchMedia('(max-width: 640px)').matches) return;
             if(e.target.closest('#vollbild-pin-container') || e.target.closest('button')) return;
             isVollbildPanning = true;
             const container = document.getElementById('vollbild-scroll-container');
@@ -4359,6 +4373,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 mobilePanAktiv = false;
                 mobilePinchStartAbstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
                 mobilePinchStartZoom = vollbildZoomFaktor;
+                event.preventDefault();
                 return;
             }
 
@@ -6243,10 +6258,10 @@ body { top:0 !important; }
     if (!plan || plan.dataset.mobilePlanControlsBound === '1') return;
     plan.dataset.mobilePlanControlsBound = '1';
 
-    plan.addEventListener('touchstart', mobilePinTouchStart, {passive:true});
+    plan.addEventListener('touchstart', mobilePinTouchStart, {passive:false});
     plan.addEventListener('touchmove', mobilePinTouchMove, {passive:false});
-    plan.addEventListener('touchend', mobilePinTouchEnd, {passive:true});
-    plan.addEventListener('touchcancel', mobilePinTouchEnd, {passive:true});
+    plan.addEventListener('touchend', mobilePinTouchEnd, {passive:false});
+    plan.addEventListener('touchcancel', mobilePinTouchEnd, {passive:false});
   }
 
   document.addEventListener('DOMContentLoaded', attachMobilePlanControls);
