@@ -293,12 +293,15 @@ function kiKurzbeschreibungAuswerten(){
 }
 </style>
 
-<style id="mobile-pin-only">
+<style id="mobile-plan-controls-final">
 @media (max-width: 640px) {
-  #vollbild-scroll-container { touch-action: pan-x pan-y pinch-zoom !important; }
+  #vollbild-scroll-container {
+    touch-action: pan-x pan-y;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 </style>
-
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
@@ -4276,15 +4279,21 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         let ausgewaehlterPinTyp = 'mangel';
         let pinLongPressTimer = null;
+        let pinLongPressWirdGetriggert = false;
         let pinTouchStartX = 0;
         let pinTouchStartY = 0;
-        let pinLongPressWirdGetriggert = false;
+
+        // Mobile pinch-zoom: eigener Zoom des Plans, nicht der gesamten Webseite.
+        let mobilePinchAktiv = false;
+        let mobilePinchStartAbstand = 0;
+        let mobilePinchStartZoom = 1;
 
         window.pinTypWaehlen = function(typ) {
             ausgewaehlterPinTyp = typ;
             document.querySelectorAll('.pin-typ-btn').forEach(b => b.classList.remove('ring-2','ring-slate-900'));
             const b = document.getElementById('pin-typ-' + typ);
             if (b) b.classList.add('ring-2','ring-slate-900');
+
             const input = document.getElementById('pin-eigener-name');
             if (input) {
                 input.classList.toggle('hidden', typ !== 'eigen');
@@ -4295,9 +4304,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function mobilePinModalOeffnen(x, y) {
             temporärePinX = x;
             temporärePinY = y;
-            document.getElementById('pin-text-input').value = "";
-            document.getElementById('pin-foto-input').value = "";
+            const text = document.getElementById('pin-text-input');
+            const foto = document.getElementById('pin-foto-input');
             const name = document.getElementById('pin-eigener-name');
+            if (text) text.value = "";
+            if (foto) foto.value = "";
             if (name) name.value = "";
             pinTypWaehlen(ausgewaehlterPinTyp);
             document.getElementById('pin-modal').classList.remove('hidden');
@@ -4306,21 +4317,39 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function mobilePinPosition(event) {
             const wrapper = document.getElementById('vollbild-transform-wrapper');
             if (!wrapper || !event.touches || !event.touches[0]) return null;
-            const r = wrapper.getBoundingClientRect();
+
+            const rect = wrapper.getBoundingClientRect();
             const t = event.touches[0];
-            const x = t.clientX - r.left;
-            const y = t.clientY - r.top;
-            if (x < 0 || y < 0 || x > r.width || y > r.height) return null;
-            return { x: (x / r.width) * 100, y: (y / r.height) * 100 };
+            const x = t.clientX - rect.left;
+            const y = t.clientY - rect.top;
+            if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+
+            return { x: (x / rect.width) * 100, y: (y / rect.height) * 100 };
+        }
+
+        function mobileTouchAbstand(a,b) {
+            return Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
         }
 
         function mobilePinTouchStart(event) {
+            // Zwei Finger = immer Pinch-Zoom, niemals Long-Press.
+            if (event.touches.length >= 2) {
+                pinLongPressWirdGetriggert = false;
+                clearTimeout(pinLongPressTimer);
+                mobilePinchAktiv = true;
+                mobilePinchStartAbstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
+                mobilePinchStartZoom = vollbildZoomFaktor;
+                return;
+            }
+
             if (!pinModusAktiv || event.touches.length !== 1) return;
+
             const t = event.touches[0];
             pinTouchStartX = t.clientX;
             pinTouchStartY = t.clientY;
             pinLongPressWirdGetriggert = true;
             clearTimeout(pinLongPressTimer);
+
             pinLongPressTimer = setTimeout(() => {
                 if (!pinLongPressWirdGetriggert) return;
                 const pos = mobilePinPosition(event);
@@ -4332,7 +4361,28 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         function mobilePinTouchMove(event) {
+            if (event.touches.length >= 2) {
+                pinLongPressWirdGetriggert = false;
+                clearTimeout(pinLongPressTimer);
+
+                if (!mobilePinchAktiv) {
+                    mobilePinchAktiv = true;
+                    mobilePinchStartAbstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
+                    mobilePinchStartZoom = vollbildZoomFaktor;
+                }
+
+                const abstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
+                if (mobilePinchStartAbstand > 0) {
+                    const faktor = abstand / mobilePinchStartAbstand;
+                    vollbildZoomFaktor = Math.max(0.7, Math.min(4, mobilePinchStartZoom * faktor));
+                    aktualisiereVollbildTransform();
+                    event.preventDefault();
+                }
+                return;
+            }
+
             if (!pinLongPressWirdGetriggert || event.touches.length !== 1) return;
+
             const t = event.touches[0];
             if (Math.hypot(t.clientX-pinTouchStartX, t.clientY-pinTouchStartY) > 12) {
                 pinLongPressWirdGetriggert = false;
@@ -4340,7 +4390,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        function mobilePinTouchEnd() {
+        function mobilePinTouchEnd(event) {
+            if (!event || event.touches.length < 2) mobilePinchAktiv = false;
             pinLongPressWirdGetriggert = false;
             clearTimeout(pinLongPressTimer);
         }
@@ -6140,19 +6191,21 @@ body { top:0 !important; }
 
 <script>
 (function(){
-  function attachMobilePinTouch(){
+  function attachMobilePlanControls(){
     if (window.innerWidth > 640) return;
     const plan = document.getElementById('vollbild-scroll-container');
-    if (!plan || plan.dataset.mobilePinBound === '1') return;
-    plan.dataset.mobilePinBound = '1';
+    if (!plan || plan.dataset.mobilePlanControlsBound === '1') return;
+    plan.dataset.mobilePlanControlsBound = '1';
+
     plan.addEventListener('touchstart', mobilePinTouchStart, {passive:true});
-    plan.addEventListener('touchmove', mobilePinTouchMove, {passive:true});
+    plan.addEventListener('touchmove', mobilePinTouchMove, {passive:false});
     plan.addEventListener('touchend', mobilePinTouchEnd, {passive:true});
     plan.addEventListener('touchcancel', mobilePinTouchEnd, {passive:true});
   }
-  document.addEventListener('DOMContentLoaded', attachMobilePinTouch);
-  setTimeout(attachMobilePinTouch, 1000);
-  setTimeout(attachMobilePinTouch, 2500);
+
+  document.addEventListener('DOMContentLoaded', attachMobilePlanControls);
+  setTimeout(attachMobilePlanControls, 300);
+  setTimeout(attachMobilePlanControls, 1200);
 })();
 </script>
 
