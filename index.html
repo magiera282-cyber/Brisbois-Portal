@@ -2162,19 +2162,35 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         async function dauerhaftenLoginWiederherstellen() {
             try {
                 const data = await brisboisLoginDauerhaftLesen();
-                if (!data || !data.name) return;
+                if (!data || !data.name) return false;
 
+                // Die gespeicherte Rolle verwenden, wenn Firebase die
+                // Mitarbeiterliste beim Start noch nicht fertig geladen hat.
                 const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === data.name);
-                if (!maObjekt) return;
+                const rolle = maObjekt?.rolle || data.rolle || "Verleger";
 
                 eingeloggterMitarbeiter = data.name;
-                eingeloggteRolle = maObjekt.rolle || data.rolle || "Verleger";
+                eingeloggteRolle = rolle;
+
+                // Speicher beim Wiederherstellen erneut auffrischen.
                 await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
+
                 oeffneAppNachLogin();
+                return true;
             } catch(e) {
                 console.warn("Dauerhafter Login konnte nicht wiederhergestellt werden:", e);
+                return false;
             }
         }
+
+        // iPhone/Safari kann die Web-App beim Start in mehreren Schritten
+        // aufbauen. Deshalb versuchen wir die Wiederherstellung nach dem
+        // Laden des DOM und nochmals kurz danach. Ein echter Logout bleibt
+        // davon unberührt, weil dabei der gespeicherte Login gelöscht wird.
+        window.addEventListener("DOMContentLoaded", () => {
+            setTimeout(() => { dauerhaftenLoginWiederherstellen(); }, 300);
+            setTimeout(() => { dauerhaftenLoginWiederherstellen(); }, 1800);
+        });
 
         window.schnellLoginDirekt = function(name, rolle) {
             // Schnell-Test: Benutzer zusätzlich in der Session merken, damit ein
@@ -2205,7 +2221,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        window.anmeldenMitTeam = function(event) {
+        window.anmeldenMitTeam = async function(event) {
             event.preventDefault();
             const name = document.getElementById('login-name-select').value;
             const eingegebenesPasswort = document.getElementById('login-passwort').value;
@@ -2224,7 +2240,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             // Login dauerhaft auf diesem Gerät merken. Dadurch bleibt die
             // Anmeldung auch nach dem Schließen des Safari-Tabs erhalten.
             try {
-                brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
+                await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
             } catch(e) {
                 console.warn("Dauerhafter Login konnte nicht gespeichert werden:", e);
             }
