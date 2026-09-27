@@ -2124,6 +2124,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 const appContainer = document.getElementById('app-container');
                 if (loginModal) loginModal.classList.add('hidden');
                 if (appContainer) appContainer.classList.remove('hidden');
+            // Push-Aktivierung nach dem Login einmal anbieten. Bereits aktivierte Geräte werden nicht erneut gefragt.
+            setTimeout(() => {
+                try {
+                    if (localStorage.getItem("brisbois_push_aktiv") !== "1" && typeof window.brisboisPushAktivieren === "function") {
+                        window.brisboisPushAktivieren();
+                    }
+                } catch(e) { console.warn("Push-Aktivierung nach Login übersprungen:", e); }
+            }, 700);
                 const badge = document.getElementById('user-badge');
                 if (badge) badge.innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
             }
@@ -3470,52 +3478,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             setTimeout(() => { if (text) text.focus(); }, 50);
         };
 
-        const BRISBOIS_PUSH_WORKER_URL = "https://icy-tree-df33.magiera282.workers.dev/";
-
-        async function brisboisPushNachrichtSenden(empfaenger, absender, text) {
-            try {
-                if (!empfaenger || !text || !db) return;
-
-                const snapshot = await getDocs(collection(db, "pushTokens"));
-                const tokens = [];
-                snapshot.forEach((snap) => {
-                    const data = snap.data() || {};
-                    const name = String(data.employeeName || "").trim();
-                    const token = String(data.token || "").trim();
-                    if (!token) return;
-
-                    // Nur der ausgewählte Empfänger bekommt die private Nachricht.
-                    // Bei „Alle“ werden alle registrierten Mitarbeiter außer dem Absender benachrichtigt.
-                    if (empfaenger === "Alle" || name === empfaenger) {
-                        if (name !== String(absender || "").trim()) {
-                            tokens.push(token);
-                        }
-                    }
-                });
-
-                const uniqueTokens = [...new Set(tokens)];
-                for (const token of uniqueTokens) {
-                    try {
-                        await fetch(BRISBOIS_PUSH_WORKER_URL, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                token,
-                                title: `Neue Nachricht von ${absender}`,
-                                body: text
-                            })
-                        });
-                    } catch (sendError) {
-                        console.warn("Push konnte für ein Gerät nicht gesendet werden:", sendError);
-                    }
-                }
-            } catch (e) {
-                // Der normale Nachrichtenversand darf nicht blockiert werden, falls Push gerade nicht verfügbar ist.
-                console.warn("Push-Versand nicht möglich:", e);
-            }
-        }
-
-        window.nachrichtAbsenden = async function() {
+        window.nachrichtAbsenden = function() {
             const empfaenger = document.getElementById('nachricht-empfaenger').value;
             const text = document.getElementById('nachricht-text-input').value;
             if(!text.trim()) {
@@ -3537,17 +3500,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 typ: 'nachricht'
             });
 
-            try {
-                await globalGlobalSpeichern();
-                document.getElementById('nachricht-modal').classList.add('hidden');
-                benachrichtigungenAnzeigen();
-
-                // Push wird erst nach dem erfolgreichen Speichern der Nachricht ausgelöst.
-                await brisboisPushNachrichtSenden(empfaenger, eingeloggterMitarbeiter, text);
-            } catch (e) {
-                console.error("Nachricht konnte nicht gespeichert werden:", e);
-                alert("Die Nachricht konnte nicht gespeichert werden. Bitte versuche es erneut.");
-            }
+            globalGlobalSpeichern();
+            document.getElementById('nachricht-modal').classList.add('hidden');
+            benachrichtigungenAnzeigen();
         }
 
         function profilLadenInTab() {
