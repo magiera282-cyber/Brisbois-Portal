@@ -3478,7 +3478,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             setTimeout(() => { if (text) text.focus(); }, 50);
         };
 
-        window.nachrichtAbsenden = function() {
+        window.nachrichtAbsenden = async function() {
             const empfaenger = document.getElementById('nachricht-empfaenger').value;
             const text = document.getElementById('nachricht-text-input').value;
             if(!text.trim()) {
@@ -3487,10 +3487,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
 
             const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            
+            const absenderAnzeige = eingeloggterMitarbeiter + ` (${(globalDaten.mitarbeiterListe || []).find(m => m.name === eingeloggterMitarbeiter)?.rolle || eingeloggteRolle})`;
+
             if(!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
             globalDaten.benachrichtigungen.unshift({
-                von: eingeloggterMitarbeiter + ` (${(globalDaten.mitarbeiterListe || []).find(m => m.name === eingeloggterMitarbeiter)?.rolle || eingeloggteRolle})`,
+                von: absenderAnzeige,
                 empfaenger: empfaenger,
                 text: text,
                 datum: datum,
@@ -3503,8 +3504,40 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             globalGlobalSpeichern();
             document.getElementById('nachricht-modal').classList.add('hidden');
             benachrichtigungenAnzeigen();
-        }
 
+            // Push zusätzlich über den bereits eingerichteten Cloudflare Worker senden.
+            try {
+                const workerUrl = 'https://icy-tree-df33.magiera282.workers.dev/';
+                const tokenSnapshot = await getDocs(collection(db, 'pushTokens'));
+                const tokens = [];
+
+                tokenSnapshot.forEach((snap) => {
+                    const data = snap.data() || {};
+                    if (data.token && (empfaenger === 'Alle' || data.employeeName === empfaenger)) {
+                        if (!tokens.includes(data.token)) tokens.push(data.token);
+                    }
+                });
+
+                for (const token of tokens) {
+                    try {
+                        const response = await fetch(workerUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                token,
+                                title: `Neue Nachricht von ${eingeloggterMitarbeiter}`,
+                                body: text
+                            })
+                        });
+                        if (!response.ok) console.warn('Push-Versand fehlgeschlagen:', await response.text());
+                    } catch (pushError) {
+                        console.warn('Push-Gerät konnte nicht erreicht werden:', pushError);
+                    }
+                }
+            } catch (pushError) {
+                console.warn('Push-Versand konnte nicht gestartet werden:', pushError);
+            }
+        }
         function profilLadenInTab() {
             document.getElementById('profil-name').value = eingeloggterMitarbeiter;
             const prof = globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] || { tel: "", email: "" };
