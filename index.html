@@ -1840,6 +1840,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
                 globalDaten.resturlaub = cloudDaten.resturlaub || {};
 
+                // Nach dem vollständigen Laden der Firebase-Daten den letzten
+                // Login auf diesem Gerät wiederherstellen.
+                try { dauerhaftenLoginWiederherstellen(); } catch(e) {
+                    console.warn("Dauerhafter Login nach Firebase-Laden übersprungen:", e);
+                }
+
                 // Nachrichten sofort aktualisieren und neue eingehende Nachrichten als Popup anzeigen.
                 const aktuelleNachrichten = Array.isArray(globalDaten.benachrichtigungen) ? globalDaten.benachrichtigungen : [];
                 const aktuelleSignaturen = new Set(aktuelleNachrichten.map(item => JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || ''])));
@@ -2066,6 +2072,27 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (select) select.innerHTML = basisMitarbeiter.map(m => `<option value="${String(m.name).replace(/"/g, '&quot;')}">${m.name} (${m.rolle || 'Verleger'})</option>`).join('');
         }
 
+        // Dauerhaften Login nach dem Laden der Daten wiederherstellen.
+        // Nur ein lokal gespeicherter Benutzer wird automatisch angemeldet;
+        // ein echter Klick auf "Abmelden" entfernt diese Daten.
+        function dauerhaftenLoginWiederherstellen() {
+            try {
+                if (localStorage.getItem("brisbois_login_persistent") !== "1") return;
+                const name = localStorage.getItem("brisbois_login_user") || "";
+                const rolleGespeichert = localStorage.getItem("brisbois_login_role") || "";
+                if (!name) return;
+
+                const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === name);
+                if (!maObjekt) return;
+
+                eingeloggterMitarbeiter = name;
+                eingeloggteRolle = maObjekt.rolle || rolleGespeichert || "Verleger";
+                oeffneAppNachLogin();
+            } catch(e) {
+                console.warn("Dauerhafter Login konnte nicht wiederhergestellt werden:", e);
+            }
+        }
+
         window.schnellLoginDirekt = function(name, rolle) {
             // Schnell-Test: Benutzer zusätzlich in der Session merken, damit ein
             // notwendiger Sprach-Reload den Schnell-Login nicht wieder verliert.
@@ -2110,6 +2137,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             eingeloggterMitarbeiter = name;
             const maObjekt = globalDaten.mitarbeiterListe.find(m => m.name === name);
             eingeloggteRolle = maObjekt ? maObjekt.rolle : "Verleger";
+
+            // Login dauerhaft auf diesem Gerät merken. Dadurch bleibt die
+            // Anmeldung auch nach dem Schließen des Safari-Tabs erhalten.
+            try {
+                localStorage.setItem("brisbois_login_user", eingeloggterMitarbeiter);
+                localStorage.setItem("brisbois_login_role", eingeloggteRolle);
+                localStorage.setItem("brisbois_login_persistent", "1");
+            } catch(e) {
+                console.warn("Dauerhafter Login konnte nicht gespeichert werden:", e);
+            }
+
             setTimeout(() => { try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {} }, 50);
             
             oeffneAppNachLogin();
@@ -3721,6 +3759,21 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.urlaubEntscheidung = urlaubEntscheidungNeu;
 
         window.abmelden = function() {
+            try {
+                localStorage.removeItem("brisbois_login_user");
+                localStorage.removeItem("brisbois_login_role");
+                localStorage.removeItem("brisbois_login_persistent");
+            } catch(e) {}
+
+            try {
+                sessionStorage.removeItem("brisbois_quick_user");
+                sessionStorage.removeItem("brisbois_quick_role");
+                sessionStorage.removeItem("brisbois_quick_login");
+            } catch(e) {}
+
+            eingeloggterMitarbeiter = "";
+            eingeloggteRolle = "";
+
             document.getElementById('app-container').classList.add('hidden');
             document.getElementById('login-modal').classList.remove('hidden');
             document.getElementById('login-passwort').value = "";
