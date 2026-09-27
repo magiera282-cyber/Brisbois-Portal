@@ -296,9 +296,10 @@ function kiKurzbeschreibungAuswerten(){
 <style id="mobile-plan-controls-final">
 @media (max-width: 640px) {
   #vollbild-scroll-container {
-    touch-action: pan-x pan-y;
+    touch-action: none;
     -webkit-user-select: none;
     user-select: none;
+    overflow: hidden !important;
   }
 }
 </style>
@@ -4187,6 +4188,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             document.getElementById('vollbild-titel').innerText = `📐 Großansicht: ${aktuellesProjekt} (Plan ${(p.aktiverPlanIndex || 0) + 1})`;
             vollbildZoomFaktor = 1;
+            mobilePlanOffsetX = 0;
+            mobilePlanOffsetY = 0;
             aktualisiereVollbildTransform();
 
             const bildEl = document.getElementById('vollbild-plan-bild');
@@ -4224,13 +4227,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         window.vollbildZoomReset = function() {
             vollbildZoomFaktor = 1;
+            mobilePlanOffsetX = 0;
+            mobilePlanOffsetY = 0;
             aktualisiereVollbildTransform();
         }
 
         function aktualisiereVollbildTransform() {
             const wrapper = document.getElementById('vollbild-transform-wrapper');
             if(wrapper) {
-                wrapper.style.transform = `scale(${vollbildZoomFaktor})`;
+                wrapper.style.transform =
+                    `translate3d(${mobilePlanOffsetX}px, ${mobilePlanOffsetY}px, 0) scale(${vollbildZoomFaktor})`;
             }
         }
 
@@ -4287,6 +4293,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         let mobilePinchAktiv = false;
         let mobilePinchStartAbstand = 0;
         let mobilePinchStartZoom = 1;
+        let mobilePlanOffsetX = 0;
+        let mobilePlanOffsetY = 0;
+        let mobilePanAktiv = false;
+        let mobilePanStartX = 0;
+        let mobilePanStartY = 0;
+        let mobilePanStartOffsetX = 0;
+        let mobilePanStartOffsetY = 0;
 
         window.pinTypWaehlen = function(typ) {
             ausgewaehlterPinTyp = typ;
@@ -4320,6 +4333,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             const rect = wrapper.getBoundingClientRect();
             const t = event.touches[0];
+
+            // rect enthält bereits Scale + Translation. Die relative Position
+            // des Fingers innerhalb des sichtbaren Plans bleibt dadurch korrekt.
             const x = t.clientX - rect.left;
             const y = t.clientY - rect.top;
             if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
@@ -4332,66 +4348,96 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         function mobilePinTouchStart(event) {
-            // Zwei Finger = immer Pinch-Zoom, niemals Long-Press.
+            if (!event.touches) return;
+
+            // Zwei Finger: eigener Pinch-Zoom um den aktuellen Plan.
             if (event.touches.length >= 2) {
                 pinLongPressWirdGetriggert = false;
                 clearTimeout(pinLongPressTimer);
+
                 mobilePinchAktiv = true;
+                mobilePanAktiv = false;
                 mobilePinchStartAbstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
                 mobilePinchStartZoom = vollbildZoomFaktor;
                 return;
             }
 
-            if (!pinModusAktiv || event.touches.length !== 1) return;
+            if (event.touches.length !== 1) return;
 
             const t = event.touches[0];
             pinTouchStartX = t.clientX;
             pinTouchStartY = t.clientY;
-            pinLongPressWirdGetriggert = true;
-            clearTimeout(pinLongPressTimer);
 
-            pinLongPressTimer = setTimeout(() => {
-                if (!pinLongPressWirdGetriggert) return;
-                const pos = mobilePinPosition(event);
-                if (pos) {
-                    pinLongPressWirdGetriggert = false;
-                    mobilePinModalOeffnen(pos.x, pos.y);
-                }
-            }, 650);
+            // Ein Finger bewegt den Plan, sobald er gezoomt ist.
+            mobilePanAktiv = true;
+            mobilePanStartX = t.clientX;
+            mobilePanStartY = t.clientY;
+            mobilePanStartOffsetX = mobilePlanOffsetX;
+            mobilePanStartOffsetY = mobilePlanOffsetY;
+
+            // Wenn Pin-Modus aktiv ist, startet zusätzlich der Long-Press.
+            if (pinModusAktiv) {
+                pinLongPressWirdGetriggert = true;
+                clearTimeout(pinLongPressTimer);
+
+                pinLongPressTimer = setTimeout(() => {
+                    if (!pinLongPressWirdGetriggert) return;
+                    const pos = mobilePinPosition(event);
+                    if (pos) {
+                        pinLongPressWirdGetriggert = false;
+                        mobilePanAktiv = false;
+                        mobilePinModalOeffnen(pos.x, pos.y);
+                    }
+                }, 650);
+            }
         }
 
         function mobilePinTouchMove(event) {
+            if (!event.touches) return;
+
+            // Zwei Finger = Pinch-Zoom.
             if (event.touches.length >= 2) {
                 pinLongPressWirdGetriggert = false;
                 clearTimeout(pinLongPressTimer);
-
-                if (!mobilePinchAktiv) {
-                    mobilePinchAktiv = true;
-                    mobilePinchStartAbstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
-                    mobilePinchStartZoom = vollbildZoomFaktor;
-                }
+                mobilePanAktiv = false;
+                mobilePinchAktiv = true;
 
                 const abstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
                 if (mobilePinchStartAbstand > 0) {
                     const faktor = abstand / mobilePinchStartAbstand;
                     vollbildZoomFaktor = Math.max(0.7, Math.min(4, mobilePinchStartZoom * faktor));
                     aktualisiereVollbildTransform();
-                    event.preventDefault();
                 }
+                event.preventDefault();
                 return;
             }
 
-            if (!pinLongPressWirdGetriggert || event.touches.length !== 1) return;
+            if (event.touches.length !== 1) return;
 
             const t = event.touches[0];
-            if (Math.hypot(t.clientX-pinTouchStartX, t.clientY-pinTouchStartY) > 12) {
+            const dx = t.clientX - pinTouchStartX;
+            const dy = t.clientY - pinTouchStartY;
+
+            // Bewegung beendet einen Long-Press.
+            if (Math.hypot(dx, dy) > 12) {
                 pinLongPressWirdGetriggert = false;
                 clearTimeout(pinLongPressTimer);
+            }
+
+            // Plan mit einem Finger verschieben.
+            if (mobilePanAktiv) {
+                mobilePlanOffsetX = mobilePanStartOffsetX + dx;
+                mobilePlanOffsetY = mobilePanStartOffsetY + dy;
+                aktualisiereVollbildTransform();
+                event.preventDefault();
             }
         }
 
         function mobilePinTouchEnd(event) {
-            if (!event || event.touches.length < 2) mobilePinchAktiv = false;
+            if (!event || event.touches.length < 2) {
+                mobilePinchAktiv = false;
+            }
+            mobilePanAktiv = false;
             pinLongPressWirdGetriggert = false;
             clearTimeout(pinLongPressTimer);
         }
