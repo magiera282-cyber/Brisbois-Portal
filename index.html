@@ -3098,7 +3098,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             });
         }
 
-        window.mehrfachZuweisungGeändert = function(mitarbeiter, projekt, istHinzugefuegt) {
+        window.mehrfachZuweisungGeändert = async function(mitarbeiter, projekt, istHinzugefuegt) {
             if(!globalDaten.zuweisungen[mitarbeiter]) {
                 globalDaten.zuweisungen[mitarbeiter] = [];
             }
@@ -3108,10 +3108,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     globalDaten.zuweisungen[mitarbeiter].push(projekt);
                 }
             } else {
-                globalDaten.zuweisungen[mitarbeiter] = globalDaten.zuweisungen[mitarbeiter].filter(p => p !== projekt);
+                globalDaten.zuweisungen[mitarbeiter] =
+                    globalDaten.zuweisungen[mitarbeiter].filter(p => p !== projekt);
             }
 
-            globalGlobalSpeichern();
+            // Wichtig: erst auf den Firebase-Speichervorgang warten.
+            await globalGlobalSpeichern();
             allesAktualisieren();
         }
 
@@ -3149,10 +3151,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             });
         }
 
-        window.mitarbeiterVomProjektEntfernen = function(maName) {
+        window.mitarbeiterVomProjektEntfernen = async function(maName) {
             if(globalDaten.zuweisungen[maName]) {
-                globalDaten.zuweisungen[maName] = globalDaten.zuweisungen[maName].filter(p => p !== aktuellesProjekt);
-                globalGlobalSpeichern();
+                globalDaten.zuweisungen[maName] =
+                    globalDaten.zuweisungen[maName].filter(p => p !== aktuellesProjekt);
+                await globalGlobalSpeichern();
                 allesAktualisieren();
             }
         }
@@ -3172,11 +3175,15 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if(aktuellerWert) select.value = aktuellerWert;
         }
 
-        window.mitarbeiterZuAktuellemProjektHinzufuegen = function() {
+        window.mitarbeiterZuAktuellemProjektHinzufuegen = async function() {
             const select = document.getElementById('projekt-schnell-zuweisen-select');
             const maName = select.value;
             if(!maName) {
                 alert("Bitte wähle einen Mitarbeiter aus!");
+                return;
+            }
+            if(!aktuellesProjekt) {
+                alert("Bitte wähle zuerst eine Baustelle aus!");
                 return;
             }
 
@@ -3187,7 +3194,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.zuweisungen[maName].push(aktuellesProjekt);
             }
 
-            globalGlobalSpeichern();
+            // Erst Firebase bestätigen, dann Anzeige aktualisieren.
+            await globalGlobalSpeichern();
             allesAktualisieren();
         }
 
