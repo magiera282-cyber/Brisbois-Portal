@@ -390,11 +390,7 @@ function kiKurzbeschreibungAuswerten(){
              onmousemove="vollbildPanBewegen(event)"
              onmouseup="stopVollbildPan()"
              onmouseleave="stopVollbildPan()"
-             onclick="vollbildGrundrissKlickVerarbeiten(event)"
-             ontouchstart="vollbildPlanTouchStart(event)"
-             ontouchmove="vollbildPlanTouchMove(event)"
-             ontouchend="vollbildPlanTouchEnd(event)"
-             ontouchcancel="vollbildPlanTouchEnd(event)">
+             onclick="vollbildGrundrissKlickVerarbeiten(event)">
             
             <div id="vollbild-transform-wrapper" class="relative inline-block transition-transform duration-100 origin-center" style="transform: scale(1);">
                 <img id="vollbild-plan-bild" class="hidden block max-w-none select-none shadow-2xl rounded-lg" alt="Grundriss Vollbild">
@@ -4329,15 +4325,31 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         window.vollbildPlanTouchStart = function(event) {
             if (!pinModusAktiv || !event.touches || event.touches.length !== 1) return;
+            const target = event.target;
+            if (!target.closest || !target.closest('#vollbild-scroll-container')) return;
+
             pinLongPressAktiv = true;
             pinTouchStartX = event.touches[0].clientX;
             pinTouchStartY = event.touches[0].clientY;
-            pinPositionAusEvent(event);
             clearTimeout(pinLongPressTimer);
+
             pinLongPressTimer = setTimeout(() => {
                 if (!pinLongPressAktiv) return;
                 pinLongPressAktiv = false;
-                if (pinPositionAusEvent(event)) pinModalOeffnen();
+
+                const container = document.getElementById('vollbild-scroll-container');
+                if (!container) return;
+                const rect = container.getBoundingClientRect();
+                const t = event.touches && event.touches[0];
+                if (!t) return;
+
+                const x = t.clientX - rect.left;
+                const y = t.clientY - rect.top;
+                if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
+
+                temporärePinX = (x / rect.width) * 100;
+                temporärePinY = (y / rect.height) * 100;
+                pinModalOeffnen();
             }, 650);
         };
 
@@ -4350,15 +4362,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         };
 
-        window.vollbildPlanTouchEnd = function(event) {
-            if (!pinLongPressAktiv) {
-                clearTimeout(pinLongPressTimer);
-                return;
-            }
+        window.vollbildPlanTouchEnd = function() {
             pinLongPressAktiv = false;
             clearTimeout(pinLongPressTimer);
-            // On mobile, a normal tap only pans/zooms; long press is used for pins.
-            if (event && event.preventDefault) event.preventDefault();
         };
 
         window.vollbildGrundrissKlickVerarbeiten = function(event) {
@@ -6166,7 +6172,16 @@ body { top:0 !important; }
     }, 300);
 })();
 </script>
-<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit">
+        document.addEventListener('DOMContentLoaded', function() {
+            const plan = document.getElementById('vollbild-scroll-container');
+            if (!plan) return;
+            plan.addEventListener('touchstart', vollbildPlanTouchStart, {passive:true});
+            plan.addEventListener('touchmove', vollbildPlanTouchMove, {passive:true});
+            plan.addEventListener('touchend', vollbildPlanTouchEnd, {passive:true});
+            plan.addEventListener('touchcancel', vollbildPlanTouchEnd, {passive:true});
+        });
+</script>
 
 
 </body>
