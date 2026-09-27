@@ -1701,6 +1701,64 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             document.head.appendChild(style);
         }
 
+
+        // System-Benachrichtigungen fuer neue Nachrichten (PC + Handy)
+        let benachrichtigungsSystemInitialisiert = false;
+        let bekannteNachrichtenSignaturen = new Set();
+
+        async function systemBenachrichtigungenAktivieren() {
+            try {
+                if (!('Notification' in window)) return;
+                if (Notification.permission === 'default') {
+                    await Notification.requestPermission();
+                }
+            } catch (e) {
+                console.warn('System-Benachrichtigungen konnten nicht aktiviert werden:', e);
+            }
+        }
+
+        function nachrichtIstFuerAktuellenMitarbeiter(item) {
+            if (!item || !eingeloggterMitarbeiter) return false;
+            const empfaenger = String(item.empfaenger || '').trim();
+            if (empfaenger === 'Alle') return true;
+            return empfaenger === String(eingeloggterMitarbeiter).trim();
+        }
+
+        function systemNachrichtAnzeigen(item) {
+            try {
+                if (!('Notification' in window) || Notification.permission !== 'granted') return;
+                if (!nachrichtIstFuerAktuellenMitarbeiter(item)) return;
+                const absender = String(item.von || 'Brisbois Portal');
+                if (absender === String(eingeloggterMitarbeiter || '').trim()) return;
+                const n = new Notification('🔔 Brisbois Portal', {
+                    body: absender + ': ' + String(item.text || 'Neue Nachricht'),
+                    icon: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/firebase-logo.png',
+                    tag: 'brisbois-nachricht'
+                });
+                n.onclick = function() {
+                    try { window.focus(); } catch(e) {}
+                    try { wechselnTab('benachrichtigungen'); } catch(e) {}
+                    try { n.close(); } catch(e) {}
+                };
+            } catch (e) {
+                console.warn('System-Benachrichtigung fehlgeschlagen:', e);
+            }
+        }
+
+        function neueSystemNachrichtenPruefen(liste) {
+            const nachrichten = Array.isArray(liste) ? liste : [];
+            const aktuelleSignaturen = new Set();
+            nachrichten.forEach(item => {
+                const signatur = JSON.stringify({von:item?.von||'', text:item?.text||'', empfaenger:item?.empfaenger||'', datum:item?.datum||''});
+                aktuelleSignaturen.add(signatur);
+                if (benachrichtigungsSystemInitialisiert && !bekannteNachrichtenSignaturen.has(signatur)) {
+                    systemNachrichtAnzeigen(item);
+                }
+            });
+            bekannteNachrichtenSignaturen = aktuelleSignaturen;
+            benachrichtigungsSystemInitialisiert = true;
+        }
+
         onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
             if (docSnap.exists()) {
                 const cloudDaten = docSnap.data();
@@ -2087,6 +2145,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             setTimeout(() => { try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {} }, 50);
             
             oeffneAppNachLogin();
+            // Nach dem Login liegt eine echte Benutzerinteraktion vor; jetzt darf der Browser die Berechtigung abfragen.
+            setTimeout(() => { systemBenachrichtigungenAktivieren(); }, 250);
         }
 
         function oeffneAppNachLogin() {
