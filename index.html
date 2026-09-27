@@ -214,16 +214,54 @@ function kiKurzbeschreibungAuswerten(){
 
 <style>
 @media (max-width: 640px){
-  #app-container > header{position:relative;}
-  #app-container > header > div:last-child{display:flex;align-items:center;gap:.35rem;}
-  #app-container > header > div:last-child #language-de-app,
-  #app-container > header > div:last-child #language-fr-app{position:relative;}
-  #app-container > header > div:last-child .inline-flex[aria-label="Sprache"]{
-    position:absolute;left:50%;transform:translateX(-50%);top:50%;margin-top:-18px;
+  /* Nur die mobile Kopfzeile: keine horizontale Verschiebung/kein
+     Überlappen. Die Desktop-Ansicht bleibt unverändert. */
+  #app-container > header{
+    position:relative;
+    align-items:center;
   }
+
+  #app-container > header > div:last-child{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    flex-wrap:wrap;
+    gap:.3rem;
+    max-width:58%;
+    min-width:0;
+  }
+
+  #app-container > header > div:last-child #user-badge{
+    flex:0 0 100%;
+    width:100%;
+    text-align:right;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    min-width:0;
+  }
+
+  #app-container > header > div:last-child #btn-abrechnungen-top,
   #app-container > header > div:last-child > button[onclick="abmelden()"]{
-    position:absolute;left:calc(50% + 48px);top:50%;transform:translateY(-50%);
-    padding-left:.65rem;padding-right:.65rem;
+    position:static;
+    transform:none;
+    margin:0;
+    padding-left:.55rem;
+    padding-right:.55rem;
+    white-space:nowrap;
+    flex:0 0 auto;
+  }
+
+  #app-container > header > div:last-child .inline-flex[aria-label="Sprache"]{
+    position:static;
+    transform:none;
+    margin:0;
+    flex:0 0 auto;
+  }
+
+  #app-container > header > div:last-child #language-de-app,
+  #app-container > header > div:last-child #language-fr-app{
+    position:relative;
   }
 }
 </style>
