@@ -4,11 +4,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#2563eb">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Brisbois Portal">
-    <link rel="manifest" href="./manifest.webmanifest">
     <title>brisbois; bembé - Internes Baustellen-Portal (Cloud)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet.js für die echte interaktive Karte -->
@@ -232,6 +227,11 @@ function kiKurzbeschreibungAuswerten(){
   }
 }
 </style>
+<link rel="manifest" href="./manifest.webmanifest">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Brisbois Portal">
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
@@ -1061,7 +1061,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         <button onclick="alleBenachrichtigungenLoeschen()" class="bg-red-100 hover:bg-red-200 text-red-800 font-semibold px-3 py-2 rounded-lg text-xs transition shadow-sm">
                             🗑️ Alle löschen
                         </button>
-                        <button type="button" id="push-aktivieren-btn" onclick="brisboisPushBenachrichtigungenAktivieren()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition shadow-sm">
+                        <button type="button" onclick="brisboisPushAktivieren()" id="push-aktivieren-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition shadow-sm">
                             🔔 Push aktivieren
                         </button>
                         <button type="button" onclick="nachrichtModalOeffnen()" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition shadow-sm">
@@ -1422,7 +1422,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
-        import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+        import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+        import { serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyC4X4AzkoqdjBuv5ux5wGLcXTPdrqvm3iU",
@@ -1436,117 +1437,56 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app, "(default)");
+        const messaging = getMessaging(app);
+        let brisboisPushRegistration = null;
 
-        // Firebase Cloud Messaging für echte Push-Benachrichtigungen auf Android, iPhone (PWA) und PC.
-        const BRISBOIS_VAPID_PUBLIC_KEY = "BAvLBPO-lmOeYe2cmTmGxfpirIHp-UjabyUeMTTGzyWRuKZd6A4hILJIDK6BZEOwE6Qm-z5Q-tcJwJ0AkKCDlrA";
-        let brisboisMessaging = null;
-        let brisboisPushServiceWorker = null;
-
-        async function brisboisPushUnterstuetzt() {
-            try { return await isSupported(); } catch(e) { return false; }
-        }
-
-        function brisboisIstIphone() {
-            return /iPhone|iPad|iPod/i.test(navigator.userAgent || "");
-        }
-
-        function brisboisIstInstallierteWebApp() {
-            return window.matchMedia && window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-        }
-
-        async function brisboisPushEinrichten() {
+        async function brisboisPushAktivieren() {
             try {
-                if (!(await brisboisPushUnterstuetzt())) return null;
-                if (!('serviceWorker' in navigator)) return null;
-                if (brisboisIstIphone() && !brisboisIstInstallierteWebApp()) return null;
-
-                const swUrl = new URL('./firebase-messaging-sw.js', window.location.href).href;
-                brisboisPushServiceWorker = await navigator.serviceWorker.register(swUrl, { scope: './' });
-                brisboisMessaging = brisboisMessaging || getMessaging(app);
-                return brisboisPushServiceWorker;
-            } catch(e) {
-                console.warn('Push-Service-Worker konnte nicht eingerichtet werden:', e);
-                return null;
-            }
-        }
-
-        window.brisboisPushBenachrichtigungenAktivieren = async function() {
-            try {
-                if (!('Notification' in window)) {
-                    alert('Dieser Browser unterstützt keine Push-Benachrichtigungen.');
-                    return;
+                if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+                    alert("Dieser Browser unterstützt keine Push-Benachrichtigungen.");
+                    return false;
                 }
-                if (brisboisIstIphone() && !brisboisIstInstallierteWebApp()) {
-                    alert('Auf dem iPhone muss das Brisbois Portal zuerst über „Teilen → Zum Home-Bildschirm“ installiert werden. Danach die Portal-App vom Home-Bildschirm öffnen und hier erneut „Push aktivieren“ drücken.');
-                    return;
+                const istIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+                const istStandalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+                if (istIOS && !istStandalone) {
+                    alert("Für Push-Benachrichtigungen auf dem iPhone muss das Brisbois Portal zuerst über „Teilen“ → „Zum Home-Bildschirm“ installiert werden. Öffne danach die Portal-App und tippe erneut auf „Push aktivieren“. ");
+                    return false;
                 }
-
                 const permission = await Notification.requestPermission();
-                if (permission !== 'granted') {
-                    alert('Benachrichtigungen wurden nicht erlaubt. Bitte in den Browser-/iPhone-Einstellungen für das Brisbois Portal erlauben.');
-                    return;
+                if (permission !== "granted") {
+                    alert("Die Benachrichtigungen wurden nicht erlaubt. Du kannst sie später in den Browser-/iPhone-Einstellungen aktivieren.");
+                    return false;
                 }
-
-                const sw = await brisboisPushEinrichten();
-                if (!sw) {
-                    alert('Push konnte auf diesem Gerät noch nicht eingerichtet werden. Bitte die Portal-App neu laden und erneut versuchen.');
-                    return;
-                }
-
-                brisboisMessaging = brisboisMessaging || getMessaging(app);
-                const token = await getToken(brisboisMessaging, {
-                    vapidKey: BRISBOIS_VAPID_PUBLIC_KEY,
-                    serviceWorkerRegistration: sw
-                });
+                brisboisPushRegistration = await navigator.serviceWorker.register("./firebase-messaging-sw.js", { scope: "./" });
+                const token = await getToken(messaging, { serviceWorkerRegistration: brisboisPushRegistration, vapidKey: "BAvLBPO-lmOeYe2cmTmGxfpirIHp-UjabyUeMTTGzyWRuKZd6A4hILJIDK6BZEOwE6Qm-z5Q-tcJwJ0AkKCDlrA" });
                 if (!token) {
-                    alert('Es konnte kein Push-Gerät registriert werden.');
-                    return;
+                    alert("Das Gerät konnte noch nicht für Push registriert werden. Bitte prüfe die Firebase-Web-Push-Konfiguration.");
+                    return false;
                 }
-
-                const tokenId = btoa(unescape(encodeURIComponent(token))).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 140) || ('token_' + Date.now());
-                await setDoc(doc(db, 'pushTokens', tokenId), {
-                    token,
-                    employeeName: eingeloggterMitarbeiter,
-                    role: eingeloggteRolle,
-                    updatedAt: new Date().toISOString(),
-                    userAgent: navigator.userAgent || ''
-                }, { merge: true });
-
-                try { localStorage.setItem('brisbois_push_aktiv', '1'); } catch(e) {}
-                const btn = document.getElementById('push-aktivieren-btn');
-                if (btn) { btn.innerText = '✅ Push-Benachrichtigungen aktiviert'; btn.classList.remove('bg-blue-600','hover:bg-blue-700'); btn.classList.add('bg-emerald-600'); }
-                alert('Push-Benachrichtigungen sind jetzt aktiviert.');
-            } catch(e) {
-                console.error('Push-Aktivierung fehlgeschlagen:', e);
-                alert('Push konnte nicht aktiviert werden. Bitte Browser-Berechtigung und Firebase-Konfiguration prüfen.');
+                const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter || "unbekannt") + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
+                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, token, updatedAt: serverTimestamp() });
+                localStorage.setItem("brisbois_push_aktiv", "1");
+                const btn = document.getElementById("push-aktivieren-btn");
+                if (btn) btn.innerText = "🔔 Push aktiviert";
+                return true;
+            } catch (e) {
+                console.error("Push-Aktivierung fehlgeschlagen:", e);
+                alert("Push konnte nicht aktiviert werden. Bitte prüfe die Firebase-Web-Push-Konfiguration.\n\n" + (e?.message || e));
+                return false;
             }
-        };
-
-        async function brisboisPushNachLoginVorbereiten() {
-            try {
-                if (!(await brisboisPushUnterstuetzt())) return;
-                if (brisboisIstIphone() && !brisboisIstInstallierteWebApp()) return;
-                if (Notification.permission !== 'granted') return;
-                const sw = await brisboisPushEinrichten();
-                if (!sw) return;
-                brisboisMessaging = brisboisMessaging || getMessaging(app);
-                const token = await getToken(brisboisMessaging, { vapidKey: BRISBOIS_VAPID_PUBLIC_KEY, serviceWorkerRegistration: sw });
-                if (!token || !eingeloggterMitarbeiter) return;
-                const tokenId = btoa(unescape(encodeURIComponent(token))).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 140) || ('token_' + Date.now());
-                await setDoc(doc(db, 'pushTokens', tokenId), { token, employeeName: eingeloggterMitarbeiter, role: eingeloggteRolle, updatedAt: new Date().toISOString(), userAgent: navigator.userAgent || '' }, { merge: true });
-            } catch(e) { console.warn('Push-Nach-Login konnte nicht automatisch vorbereitet werden:', e); }
         }
+        window.brisboisPushAktivieren = brisboisPushAktivieren;
 
-        (async () => {
+        onMessage(messaging, (payload) => {
             try {
-                if (await brisboisPushUnterstuetzt()) {
-                    brisboisMessaging = getMessaging(app);
-                    onMessage(brisboisMessaging, () => {
-                        // Die sichtbare Echtzeit-Anzeige, der Ton und das Popup übernimmt weiterhin das bestehende Portal-System.
-                    });
+                const title = payload?.notification?.title || "Brisbois Portal";
+                const body = payload?.notification?.body || "Neue Nachricht";
+                if (Notification.permission === "granted" && document.visibilityState === "visible") {
+                    new Notification(title, { body, icon: "./icon-192.png", tag: "brisbois-message" });
                 }
-            } catch(e) { console.warn('FCM Foreground Listener konnte nicht gestartet werden:', e); }
-        })();
+                try { neueNachrichtPopupAnzeigen({ von: payload?.data?.von || "Team", text: body }); } catch(e) {}
+            } catch(e) {}
+        });
         // Krankmeldungs-Zugriff für das Viewer-System bereitstellen.
         window.__brisboisGetKrankmeldung = async function(id){
             const snap = await getDoc(doc(db, "krankmeldungen", String(id)));
@@ -1819,64 +1759,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             style.id = 'brisbois-nachricht-plop-style';
             style.textContent = '@keyframes brisboisNachrichtPlop{0%{transform:translateY(-18px) scale(.94);opacity:0}70%{transform:translateY(3px) scale(1.02);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}';
             document.head.appendChild(style);
-        }
-
-
-        // System-Benachrichtigungen fuer neue Nachrichten (PC + Handy)
-        let benachrichtigungsSystemInitialisiert = false;
-        let bekannteNachrichtenSignaturen = new Set();
-
-        async function systemBenachrichtigungenAktivieren() {
-            try {
-                if (!('Notification' in window)) return;
-                if (Notification.permission === 'default') {
-                    await Notification.requestPermission();
-                }
-            } catch (e) {
-                console.warn('System-Benachrichtigungen konnten nicht aktiviert werden:', e);
-            }
-        }
-
-        function nachrichtIstFuerAktuellenMitarbeiter(item) {
-            if (!item || !eingeloggterMitarbeiter) return false;
-            const empfaenger = String(item.empfaenger || '').trim();
-            if (empfaenger === 'Alle') return true;
-            return empfaenger === String(eingeloggterMitarbeiter).trim();
-        }
-
-        function systemNachrichtAnzeigen(item) {
-            try {
-                if (!('Notification' in window) || Notification.permission !== 'granted') return;
-                if (!nachrichtIstFuerAktuellenMitarbeiter(item)) return;
-                const absender = String(item.von || 'Brisbois Portal');
-                if (absender === String(eingeloggterMitarbeiter || '').trim()) return;
-                const n = new Notification('🔔 Brisbois Portal', {
-                    body: absender + ': ' + String(item.text || 'Neue Nachricht'),
-                    icon: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/firebase-logo.png',
-                    tag: 'brisbois-nachricht'
-                });
-                n.onclick = function() {
-                    try { window.focus(); } catch(e) {}
-                    try { wechselnTab('benachrichtigungen'); } catch(e) {}
-                    try { n.close(); } catch(e) {}
-                };
-            } catch (e) {
-                console.warn('System-Benachrichtigung fehlgeschlagen:', e);
-            }
-        }
-
-        function neueSystemNachrichtenPruefen(liste) {
-            const nachrichten = Array.isArray(liste) ? liste : [];
-            const aktuelleSignaturen = new Set();
-            nachrichten.forEach(item => {
-                const signatur = JSON.stringify({von:item?.von||'', text:item?.text||'', empfaenger:item?.empfaenger||'', datum:item?.datum||''});
-                aktuelleSignaturen.add(signatur);
-                if (benachrichtigungsSystemInitialisiert && !bekannteNachrichtenSignaturen.has(signatur)) {
-                    systemNachrichtAnzeigen(item);
-                }
-            });
-            bekannteNachrichtenSignaturen = aktuelleSignaturen;
-            benachrichtigungsSystemInitialisiert = true;
         }
 
         onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
@@ -2236,7 +2118,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 sessionStorage.setItem('brisbois_quick_role', rolle);
                 sessionStorage.setItem('brisbois_quick_login', '1');
             } catch(e) {}
-            try { oeffneAppNachLogin(); setTimeout(() => { brisboisPushNachLoginVorbereiten(); }, 300); } catch(e) {
+            try { oeffneAppNachLogin(); } catch(e) {
                 console.error('Schnell-Login Fehler:', e);
                 const loginModal = document.getElementById('login-modal');
                 const appContainer = document.getElementById('app-container');
@@ -2265,8 +2147,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             setTimeout(() => { try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {} }, 50);
             
             oeffneAppNachLogin();
-            // Nach dem Login liegt eine echte Benutzerinteraktion vor; jetzt darf der Browser die Berechtigung abfragen.
-            setTimeout(() => { systemBenachrichtigungenAktivieren(); brisboisPushNachLoginVorbereiten(); }, 250);
         }
 
         function oeffneAppNachLogin() {
