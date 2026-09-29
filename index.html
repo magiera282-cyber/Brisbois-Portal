@@ -493,6 +493,30 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
   -webkit-text-fill-color: #ffffff !important;
 }
 </style>
+
+<style id="light-background-text-fix-final">
+/* Nur innerhalb des Portals: helle Flächen bekommen dunkle Schrift. Der Login bleibt unangetastet. */
+#app-container .bg-white, #app-container .bg-slate-50, #app-container .bg-slate-100, #app-container .bg-slate-200,
+#app-container .bg-gray-50, #app-container .bg-gray-100, #app-container .bg-gray-200,
+#app-container .bg-blue-50, #app-container .bg-blue-100, #app-container .bg-amber-50, #app-container .bg-amber-100,
+#app-container .bg-emerald-50, #app-container .bg-emerald-100, #app-container .bg-red-50, #app-container .bg-red-100 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+#app-container .bg-white *, #app-container .bg-slate-50 *, #app-container .bg-slate-100 *, #app-container .bg-slate-200 *,
+#app-container .bg-gray-50 *, #app-container .bg-gray-100 *, #app-container .bg-gray-200 *,
+#app-container .bg-blue-50 *, #app-container .bg-blue-100 *, #app-container .bg-amber-50 *, #app-container .bg-amber-100 *,
+#app-container .bg-emerald-50 *, #app-container .bg-emerald-100 *, #app-container .bg-red-50 *, #app-container .bg-red-100 * {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+/* Farbige Status-/Typ-Schriften behalten ihre eigene Farbe. */
+#app-container .bg-blue-50 .text-blue-700, #app-container .bg-blue-100 .text-blue-700 { color:#1d4ed8 !important; -webkit-text-fill-color:#1d4ed8 !important; }
+#app-container .bg-amber-50 .text-amber-700, #app-container .bg-amber-100 .text-amber-700 { color:#b45309 !important; -webkit-text-fill-color:#b45309 !important; }
+#app-container .bg-red-50 .text-red-700, #app-container .bg-red-100 .text-red-700 { color:#b91c1c !important; -webkit-text-fill-color:#b91c1c !important; }
+#app-container .bg-red-100 .text-red-800 { color:#991b1b !important; -webkit-text-fill-color:#991b1b !important; }
+#app-container .bg-slate-200 .text-slate-500, #app-container .bg-slate-100 .text-slate-500 { color:#475569 !important; -webkit-text-fill-color:#475569 !important; }
+</style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
