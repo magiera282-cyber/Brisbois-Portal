@@ -909,6 +909,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 <div class="hidden sm:block border-l border-slate-600 pl-3">
                     <p class="text-xs text-slate-300 font-medium tracking-wider">Artisans de sols</p>
                 </div>
+                <button type="button" onclick="wechselnTab('dashboard')" id="btn-dashboard-top" class="hidden md:inline-flex dashboard-only items-center gap-2 text-xs bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-white px-3 py-2 rounded-xl font-bold transition whitespace-nowrap">📊 Chef-Dashboard</button>
             </div>
             <div class="flex items-center gap-3">
                 <span id="user-badge" class="text-xs bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full font-medium text-slate-300"></span>
@@ -927,7 +928,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         <nav id="haupt-navigation" class="bg-white border-b border-slate-200 px-4 py-2 flex gap-2 md:gap-4 text-sm font-semibold shadow-sm overflow-x-auto">
             <button onclick="wechselnTab('startseite')" id="btn-startseite" class="tab-btn text-blue-600 border-b-2 border-blue-600 pb-1 whitespace-nowrap">🏠 Startseite</button>
             <button onclick="wechselnTab('auftraege')" id="btn-auftraege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📁 Projekt & Baustelle</button>
-            <button onclick="wechselnTab('dashboard')" id="btn-dashboard" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap dashboard-only hidden">📊 Chef-Dashboard</button>
             <button onclick="wechselnTab('materialliste')" id="btn-materialliste" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap materialliste-only hidden">📦 Materialliste</button>
             <button onclick="wechselnTab('benachrichtigungen')" id="btn-benachrichtigungen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap flex items-center gap-1">
                 <span>🔔 Benachrichtigungen</span>
