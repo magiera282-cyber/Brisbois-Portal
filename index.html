@@ -481,6 +481,33 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
   }
 }
 </style>
+
+<style id="light-background-text-contrast-fix">
+/* Helle Bedienelemente: dunkle Schrift für klaren Kontrast. Sonstiges Design unverändert. */
+main.tab-content .bg-slate-50.text-slate-800,
+main.tab-content .bg-slate-100.text-slate-800,
+main.tab-content .bg-slate-200.text-slate-800,
+main.tab-content .bg-slate-50.text-slate-700,
+main.tab-content .bg-slate-100.text-slate-700,
+main.tab-content .bg-slate-200.text-slate-700,
+main.tab-content .bg-blue-50.text-blue-700,
+main.tab-content .bg-amber-50.text-amber-700,
+main.tab-content .bg-gray-50.text-gray-700,
+main.tab-content .bg-gray-100.text-gray-700,
+main.tab-content .bg-gray-200.text-gray-700 {
+  color: #1e293b !important;
+}
+
+/* Auch helle Buttons ohne explizite Textfarbe bekommen gut lesbare Schrift. */
+main.tab-content button.bg-slate-50,
+main.tab-content button.bg-slate-100,
+main.tab-content button.bg-slate-200 {
+  color: #1e293b !important;
+}
+
+main.tab-content button.bg-blue-50 { color: #1d4ed8 !important; }
+main.tab-content button.bg-amber-50 { color: #b45309 !important; }
+</style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
