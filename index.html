@@ -6842,3 +6842,42 @@ body { top:0 !important; }
 
 </body>
 </html>
+<style id="iphone-stabilitaets-fix">
+/* iPhone/iPad: nur Performance- und Scroll-Stabilität. Desktop bleibt unverändert. */
+@media (max-width: 768px) {
+  html, body {
+    touch-action: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-y: contain !important;
+  }
+
+  body {
+    overflow-x: hidden !important;
+  }
+
+  /* Fix für iOS Safari: fixed große Hintergrund-Layer können beim Scrollen
+     eine neue Compositing-Ebene erzeugen und die Seite scheinbar einfrieren. */
+  body::before {
+    position: absolute !important;
+    inset: 0 !important;
+    min-height: 100% !important;
+    height: 100% !important;
+    transform: none !important;
+  }
+
+  /* Transparenz bleibt erhalten, aber iOS muss nicht permanent mehrere
+     backdrop-filter-Ebenen neu rendern. */
+  #app-container main .bg-white.rounded-2xl,
+  #app-container main .bg-white.rounded-3xl,
+  #app-container main .bg-white.rounded-lg,
+  #tab-startseite > div:first-child {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Die Vollbild-Planansicht behält ihre eigenen Touch-Gesten. */
+  #vollbild-scroll-container {
+    touch-action: none !important;
+  }
+}
+</style>
