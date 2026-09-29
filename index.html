@@ -3721,12 +3721,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         });
                     }
                     cloudPlaene.push(...p.plaene.map((url, i) => ({ order: i, url: url })));
-                    // Die großen Plan-Daten werden danach aus dem Hauptdokument entfernt.
-                    p.plaene = [];
-                    await projektSpeichern(titel);
+                    // Erst nachdem die Cloud-Pläne vollständig bereitstehen, wird die lokale Liste ersetzt.
+                    // So kann während der Migration kein Klick fälschlich "Bitte lade erst einen Plan hoch!" auslösen.
                 }
 
                 p.plaene = cloudPlaene.sort((a,b) => a.order - b.order).map(x => x.url);
+
+                // Große alte Plan-Daten jetzt erst aus dem Hauptdokument entfernen.
+                // p.plaene bleibt lokal weiterhin gefüllt, damit die Ansicht sofort funktioniert.
+                if (p.plaene.length) {
+                    await projektSpeichern(titel);
+                }
                 if (p.aktiverPlanIndex === undefined || p.aktiverPlanIndex >= p.plaene.length) p.aktiverPlanIndex = 0;
                 plaeneLeisteAktualisieren();
                 planVorschauAnzeigen();
