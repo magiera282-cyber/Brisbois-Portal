@@ -4257,10 +4257,24 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         // VOLLBILD / GROSSANSICHT MODAL STEUERUNG
-        window.vollbildOeffnen = function() {
+        window.vollbildOeffnen = async function() {
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
-            const p = globalDaten.projekte[aktuellesProjekt];
-            if (!p.plaene || p.plaene.length === 0) {
+            let p = globalDaten.projekte[aktuellesProjekt];
+
+            // Beim Öffnen einer Baustelle werden die Pläne aus der eigenen
+            // Unterkollektion asynchron geladen. Verhindere, dass ein Klick
+            // während dieses kurzen Ladezeitraums fälschlich die Meldung
+            // „Bitte lade erst einen Grundriss-Plan hoch!“ auslöst.
+            if (!Array.isArray(p.plaene) || p.plaene.length === 0) {
+                try {
+                    await ladePlaeneFuerProjekt(aktuellesProjekt);
+                } catch (e) {
+                    console.warn('Pläne konnten beim Öffnen der Großansicht nicht nachgeladen werden:', e);
+                }
+                p = globalDaten.projekte[aktuellesProjekt];
+            }
+
+            if (!p || !Array.isArray(p.plaene) || p.plaene.length === 0) {
                 alert("Bitte lade erst einen Grundriss-Plan hoch!");
                 return;
             }
