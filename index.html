@@ -456,6 +456,16 @@ input,select,textarea{background:rgba(255,255,255,.78)!important;border:1px soli
 }
 </style>
 
+
+<style id="brisbois-glas-text-visibility">
+main.tab-content:not(#tab-dashboard) .text-slate-900,
+main.tab-content:not(#tab-dashboard) .text-slate-800,
+main.tab-content:not(#tab-dashboard) .text-slate-700,
+main.tab-content:not(#tab-dashboard) .text-slate-600,
+main.tab-content:not(#tab-dashboard) .text-slate-500 { color: #fff !important; }
+main.tab-content:not(#tab-dashboard) label.text-slate-600,
+main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !important; }
+</style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
@@ -910,6 +920,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <p class="text-xs text-slate-300 font-medium tracking-wider">Artisans de sols</p>
                 </div>
                 <button type="button" onclick="wechselnTab('dashboard')" id="btn-dashboard-top" class="hidden md:inline-flex dashboard-only items-center gap-2 text-xs bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-white px-3 py-2 rounded-xl font-bold transition whitespace-nowrap">📊 Chef-Dashboard</button>
+                <button type="button" id="btn-benachrichtigungen-top" onclick="wechselnTab('benachrichtigungen')" class="hidden md:inline-flex items-center gap-2 text-xs bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-white px-3 py-2 rounded-xl font-bold transition whitespace-nowrap">🔔 Benachrichtigungen <span id="badge-count-top" class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full hidden">0</span></button>
             </div>
             <div class="flex items-center gap-3">
                 <span id="user-badge" class="text-xs bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full font-medium text-slate-300"></span>
@@ -929,7 +940,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             <button onclick="wechselnTab('startseite')" id="btn-startseite" class="tab-btn text-blue-600 border-b-2 border-blue-600 pb-1 whitespace-nowrap">🏠 Startseite</button>
             <button onclick="wechselnTab('auftraege')" id="btn-auftraege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📁 Projekt & Baustelle</button>
             <button onclick="wechselnTab('materialliste')" id="btn-materialliste" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap materialliste-only hidden">📦 Materialliste</button>
-            <button onclick="wechselnTab('benachrichtigungen')" id="btn-benachrichtigungen" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap flex items-center gap-1">
+            <button onclick="wechselnTab('benachrichtigungen')" id="btn-benachrichtigungen" class="tab-btn md:hidden text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap flex items-center gap-1">
                 <span>🔔 Benachrichtigungen</span>
                 <span id="badge-count" class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full hidden">1</span>
             </button>
@@ -3598,6 +3609,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             // während eines Firebase-Refreshs stehen bleibt.
             const badgeVorab = document.getElementById('badge-count');
             if (badgeVorab) { badgeVorab.classList.add('hidden'); badgeVorab.innerText = ''; }
+            const badgeTopVorab = document.getElementById('badge-count-top');
+            if (badgeTopVorab) { badgeTopVorab.classList.add('hidden'); badgeTopVorab.innerText = ''; }
 
             const gefilterteListe = liste.map((item, originalIndex) => {
                 if (benachrichtigungIstFuerAktuellenMitarbeiterGeloescht(item)) return null;
@@ -3644,6 +3657,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 container.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">Keine Benachrichtigungen für dich vorhanden.</p>`;
                 const badge = document.getElementById('badge-count');
                 if(badge) badge.classList.add('hidden');
+                const badgeTop = document.getElementById('badge-count-top');
+                if(badgeTop) { badgeTop.classList.add('hidden'); badgeTop.innerText = ''; }
                 return;
             }
 
@@ -3682,6 +3697,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     badge.classList.remove('hidden');
                 } else {
                     badge.classList.add('hidden');
+                }
+                const badgeTop = document.getElementById('badge-count-top');
+                if (badgeTop) {
+                    if (ungelesenZaehler > 0) { badgeTop.innerText = ungelesenZaehler; badgeTop.classList.remove('hidden'); }
+                    else { badgeTop.classList.add('hidden'); badgeTop.innerText = ''; }
                 }
             }
         }
