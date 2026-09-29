@@ -930,7 +930,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                             <div id="plan-placeholder" class="text-center p-6 absolute inset-0 flex flex-col items-center justify-center bg-slate-200">
                                 <span class="text-3xl">📥</span>
                                 <p class="text-slate-700 font-bold mt-2">Grundriss-Plan (Bild oder PDF) antippen oder per Drag & Drop einfügen</p>
-                                <p class="text-xs text-slate-500 mt-1">Beliebig viele Pläne (z. B. EG, OG, Schnitte, Details) hochladen</p>
+                                <p class="text-xs text-slate-500 mt-1">Du kannst mehrere Pläne (z.B. EG, OG) hochladen</p>
                             </div>
 
                             <div class="relative inline-block">
@@ -1864,12 +1864,84 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         async function projektSpeichern(titel) {
             try {
                 const projDaten = globalDaten.projekte[titel];
-                await setDoc(doc(db, "projekte", titel), projDaten);
+                if (!projDaten) return;
+
+                // Pläne werden NICHT mehr im Projekt-Dokument gespeichert.
+                // Sie liegen separat in "projektPlaene". Dadurch kann eine
+                // Großbaustelle beliebig viele Pläne haben, ohne das 1-MB-Limit
+                // des Firestore-Projektdokuments zu erreichen.
+                await migriereAltePlaeneWennNoetig(titel);
+
+                const zuSpeichern = { ...projDaten };
+                delete zuSpeichern.plaene;
+                zuSpeichern.planRefs = Array.isArray(projDaten.planRefs) ? projDaten.planRefs : [];
+                await setDoc(doc(db, "projekte", titel), zuSpeichern);
             } catch(e) {
                 console.error("Fehler beim Speichern des Projekts:", e);
                 alert(`⚠️ Baustelle konnte nicht gespeichert werden. ${e.message || "Bitte prüfe deine Firebase-Verbindung und Regeln."}`);
+                throw e;
             }
         }
+
+        async function migriereAltePlaeneWennNoetig(titel) {
+            const p = globalDaten.projekte[titel];
+            if (!p || !Array.isArray(p.plaene) || !p.plaene.length) return;
+            p.planRefs = Array.isArray(p.planRefs) ? p.planRefs : [];
+
+            // Bereits migrierte Pläne nicht erneut speichern.
+            const vorhandene = new Set(p.planRefs.map(r => String(r.id || '')));
+            const neueRefs = [];
+            for (let i = 0; i < p.plaene.length; i++) {
+                const plan = p.plaene[i];
+                if (plan && typeof plan === 'object' && plan.url) continue;
+                const id = `${String(titel).replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,50)}_plan_${i+1}`;
+                if (vorhandene.has(id)) continue;
+                if (typeof plan !== 'string' || !plan) continue;
+                if (plan.length > 900000) {
+                    throw new Error(`Plan ${i + 1} ist noch zu groß für die separate Speicherung. Bitte den Plan einmal neu hochladen; er wird dabei automatisch komprimiert.`);
+                }
+                await setDoc(doc(db, "projektPlaene", id), {
+                    projekt: titel,
+                    url: plan,
+                    dateiname: `Plan ${i + 1}`,
+                    dateityp: plan.startsWith('data:application/pdf') ? 'application/pdf' : 'image/jpeg',
+                    erstelltAm: new Date().toISOString(),
+                    index: i
+                });
+                neueRefs.push({ id, index: i, dateiname: `Plan ${i + 1}` });
+            }
+            if (neueRefs.length) {
+                p.planRefs = [...p.planRefs, ...neueRefs];
+            }
+        }
+
+        async function ladePlaeneFuerProjekt(titel) {
+            const p = globalDaten.projekte[titel];
+            if (!p) return;
+            p.plaene = [];
+            try {
+                const snap = await getDocs(collection(db, "projektPlaene"));
+                const plaene = [];
+                snap.forEach(s => {
+                    const d = s.data();
+                    if (String(d.projekt || '') !== String(titel)) return;
+                    if (!d.url) return;
+                    plaene.push({ id: s.id, index: Number.isFinite(d.index) ? d.index : 999999, url: d.url, dateiname: d.dateiname || '' });
+                });
+                plaene.sort((a,b) => a.index - b.index);
+                p.plaene = plaene.map(x => x.url);
+                p.planRefs = plaene.map(x => ({ id: x.id, index: x.index, dateiname: x.dateiname }));
+            } catch(e) {
+                console.warn('Separate Pläne konnten nicht geladen werden:', e);
+                // Rückwärtskompatibel: falls die alte Baustelle noch Pläne im
+                // Dokument hat, bleiben diese bis zur nächsten Speicherung sichtbar.
+                p.plaene = Array.isArray(p.plaene) ? p.plaene : [];
+            }
+            if (p.aktiverPlanIndex >= p.plaene.length) p.aktiverPlanIndex = Math.max(0, p.plaene.length - 1);
+            plaeneLeisteAktualisieren();
+            planVorschauAnzeigen();
+        }
+
 
         async function projektAusCloudLoeschen(titel) {
             try {
@@ -3691,7 +3763,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        function projektLaden(titel) {
+        async function projektLaden(titel) {
             const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
             if (!isChefOrTechOrSekr) {
                 const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
@@ -3719,22 +3791,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             projektTeamAnzeigen();
             schnellZuweisungDropdownBefuellen();
             startseiteAktualisieren();
-        }
-
-        function planUrlHolen(plan) {
-            if (plan && typeof plan === 'object') return String(plan.url || plan.downloadURL || '');
-            return String(plan || '');
-        }
-
-        function planNameHolen(plan, idx) {
-            if (plan && typeof plan === 'object' && plan.name) return String(plan.name);
-            return `Plan ${idx + 1}`;
-        }
-
-        function planIstPdf(plan) {
-            const url = planUrlHolen(plan).toLowerCase();
-            const type = plan && typeof plan === 'object' ? String(plan.dateityp || plan.contentType || '').toLowerCase() : '';
-            return type.includes('application/pdf') || url.startsWith('data:application/pdf') || url.includes('.pdf') || url.includes('application/pdf');
+            await ladePlaeneFuerProjekt(titel);
         }
 
         function plaeneLeisteAktualisieren() {
@@ -3748,12 +3805,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 return;
             }
 
-            p.plaene.forEach((plan, idx) => {
+            p.plaene.forEach((planUrl, idx) => {
                 const aktiv = idx === p.aktiverPlanIndex;
-                const name = escapeHtml(planNameHolen(plan, idx));
                 leiste.innerHTML += `
-                    <button type="button" title="${name}" onclick="aktivenPlanWechseln(${idx})" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1 ${aktiv ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
-                        📄 ${name} ${aktiv ? '✓' : ''}
+                    <button type="button" onclick="aktivenPlanWechseln(${idx})" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1 ${aktiv ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
+                        📄 Plan ${idx + 1} ${aktiv ? '✓' : ''}
                     </button>
                 `;
             });
@@ -3777,16 +3833,15 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             if (p.plaene && p.plaene.length > 0) {
                 const aktiverPlan = p.plaene[p.aktiverPlanIndex] || p.plaene[0];
-                const aktiverPlanUrl = planUrlHolen(aktiverPlan);
                 placeholder.style.display = 'none';
 
-                if (planIstPdf(aktiverPlan)) {
+                if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
                     bildEl.classList.add('hidden');
                     pdfViewer.classList.remove('hidden');
-                    pdfViewer.innerHTML = `<iframe src="${aktiverPlanUrl}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
+                    pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
                 } else {
                     pdfViewer.classList.add('hidden');
-                    bildEl.src = aktiverPlanUrl;
+                    bildEl.src = aktiverPlan;
                     bildEl.classList.remove('hidden');
                 }
             } else {
@@ -3813,15 +3868,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const bildEl = document.getElementById('vollbild-plan-bild');
             const pdfViewer = document.getElementById('vollbild-pdf-viewer');
             const aktiverPlan = p.plaene[p.aktiverPlanIndex || 0];
-            const aktiverPlanUrl = planUrlHolen(aktiverPlan);
 
-            if (planIstPdf(aktiverPlan)) {
+            if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
                 bildEl.classList.add('hidden');
                 pdfViewer.classList.remove('hidden');
-                pdfViewer.innerHTML = `<iframe src="${aktiverPlanUrl}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
+                pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
             } else {
                 pdfViewer.classList.add('hidden');
-                bildEl.src = aktiverPlanUrl;
+                bildEl.src = aktiverPlan;
                 bildEl.classList.remove('hidden');
             }
 
@@ -4434,12 +4488,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (datei) verarbeiteGrundriss(datei);
         }
 
-        window.weitererPlanHinzufuegen = function(event) {
-            const datei = event.target.files[0];
-            if (datei) verarbeiteGrundriss(datei);
+        window.weitererPlanHinzufuegen = async function(event) {
+            const input = event?.target;
+            const datei = input?.files?.[0];
+            if (!datei) return;
+            await verarbeiteGrundriss(datei);
         }
 
-        function planBildKomprimieren(datei, maxSeite = 1400, qualitaet = 0.72) {
+        function planBildKomprimieren(datei, maxSeite = 1800, qualitaet = 0.78) {
             return new Promise((resolve, reject) => {
                 if (!datei || !String(datei.type || '').startsWith('image/')) return resolve(datei);
                 const reader = new FileReader();
@@ -4455,8 +4511,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         canvas.width = w; canvas.height = h;
                         const ctx = canvas.getContext('2d');
                         if (!ctx) return resolve(datei);
-                        ctx.fillStyle = '#ffffff';
-                        ctx.fillRect(0, 0, w, h);
+                        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
                         ctx.drawImage(img, 0, 0, w, h);
                         canvas.toBlob(blob => {
                             if (!blob) return resolve(datei);
@@ -4470,174 +4525,74 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             });
         }
 
-        async function uploadBaustellenDatei(datei, ordner, projektname) {
-            if (!datei) throw new Error("Keine Datei ausgewählt.");
-            const maxMB = ordner === "plaene" ? 50 : 15;
-            if (datei.size > maxMB * 1024 * 1024) {
-                throw new Error(`Die Datei darf maximal ${maxMB} MB groß sein.`);
-            }
-            if (!storage) {
-                throw new Error("Firebase Storage ist nicht verfügbar. Bitte Firebase Storage aktivieren.");
-            }
-            const sichererProjektname = String(projektname || "baustelle").replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, "_").slice(0, 80);
-            const sichererDateiname = String(datei.name || "datei").replace(/[^a-zA-Z0-9äöüÄÖÜß._ -]/g, "_").slice(0, 120);
-            const dateiname = `${Date.now()}_${crypto.randomUUID()}_${sichererDateiname}`;
-            const pfad = `baustellen/${sichererProjektname}/${ordner}/${dateiname}`;
-            const ziel = storageRef(storage, pfad);
-            await uploadBytes(ziel, datei, { contentType: datei.type || "application/octet-stream" });
-            return await getDownloadURL(ziel);
-        }
-
         async function verarbeiteGrundriss(datei) {
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
-                alert("Bitte zuerst eine Baustelle öffnen.");
+                alert('Bitte zuerst eine Baustelle öffnen.');
                 return;
             }
-            if (!datei) return;
-            const istPdf = datei.type === 'application/pdf' || String(datei.name || '').toLowerCase().endsWith('.pdf');
-            try {
-                if (datei.size > 50 * 1024 * 1024) {
-                    alert("Der Plan darf maximal 50 MB groß sein.");
-                    return;
-                }
-
-                // WICHTIG: Alte Pläne dieser Baustelle können noch als große Base64-Daten
-                // direkt im Firestore-Projekt liegen. Bevor wir den neuen Plan hinzufügen,
-                // werden diese alten Daten einmalig nach Firebase Storage migriert.
-                // Sonst würde der nächste setDoc weiterhin am 1-MiB-Firestore-Limit scheitern.
-                await plaeneAltNachStorageMigrieren(aktuellesProjekt);
-
-                // ALLE neuen Pläne werden in Firebase Storage gespeichert.
-                // Im Firestore-Projekt bleiben nur kleine Metadaten und der Storage-Link.
-                // Dadurch können beliebig viele Pläne pro Baustelle gespeichert werden.
-                const uploadDatei = istPdf ? datei : await planBildKomprimieren(datei, 3000, 0.88);
-                const hochgeladen = await uploadBaustellenPlan(uploadDatei, aktuellesProjekt);
-
-                await speichereGrundrissPlan(hochgeladen.url, {
-                    dateiname: datei.name,
-                    name: datei.name,
-                    dateityp: uploadDatei.type || (istPdf ? "application/pdf" : "image/jpeg"),
-                    groesse: uploadDatei.size,
-                    speicherart: 'firebase-storage',
-                    storagePath: hochgeladen.pfad
-                });
-                alert(`✅ Plan „${datei.name}“ wurde erfolgreich hochgeladen.`);
-            } catch (error) {
-                console.error("Fehler beim Hochladen des Plans:", error);
-                const msg = String(error?.message || error || 'Unbekannter Fehler');
-                alert(
-                    "❌ Der Plan konnte nicht hochgeladen werden.\n\n" +
-                    msg +
-                    "\n\nBitte prüfe, ob Firebase Storage für das Portal freigegeben ist."
-                );
-            } finally {
-                const inputs = document.querySelectorAll('input[type="file"]');
-                inputs.forEach(input => { if (input.accept && input.accept.includes('image')) input.value = ''; });
-            }
-        }
-
-        async function uploadBaustellenPlan(datei, projektname) {
-            if (!datei) throw new Error("Keine Datei ausgewählt.");
-            if (!storage) throw new Error("Firebase Storage ist nicht verfügbar. Bitte Firebase Storage aktivieren.");
-
-            const sichererProjektname = String(projektname || "baustelle").replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, "_").slice(0, 80);
-            const sichererDateiname = String(datei.name || "plan").replace(/[^a-zA-Z0-9äöüÄÖÜß._ -]/g, "_").slice(0, 120);
-            const dateiname = `${Date.now()}_${crypto.randomUUID()}_${sichererDateiname}`;
-            const pfad = `baustellen/${sichererProjektname}/plaene/${dateiname}`;
-            const ziel = storageRef(storage, pfad);
-            await uploadBytes(ziel, datei, { contentType: datei.type || "application/octet-stream" });
-            return { url: await getDownloadURL(ziel), pfad };
-        }
-
-        async function plaeneAltNachStorageMigrieren(titel) {
-            const p = globalDaten.projekte[titel];
-            if (!p || !Array.isArray(p.plaene) || p.plaene.length === 0) return;
-
-            const altePlaene = p.plaene;
-            const neuePlaene = [];
-            let migrationNoetig = false;
-
-            for (let i = 0; i < altePlaene.length; i++) {
-                const plan = altePlaene[i];
-                const url = planUrlHolen(plan);
-                const istDataUrl = url.startsWith('data:');
-
-                if (!istDataUrl) {
-                    if (plan && typeof plan === 'object') {
-                        neuePlaene.push(plan);
-                    } else {
-                        neuePlaene.push({
-                            url,
-                            name: `Plan ${i + 1}`,
-                            dateityp: planIstPdf(plan) ? 'application/pdf' : 'image/jpeg',
-                            speicherart: 'bestehender-link'
-                        });
-                        migrationNoetig = true;
-                    }
-                    continue;
-                }
-
-                if (!storage) throw new Error('Firebase Storage ist nicht verfügbar. Die alten Planbilder müssen einmalig nach Storage verschoben werden.');
-
-                const antwort = await fetch(url);
-                if (!antwort.ok) throw new Error(`Alter Plan ${i + 1} konnte nicht gelesen werden.`);
-                const blob = await antwort.blob();
-                const mime = blob.type || (url.startsWith('data:application/pdf') ? 'application/pdf' : 'image/jpeg');
-                const ext = mime.includes('pdf') ? 'pdf' : 'jpg';
-                const file = new File([blob], `Plan-${i + 1}.${ext}`, { type: mime });
-                const hochgeladen = await uploadBaustellenPlan(file, titel);
-
-                neuePlaene.push({
-                    url: hochgeladen.url,
-                    name: planNameHolen(plan, i),
-                    dateityp: mime,
-                    groesse: file.size,
-                    speicherart: 'firebase-storage',
-                    storagePath: hochgeladen.pfad,
-                    migriertAm: new Date().toISOString()
-                });
-                migrationNoetig = true;
-            }
-
-            if (migrationNoetig) {
-                p.plaene = neuePlaene;
-                await setDoc(doc(db, "projekte", titel), p);
-            }
-        }
-
-        async function speichereGrundrissPlan(ergebnisUrl, meta = {}) {
             const p = globalDaten.projekte[aktuellesProjekt];
-            if (!p) return;
-            if (!p.plaene) p.plaene = [];
-            p.plaene.push({
-                url: ergebnisUrl,
-                name: meta.name || meta.dateiname || `Plan ${p.plaene.length + 1}`,
-                dateityp: meta.dateityp || '',
-                groesse: meta.groesse || 0,
-                speicherart: meta.speicherart || 'firebase-storage',
-                storagePath: meta.storagePath || ''
-            });
-            p.aktiverPlanIndex = p.plaene.length - 1;
-            
-            if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
-            const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            globalDaten.benachrichtigungen.unshift({
-                von: `🚨 ${eingeloggterMitarbeiter} (Baustellen-Plan)`,
-                empfaenger: "Chef/Techniker/Zugewiesen",
-                text: `Neuer Grundriss-Plan auf Baustelle "${aktuellesProjekt}" hochgeladen.`,
-                datum: datum,
-                gelesenVon: [eingeloggterMitarbeiter],
-                geloeschtVon: [],
-                projekt: aktuellesProjekt
-            });
+            const input = document.querySelector('input[onchange*="weitererPlanHinzufuegen"]');
+            try {
+                const originalText = input?.parentElement?.innerText || '';
+                if (datei.size > 50 * 1024 * 1024) throw new Error('Der Plan darf maximal 50 MB groß sein.');
 
-            await projektSpeichern(aktuellesProjekt);
-            await window.globalGlobalSpeichern();
-            plaeneLeisteAktualisieren();
-            planVorschauAnzeigen();
-            benachrichtigungenAnzeigen();
-            vollbildOeffnen();
+                // Der Plan wird als eigenes Firestore-Dokument gespeichert.
+                // Dadurch ist das 1-MB-Limit nicht mehr pro Baustelle, sondern
+                // nur noch pro einzelner Datei relevant. Es gibt keine Plananzahl-Grenze.
+                const istPdf = datei.type === 'application/pdf' || String(datei.name || '').toLowerCase().endsWith('.pdf');
+                let uploadDatei = datei;
+                if (!istPdf) uploadDatei = await planBildKomprimieren(datei);
+
+                const reader = new FileReader();
+                const url = await new Promise((resolve, reject) => {
+                    reader.onerror = () => reject(new Error('Das Bild konnte nicht gelesen werden.'));
+                    reader.onload = () => resolve(String(reader.result || ''));
+                    reader.readAsDataURL(uploadDatei);
+                });
+
+                if (!url) throw new Error('Der Plan konnte nicht gelesen werden.');
+                if (url.length > 900000) {
+                    throw new Error('Der Plan ist nach der Komprimierung noch zu groß. Bitte ein kleineres Bild verwenden.');
+                }
+
+                const planNr = (Array.isArray(p.planRefs) ? p.planRefs.length : (p.plaene || []).length) + 1;
+                const id = `${String(aktuellesProjekt).replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,50)}_plan_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+                await setDoc(doc(db, 'projektPlaene', id), {
+                    projekt: aktuellesProjekt,
+                    url,
+                    dateiname: datei.name || `Plan ${planNr}`,
+                    dateityp: uploadDatei.type || (istPdf ? 'application/pdf' : 'image/jpeg'),
+                    groesse: uploadDatei.size || 0,
+                    erstelltAm: new Date().toISOString(),
+                    erstelltVon: eingeloggterMitarbeiter || '',
+                    index: planNr - 1
+                });
+
+                p.plaene = Array.isArray(p.plaene) ? p.plaene : [];
+                p.plaene.push(url);
+                p.aktiverPlanIndex = p.plaene.length - 1;
+                p.planRefs = Array.isArray(p.planRefs) ? p.planRefs : [];
+                p.planRefs.push({ id, index: p.plaene.length - 1, dateiname: datei.name || `Plan ${planNr}` });
+
+                await projektSpeichern(aktuellesProjekt);
+                plaeneLeisteAktualisieren();
+                planVorschauAnzeigen();
+                vollbildOeffnen();
+                alert(`✅ Plan „${datei.name || 'Plan'}“ wurde erfolgreich gespeichert.
+
+📐 Insgesamt ${p.plaene.length} Plan${p.plaene.length === 1 ? '' : 'e'} in dieser Baustelle.`);
+            } catch (error) {
+                console.error('Fehler beim Hochladen des Plans:', error);
+                alert('❌ Der Plan konnte nicht gespeichert werden.
+
+' + (error?.message || error));
+            } finally {
+                if (input) input.value = '';
+            }
         }
+
+        // Kompatibilität für den bisherigen Plan-Einleseweg.
+        async function verarbeiteGrundrissLegacy(datei) { return verarbeiteGrundriss(datei); }
 
         function darfAlleBelegeSehen() {
             return eingeloggteRolle === "Chef" || eingeloggteRolle === "Techniker" || eingeloggteRolle === "Sekretariat";
