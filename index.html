@@ -1748,6 +1748,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         let temporärePinY = 0;
         let ausgewaehlterPinIndex = null;
         let hervorgehobenerPinIndex = null;
+        let pinHervorhebungTimer = null;
         let ausgewaehlteNachrichtIndex = null;
         let map = null;
         let mapMarkerLayer = [];
@@ -4720,8 +4721,19 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 if (ziel) {
                     ziel.classList.add('pin-neu-blinken');
                     ziel.style.animation = 'pinNeuBlinken 0.8s ease-in-out infinite';
-                    ziel.style.zIndex = '999';
+                    ziel.style.zIndex = '9999';
+                    ziel.style.position = 'absolute';
                     try { ziel.scrollIntoView({behavior:'smooth', block:'center', inline:'center'}); } catch(e) {}
+                    if (pinHervorhebungTimer) clearInterval(pinHervorhebungTimer);
+                    let pulse = false;
+                    pinHervorhebungTimer = setInterval(() => {
+                        const current = document.getElementById('vollbild-pin-container')?.querySelector(`[data-pin-index="${index}"]`);
+                        if (!current) return;
+                        pulse = !pulse;
+                        current.style.setProperty('transform', pulse ? 'scale(1.45)' : 'scale(1)', 'important');
+                        current.style.setProperty('box-shadow', pulse ? '0 0 0 10px rgba(239,68,68,.55), 0 0 22px rgba(239,68,68,.95)' : '0 0 0 0 rgba(239,68,68,0), 0 0 8px rgba(239,68,68,.5)', 'important');
+                        current.style.setProperty('outline', pulse ? '4px solid rgba(255,255,255,.95)' : '2px solid rgba(255,255,255,.95)', 'important');
+                    }, 400);
                 }
             }, 250);
 
@@ -4733,6 +4745,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
 
             setTimeout(() => {
+                if (pinHervorhebungTimer) { clearInterval(pinHervorhebungTimer); pinHervorhebungTimer = null; }
                 hervorgehobenerPinIndex = null;
                 vollbildPinsAnzeigen();
                 projektPinListeAnzeigen();
