@@ -403,7 +403,7 @@ main .bg-white.rounded-lg {
 <style id="design-test-premium">
 /* DESIGN-TEST: only visual styling, no functional changes */
 :root{--glass-bg:rgba(62,68,74,.54);--glass-border:rgba(255,255,255,.22);--glass-shadow:0 12px 35px rgba(0,0,0,.18)}
-.card,.panel,.box,.dashboard-card,.stat-card,.section-card{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);background:rgba(62,68,74,.48)!important;border:1px solid rgba(255,255,255,.20)!important;box-shadow:var(--glass-shadow)!important}
+.card,.panel,.box,.dashboard-card,.stat-card,.section-card{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);background:rgba(255,255,255,.48)!important;border:1px solid rgba(255,255,255,.55)!important;box-shadow:var(--glass-shadow)!important;color:#0f172a}
 button{transition:transform .18s ease,box-shadow .18s ease,filter .18s ease}
 button:hover{transform:translateY(-1px);filter:brightness(1.04);box-shadow:0 8px 18px rgba(0,0,0,.16)}
 input,select,textarea{background:rgba(255,255,255,.78)!important;border:1px solid rgba(255,255,255,.35)!important;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
@@ -431,11 +431,11 @@ input,select,textarea{background:rgba(255,255,255,.78)!important;border:1px soli
 #app-container main .bg-white.rounded-xl .text-slate-800,
 #app-container main .bg-white.rounded-2xl .text-slate-800,
 #app-container main .bg-white.rounded-3xl .text-slate-800,
-#app-container main .bg-white.rounded-lg .text-slate-800 { color:#f1f5f9 !important; }
+#app-container main .bg-white.rounded-lg .text-slate-800 { color:#0f172a !important; }
 #app-container main .bg-white.rounded-xl .text-slate-500,
 #app-container main .bg-white.rounded-2xl .text-slate-500,
 #app-container main .bg-white.rounded-3xl .text-slate-500,
-#app-container main .bg-white.rounded-lg .text-slate-500 { color:#cbd5e1 !important; }
+#app-container main .bg-white.rounded-lg .text-slate-500 { color:#475569 !important; }
 
 /* Eingabefelder bleiben bewusst hell und gut lesbar. */
 #app-container main input,
@@ -510,12 +510,39 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
 }
+/* Helle Fenster: Buttons mit bewusst weißer Beschriftung behalten Weiß. */
+#app-container button.text-white, #app-container .text-white, #app-container [class*="bg-blue-"] .text-white,
+#app-container [class*="bg-red-"] .text-white, #app-container [class*="bg-green-"] .text-white {
+  color:#ffffff !important;
+  -webkit-text-fill-color:#ffffff !important;
+}
 /* Farbige Status-/Typ-Schriften behalten ihre eigene Farbe. */
 #app-container .bg-blue-50 .text-blue-700, #app-container .bg-blue-100 .text-blue-700 { color:#1d4ed8 !important; -webkit-text-fill-color:#1d4ed8 !important; }
 #app-container .bg-amber-50 .text-amber-700, #app-container .bg-amber-100 .text-amber-700 { color:#b45309 !important; -webkit-text-fill-color:#b45309 !important; }
 #app-container .bg-red-50 .text-red-700, #app-container .bg-red-100 .text-red-700 { color:#b91c1c !important; -webkit-text-fill-color:#b91c1c !important; }
 #app-container .bg-red-100 .text-red-800 { color:#991b1b !important; -webkit-text-fill-color:#991b1b !important; }
 #app-container .bg-slate-200 .text-slate-500, #app-container .bg-slate-100 .text-slate-500 { color:#475569 !important; -webkit-text-fill-color:#475569 !important; }
+</style>
+<style id="final-light-glass-panels">
+/* Final design: all portal content windows are light, transparent glass. */
+#app-container .card, #app-container .panel, #app-container .box, #app-container .dashboard-card,
+#app-container .stat-card, #app-container .section-card {
+  background: rgba(255,255,255,.48) !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(255,255,255,.58) !important;
+  box-shadow: 0 12px 35px rgba(15,23,42,.12) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+#app-container main .bg-white.rounded-xl, #app-container main .bg-white.rounded-2xl,
+#app-container main .bg-white.rounded-3xl, #app-container main .bg-white.rounded-lg,
+#app-container main .bg-slate-50.rounded-xl, #app-container main .bg-slate-50.rounded-2xl,
+#app-container main .bg-slate-50.rounded-3xl {
+  background: rgba(255,255,255,.48) !important;
+  color:#0f172a !important;
+  border-color:rgba(255,255,255,.58) !important;
+  box-shadow:0 12px 35px rgba(15,23,42,.12) !important;
+}
 </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
