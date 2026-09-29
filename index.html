@@ -4611,12 +4611,18 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 projekt: aktuellesProjekt
             });
 
+            // Vollbild noch vor dem Speichern des Hauptdokuments öffnen.
+            // projektSpeichern() löst einen Firestore-Snapshot aus, der p.plaene
+            // absichtlich aus dem Hauptdokument entfernt. Dadurch kam bisher
+            // fälschlich die Meldung „Bitte lade erst einen Grundriss-Plan hoch!“.
+            plaeneLeisteAktualisieren();
+            planVorschauAnzeigen();
+            vollbildOeffnen();
             await projektSpeichern(aktuellesProjekt);
             await window.globalGlobalSpeichern();
             plaeneLeisteAktualisieren();
             planVorschauAnzeigen();
             benachrichtigungenAnzeigen();
-            vollbildOeffnen();
         }
 
         function darfAlleBelegeSehen() {
