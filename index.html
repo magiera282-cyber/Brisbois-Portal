@@ -214,92 +214,16 @@ function kiKurzbeschreibungAuswerten(){
 
 <style>
 @media (max-width: 640px){
-  /* Nur die mobile Kopfzeile: keine horizontale Verschiebung/kein
-     Überlappen. Die Desktop-Ansicht bleibt unverändert. */
-  #app-container > header{
-    position:relative;
-    align-items:center;
-  }
-
-  #app-container > header > div:last-child{
-    display:flex;
-    align-items:center;
-    justify-content:flex-end;
-    flex-wrap:wrap;
-    gap:.3rem;
-    max-width:58%;
-    min-width:0;
-  }
-
-  #app-container > header > div:last-child #user-badge{
-    flex:0 0 100%;
-    width:100%;
-    text-align:right;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    white-space:nowrap;
-    min-width:0;
-  }
-
-  #app-container > header > div:last-child #btn-abrechnungen-top,
-  #app-container > header > div:last-child > button[onclick="abmelden()"]{
-    position:static;
-    transform:none;
-    margin:0;
-    padding-left:.55rem;
-    padding-right:.55rem;
-    white-space:nowrap;
-    flex:0 0 auto;
-  }
-
-  #app-container > header > div:last-child .inline-flex[aria-label="Sprache"]{
-    position:static;
-    transform:none;
-    margin:0;
-    flex:0 0 auto;
-  }
-
+  #app-container > header{position:relative;}
+  #app-container > header > div:last-child{display:flex;align-items:center;gap:.35rem;}
   #app-container > header > div:last-child #language-de-app,
-  #app-container > header > div:last-child #language-fr-app{
-    position:relative;
+  #app-container > header > div:last-child #language-fr-app{position:relative;}
+  #app-container > header > div:last-child .inline-flex[aria-label="Sprache"]{
+    position:absolute;left:50%;transform:translateX(-50%);top:50%;margin-top:-18px;
   }
-}
-</style>
-<link rel="manifest" href="./manifest.webmanifest">
-    <meta name="theme-color" content="#2563eb">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Brisbois Portal">
-
-<style id="mobile-plan-pinch-zoom-fix">
-@media (max-width: 640px) {
-  /* Pläne: Finger-Gesten wieder zulassen. Keine Änderung an Desktop. */
-  .plan-container,
-  .plan-container *,
-  [id*="plan"],
-  [id*="Plan"],
-  [class*="plan"],
-  [class*="Plan"] {
-    touch-action: pinch-zoom !important;
-  }
-
-  /* Verhindert, dass ein allgemeiner Touch-Handler das Pinch-Zoomen
-     der eigentlichen Planfläche blockiert. */
-  img[src*="plan"],
-  img[alt*="Plan"],
-  canvas {
-    touch-action: pinch-zoom !important;
-  }
-}
-</style>
-
-<style id="mobile-plan-controls-final">
-@media (max-width: 640px) {
-  #vollbild-scroll-container {
-    touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
-    overflow: hidden !important;
+  #app-container > header > div:last-child > button[onclick="abmelden()"]{
+    position:absolute;left:calc(50% + 48px);top:50%;transform:translateY(-50%);
+    padding-left:.65rem;padding-right:.65rem;
   }
 }
 </style>
@@ -415,15 +339,6 @@ function kiKurzbeschreibungAuswerten(){
                 <button onclick="document.getElementById('pin-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
             </div>
             <div class="space-y-3">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Pin-Art</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button type="button" id="pin-typ-mangel" onclick="pinTypWaehlen('mangel')" class="pin-typ-btn bg-red-600 text-white border-red-600 px-2 py-2 rounded-lg text-xs font-bold">🔴 Mangel</button>
-                        <button type="button" id="pin-typ-frage" onclick="pinTypWaehlen('frage')" class="pin-typ-btn bg-blue-50 text-blue-700 border-blue-200 px-2 py-2 rounded-lg text-xs font-bold border">🔵 Frage</button>
-                        <button type="button" id="pin-typ-eigen" onclick="pinTypWaehlen('eigen')" class="pin-typ-btn bg-amber-50 text-amber-700 border-amber-200 px-2 py-2 rounded-lg text-xs font-bold border">🟡 Eigener</button>
-                    </div>
-                    <input id="pin-eigener-name" type="text" maxlength="40" placeholder="Name des Pins" class="hidden mt-2 w-full px-3 py-2 border rounded-lg text-sm">
-                </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Beschreibung / Mangel</label>
                     <textarea id="pin-text-input" rows="3" placeholder="z.B. Unterboden feucht im Eingangsbereich..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
@@ -838,7 +753,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             </div>
 
             <div class="mt-5">
-                <button type="button" id="start-krankmeldung-button" onclick="krankmeldungModalOeffnen()" class="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-3 rounded-2xl shadow-lg transition">
+                <button type="button" onclick="krankmeldungModalOeffnen()" class="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-3 rounded-2xl shadow-lg transition">
                     🤒 Krankmeldung einreichen
                 </button>
             </div>
@@ -1015,7 +930,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                             <div id="plan-placeholder" class="text-center p-6 absolute inset-0 flex flex-col items-center justify-center bg-slate-200">
                                 <span class="text-3xl">📥</span>
                                 <p class="text-slate-700 font-bold mt-2">Grundriss-Plan (Bild oder PDF) antippen oder per Drag & Drop einfügen</p>
-                                <p class="text-xs text-slate-500 mt-1">Du kannst mehrere Pläne (z.B. EG, OG) hochladen</p>
+                                <p class="text-xs text-slate-500 mt-1">Beliebig viele Pläne (z. B. EG, OG, Schnitte, Details) hochladen</p>
                             </div>
 
                             <div class="relative inline-block">
@@ -1140,9 +1055,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         </button>
                         <button onclick="alleBenachrichtigungenLoeschen()" class="bg-red-100 hover:bg-red-200 text-red-800 font-semibold px-3 py-2 rounded-lg text-xs transition shadow-sm">
                             🗑️ Alle löschen
-                        </button>
-                        <button type="button" onclick="brisboisPushAktivieren()" id="push-aktivieren-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition shadow-sm">
-                            🔔 Push aktivieren
                         </button>
                         <button type="button" onclick="nachrichtModalOeffnen()" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition shadow-sm">
                             💬 Nachricht verfassen...
@@ -1502,8 +1414,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
-        import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
-        import { serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyC4X4AzkoqdjBuv5ux5wGLcXTPdrqvm3iU",
@@ -1517,56 +1427,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app, "(default)");
-        const messaging = getMessaging(app);
-        let brisboisPushRegistration = null;
-
-        async function brisboisPushAktivieren() {
-            try {
-                if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-                    alert("Dieser Browser unterstützt keine Push-Benachrichtigungen.");
-                    return false;
-                }
-                const istIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-                const istStandalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-                if (istIOS && !istStandalone) {
-                    alert("Für Push-Benachrichtigungen auf dem iPhone muss das Brisbois Portal zuerst über „Teilen“ → „Zum Home-Bildschirm“ installiert werden. Öffne danach die Portal-App und tippe erneut auf „Push aktivieren“. ");
-                    return false;
-                }
-                const permission = await Notification.requestPermission();
-                if (permission !== "granted") {
-                    alert("Die Benachrichtigungen wurden nicht erlaubt. Du kannst sie später in den Browser-/iPhone-Einstellungen aktivieren.");
-                    return false;
-                }
-                brisboisPushRegistration = await navigator.serviceWorker.register("./firebase-messaging-sw.js", { scope: "./" });
-                const token = await getToken(messaging, { serviceWorkerRegistration: brisboisPushRegistration, vapidKey: "BAvLBPO-lmOeYe2cmTmGxfpirIHp-UjabyUeMTTGzyWRuKZd6A4hILJIDK6BZEOwE6Qm-z5Q-tcJwJ0AkKCDlrA" });
-                if (!token) {
-                    alert("Das Gerät konnte noch nicht für Push registriert werden. Bitte prüfe die Firebase-Web-Push-Konfiguration.");
-                    return false;
-                }
-                const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter || "unbekannt") + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
-                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, token, updatedAt: serverTimestamp() });
-                localStorage.setItem("brisbois_push_aktiv", "1");
-                const btn = document.getElementById("push-aktivieren-btn");
-                if (btn) btn.innerText = "🔔 Push aktiviert";
-                return true;
-            } catch (e) {
-                console.error("Push-Aktivierung fehlgeschlagen:", e);
-                alert("Push konnte nicht aktiviert werden. Bitte prüfe die Firebase-Web-Push-Konfiguration.\n\n" + (e?.message || e));
-                return false;
-            }
-        }
-        window.brisboisPushAktivieren = brisboisPushAktivieren;
-
-        onMessage(messaging, (payload) => {
-            try {
-                const title = payload?.notification?.title || "Brisbois Portal";
-                const body = payload?.notification?.body || "Neue Nachricht";
-                if (Notification.permission === "granted" && document.visibilityState === "visible") {
-                    new Notification(title, { body, icon: "./icon-192.png", tag: "brisbois-message" });
-                }
-                try { neueNachrichtPopupAnzeigen({ von: payload?.data?.von || "Team", text: body }); } catch(e) {}
-            } catch(e) {}
-        });
         // Krankmeldungs-Zugriff für das Viewer-System bereitstellen.
         window.__brisboisGetKrankmeldung = async function(id){
             const snap = await getDoc(doc(db, "krankmeldungen", String(id)));
@@ -1798,48 +1658,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }, (error) => console.error("Fehler beim Laden der Krankmeldungen:", error));
 
         let wochenplanungSeparatGeladen = false;
-        // Neue Nachrichten werden in Echtzeit erkannt und als kurze Popup-Meldung angezeigt.
-        let benachrichtigungenEchtzeitInitialisiert = false;
-        let bekannteBenachrichtigungenSignaturen = new Set();
-
-        function benachrichtigungIstFuerAktuellenMitarbeiter(item) {
-            if (!item || !eingeloggterMitarbeiter) return false;
-            if (item.empfaenger === 'Alle' || item.empfaenger === eingeloggterMitarbeiter) return true;
-            if (String(item.von || '').startsWith(eingeloggterMitarbeiter)) return false;
-            if (istEingeloggterBueroMitarbeiter()) {
-                return !!(item.von && (item.von.includes('🚨') || item.von.includes('Chef')));
-            }
-            const absenderName = String(item.von || '')
-                .replace(/^📢\s*/, '')
-                .replace(/^🚨\s*/, '')
-                .replace(/^🤖\s*/, '')
-                .replace(/\s*\((?:Chef|Team|Verleger|Techniker|Sekretariat|Admin|Büro|Buero|Baustellen-Pin|Baustellen-Plan|Urlaubsantrag|Urlaubsentscheidung)\).*$/i, '')
-                .trim();
-            return istBuerorolleName(absenderName) && (item.empfaenger === 'Alle' || item.empfaenger === eingeloggterMitarbeiter);
-        }
-
-        function neueNachrichtPopupAnzeigen(item) {
-            if (!item || !item.text) return;
-            const alt = document.getElementById('nachricht-echtzeit-popup');
-            if (alt) alt.remove();
-            const popup = document.createElement('div');
-            popup.id = 'nachricht-echtzeit-popup';
-            popup.style.cssText = 'position:fixed;top:76px;right:18px;z-index:99999;width:min(380px,calc(100vw - 36px));background:#ffffff;border:2px solid #2563eb;border-radius:16px;box-shadow:0 12px 35px rgba(0,0,0,.22);padding:14px 16px;cursor:pointer;animation:brisboisNachrichtPlop .25s ease-out;';
-            popup.innerHTML = `<div style="display:flex;align-items:flex-start;gap:10px"><div style="font-size:24px">🔔</div><div style="flex:1"><div style="font-weight:800;color:#0f172a;font-size:14px">Neue Nachricht von ${item.von || 'Team'}</div><div style="margin-top:4px;color:#475569;font-size:13px;line-height:1.35">${String(item.text).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div></div><button type="button" style="border:0;background:transparent;color:#64748b;font-size:18px;cursor:pointer">✕</button></div>`;
-            popup.onclick = () => {
-                popup.remove();
-                try { wechselnTab('benachrichtigungen'); } catch(e) {}
-            };
-            document.body.appendChild(popup);
-            setTimeout(() => { if (popup.isConnected) popup.remove(); }, 7000);
-        }
-
-        if (!document.getElementById('brisbois-nachricht-plop-style')) {
-            const style = document.createElement('style');
-            style.id = 'brisbois-nachricht-plop-style';
-            style.textContent = '@keyframes brisboisNachrichtPlop{0%{transform:translateY(-18px) scale(.94);opacity:0}70%{transform:translateY(3px) scale(1.02);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}';
-            document.head.appendChild(style);
-        }
 
         onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
             if (docSnap.exists()) {
@@ -1873,24 +1691,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         try { await globalGlobalSpeichern(); } catch(e) { console.warn("Patrick-Rollenbereinigung konnte nicht sofort gespeichert werden:", e); }
                     }
                 }
-                const neueBenachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen || [];
-                const vorherigerBenachrichtigungsStand = letzterBenachrichtigungsStand;
-                letzterBenachrichtigungsStand = JSON.stringify(neueBenachrichtigungen);
-                globalDaten.benachrichtigungen = neueBenachrichtigungen;
-
-                if (vorherigerBenachrichtigungsStand !== null && vorherigerBenachrichtigungsStand !== letzterBenachrichtigungsStand && eingeloggterMitarbeiter) {
-                    const vorherigeListe = (() => { try { return JSON.parse(vorherigerBenachrichtigungsStand) || []; } catch(e) { return []; } })();
-                    const vorherigeIds = new Set(vorherigeListe.map((item, i) => item.id || (String(item.datum || '') + '|' + String(item.von || '') + '|' + String(item.text || '') + '|' + i)));
-                    const neueFuerMich = neueBenachrichtigungen.filter((item, i) => {
-                        const emp = String(item.empfaenger || '');
-                        const sichtbar = emp === 'Alle' || emp === eingeloggterMitarbeiter || String(item.von || '').startsWith(eingeloggterMitarbeiter);
-                        const id = item.id || (String(item.datum || '') + '|' + String(item.von || '') + '|' + String(item.text || '') + '|' + i);
-                        return sichtbar && !vorherigeIds.has(id);
-                    });
-                    if (neueFuerMich.length > 0) {
-                        benachrichtigungstonAbspielen();
-                    }
-                }
+                globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen;
                 // Alten Demo-Hinweis entfernen, falls er bereits in Firebase gespeichert wurde.
                 const benachrichtigungenVorher = JSON.stringify(globalDaten.benachrichtigungen || []);
                 globalDaten.benachrichtigungen = (globalDaten.benachrichtigungen || []).filter(item =>
@@ -1919,28 +1720,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 // So kann ein Foto/PDF niemals das Größenlimit des globalen Portal-Dokuments sprengen.
                 globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
                 globalDaten.resturlaub = cloudDaten.resturlaub || {};
-
-                // Nach dem vollständigen Laden der Firebase-Daten den letzten
-                // Login auf diesem Gerät wiederherstellen.
-                try { dauerhaftenLoginWiederherstellen(); } catch(e) {
-                    console.warn("Dauerhafter Login nach Firebase-Laden übersprungen:", e);
-                }
-
-                // Nachrichten sofort aktualisieren und neue eingehende Nachrichten als Popup anzeigen.
-                const aktuelleNachrichten = Array.isArray(globalDaten.benachrichtigungen) ? globalDaten.benachrichtigungen : [];
-                const aktuelleSignaturen = new Set(aktuelleNachrichten.map(item => JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || ''])));
-                if (benachrichtigungenEchtzeitInitialisiert && eingeloggterMitarbeiter) {
-                    aktuelleNachrichten.slice(0, 20).forEach(item => {
-                        const signatur = JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || '']);
-                        if (!bekannteBenachrichtigungenSignaturen.has(signatur) &&
-                            !String(item.von || '').startsWith(eingeloggterMitarbeiter) &&
-                            benachrichtigungIstFuerAktuellenMitarbeiter(item)) {
-                            neueNachrichtPopupAnzeigen(item);
-                        }
-                    });
-                }
-                bekannteBenachrichtigungenSignaturen = aktuelleSignaturen;
-                benachrichtigungenEchtzeitInitialisiert = true;
                 allesAktualisieren();
             } else {
                 globalGlobalSpeichern();
@@ -1951,25 +1730,29 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // parallele globale Speichervorgänge überschrieben werden.
         onSnapshot(collection(db, "wochenplanung"), async (snapshot) => {
             try {
-                // Wochenplanung ist eine eigenständige Datenquelle.
-                // Niemals Einträge löschen, nur weil die Baustellen-Collection
-                // gerade noch nicht geladen ist oder eine Baustelle momentan
-                // nicht gefunden wird.
                 wochenplanungSeparatGeladen = !snapshot.empty;
                 globalDaten.wochenplanung = globalDaten.wochenplanung || {};
+                if (!snapshot.empty) {
+                    snapshot.forEach((snap) => {
+                        const d = snap.data() || {};
+                        if (!d.name || !d.key) return;
+                        const gueltigeEintraege = (Array.isArray(d.eintraege) ? d.eintraege : [])
+                            .filter(e => e && Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, e.baustelle));
 
-                snapshot.forEach((snap) => {
-                    const d = snap.data() || {};
-                    if (!d.name || !d.key) return;
-
-                    const eintraege = Array.isArray(d.eintraege) ? d.eintraege : [];
-
-                    if (eintraege.length) {
-                        globalDaten.wochenplanung[d.name] = globalDaten.wochenplanung[d.name] || {};
-                        globalDaten.wochenplanung[d.name][d.key] = eintraege;
-                    }
-                });
-
+                        if (gueltigeEintraege.length) {
+                            globalDaten.wochenplanung[d.name] = globalDaten.wochenplanung[d.name] || {};
+                            globalDaten.wochenplanung[d.name][d.key] = gueltigeEintraege;
+                        } else {
+                            if (globalDaten.wochenplanung[d.name]) delete globalDaten.wochenplanung[d.name][d.key];
+                            // Verwaisten Plan-Eintrag auch dauerhaft aus der separaten Collection entfernen.
+                            deleteDoc(doc(db, "wochenplanung", snap.id)).catch(e => console.warn("Alten Wochenplan konnte nicht gelöscht werden:", e));
+                        }
+                    });
+                }
+                // Auch normale Zuweisungen sofort gegen die tatsächlich vorhandenen Baustellen prüfen.
+                if (veralteteBaustellenBereinigen()) {
+                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Verwaiste Zuweisungen konnten nicht gespeichert werden:", e); }
+                }
                 allesAktualisieren();
             } catch (e) {
                 console.error("Fehler beim Laden der Wochenplanung:", e);
@@ -1977,12 +1760,50 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }, (error) => console.error("Fehler beim Laden der Wochenplanung:", error));
 
         async function verwaistePlanungenNachProjektenBereinigen() {
-            // Wochenplanung und Zuweisungen sind dauerhaft und dürfen beim
-            // normalen Login/Refresh nicht anhand der momentan geladenen
-            // Baustellenliste gelöscht werden.
-            // Eine echte Baustellen-Löschung bereinigt die Planung bereits
-            // direkt in projektLoeschenBestätigen().
-            return false;
+            let changed = false;
+            const speichern = [];
+            const projekte = globalDaten.projekte || {};
+
+            Object.keys(globalDaten.zuweisungen || {}).forEach(ma => {
+                const alt = globalDaten.zuweisungen[ma] || [];
+                const neu = alt.filter(p => Object.prototype.hasOwnProperty.call(projekte, p));
+                if (JSON.stringify(alt) !== JSON.stringify(neu)) {
+                    globalDaten.zuweisungen[ma] = neu;
+                    changed = true;
+                }
+            });
+
+            Object.keys(globalDaten.wochenplanung || {}).forEach(ma => {
+                Object.keys(globalDaten.wochenplanung[ma] || {}).forEach(tag => {
+                    const alt = Array.isArray(globalDaten.wochenplanung[ma][tag]) ? globalDaten.wochenplanung[ma][tag] : [];
+                    const neu = alt.filter(e => e && Object.prototype.hasOwnProperty.call(projekte, e.baustelle));
+                    if (JSON.stringify(alt) !== JSON.stringify(neu)) {
+                        changed = true;
+                        if (neu.length) globalDaten.wochenplanung[ma][tag] = neu;
+                        else delete globalDaten.wochenplanung[ma][tag];
+                        speichern.push(wochenplanungSeparatSpeichern(ma, tag));
+                    }
+                });
+            });
+
+            Object.keys(globalDaten.zeiterfassung || {}).forEach(ma => {
+                Object.keys(globalDaten.zeiterfassung[ma] || {}).forEach(tag => {
+                    const z = globalDaten.zeiterfassung[ma][tag];
+                    if (!z || !Array.isArray(z.baustellen)) return;
+                    const neu = z.baustellen.filter(b => Object.prototype.hasOwnProperty.call(projekte, b));
+                    if (neu.length !== z.baustellen.length) {
+                        changed = true;
+                        if (neu.length) z.baustellen = neu;
+                        else if (z.automatischGeplant) delete globalDaten.zeiterfassung[ma][tag];
+                    }
+                });
+            });
+
+            try { await Promise.all(speichern); } catch(e) { console.warn("Wochenplanung konnte nicht vollständig bereinigt werden:", e); }
+            if (changed) {
+                try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Bereinigte Zuweisungen konnten nicht gespeichert werden:", e); }
+            }
+            return changed;
         }
 
         onSnapshot(collection(db, "projekte"), (snapshot) => {
@@ -2152,126 +1973,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (select) select.innerHTML = basisMitarbeiter.map(m => `<option value="${String(m.name).replace(/"/g, '&quot;')}">${m.name} (${m.rolle || 'Verleger'})</option>`).join('');
         }
 
-        // Dauerhaften Login speichern: localStorage + Cookie + IndexedDB.
-        // Der Cookie/IndexedDB-Fallback hilft besonders bei Safari/iPhone,
-        // wenn eine Web-App bzw. ein Tab neu aufgebaut wird.
-        const BRISBOIS_LOGIN_KEY = "brisbois_login_data_v2";
-
-        async function brisboisLoginDauerhaftSpeichern(name, rolle) {
-            const data = { name: String(name || ""), rolle: String(rolle || "") };
-
-            try {
-                localStorage.setItem("brisbois_login_user", data.name);
-                localStorage.setItem("brisbois_login_role", data.rolle);
-                localStorage.setItem("brisbois_login_persistent", "1");
-                localStorage.setItem(BRISBOIS_LOGIN_KEY, JSON.stringify(data));
-            } catch(e) {}
-
-            try {
-                document.cookie =
-                    "brisbois_login=" + encodeURIComponent(JSON.stringify(data)) +
-                    "; max-age=31536000; path=/; SameSite=Lax; Secure";
-            } catch(e) {}
-
-            try {
-                await new Promise((resolve) => {
-                    const req = indexedDB.open("BrisboisPortal", 1);
-                    req.onupgradeneeded = () => {
-                        try { req.result.createObjectStore("login"); } catch(e) {}
-                    };
-                    req.onsuccess = () => {
-                        try {
-                            const dbi = req.result;
-                            const tx = dbi.transaction("login", "readwrite");
-                            tx.objectStore("login").put(data, "current");
-                            tx.oncomplete = () => { try { dbi.close(); } catch(e) {} ; resolve(); };
-                            tx.onerror = () => resolve();
-                        } catch(e) { resolve(); }
-                    };
-                    req.onerror = () => resolve();
-                });
-            } catch(e) {}
-        }
-
-        async function brisboisLoginDauerhaftLesen() {
-            try {
-                const raw = localStorage.getItem(BRISBOIS_LOGIN_KEY);
-                if (raw) {
-                    const data = JSON.parse(raw);
-                    if (data && data.name) return data;
-                }
-            } catch(e) {}
-
-            try {
-                const match = document.cookie.match(/(?:^|; )brisbois_login=([^;]+)/);
-                if (match) {
-                    const data = JSON.parse(decodeURIComponent(match[1]));
-                    if (data && data.name) return data;
-                }
-            } catch(e) {}
-
-            try {
-                return await new Promise((resolve) => {
-                    const req = indexedDB.open("BrisboisPortal", 1);
-                    req.onupgradeneeded = () => {
-                        try { req.result.createObjectStore("login"); } catch(e) {}
-                    };
-                    req.onsuccess = () => {
-                        try {
-                            const dbi = req.result;
-                            const tx = dbi.transaction("login", "readonly");
-                            const getReq = tx.objectStore("login").get("current");
-                            getReq.onsuccess = () => {
-                                const data = getReq.result;
-                                try { dbi.close(); } catch(e) {}
-                                resolve(data && data.name ? data : null);
-                            };
-                            getReq.onerror = () => resolve(null);
-                        } catch(e) { resolve(null); }
-                    };
-                    req.onerror = () => resolve(null);
-                });
-            } catch(e) {}
-
-            return null;
-        }
-
-        // Dauerhaften Login nach dem Laden der Daten wiederherstellen.
-        // Nur ein lokal gespeicherter Benutzer wird automatisch angemeldet;
-        // ein echter Klick auf "Abmelden" entfernt diese Daten.
-        async function dauerhaftenLoginWiederherstellen() {
-            try {
-                const data = await brisboisLoginDauerhaftLesen();
-                if (!data || !data.name) return false;
-
-                // Die gespeicherte Rolle verwenden, wenn Firebase die
-                // Mitarbeiterliste beim Start noch nicht fertig geladen hat.
-                const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === data.name);
-                const rolle = maObjekt?.rolle || data.rolle || "Verleger";
-
-                eingeloggterMitarbeiter = data.name;
-                eingeloggteRolle = rolle;
-
-                // Speicher beim Wiederherstellen erneut auffrischen.
-                await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
-
-                oeffneAppNachLogin();
-                return true;
-            } catch(e) {
-                console.warn("Dauerhafter Login konnte nicht wiederhergestellt werden:", e);
-                return false;
-            }
-        }
-
-        // iPhone/Safari kann die Web-App beim Start in mehreren Schritten
-        // aufbauen. Deshalb versuchen wir die Wiederherstellung nach dem
-        // Laden des DOM und nochmals kurz danach. Ein echter Logout bleibt
-        // davon unberührt, weil dabei der gespeicherte Login gelöscht wird.
-        window.addEventListener("DOMContentLoaded", () => {
-            setTimeout(() => { dauerhaftenLoginWiederherstellen(); }, 300);
-            setTimeout(() => { dauerhaftenLoginWiederherstellen(); }, 1800);
-        });
-
         window.schnellLoginDirekt = function(name, rolle) {
             // Schnell-Test: Benutzer zusätzlich in der Session merken, damit ein
             // notwendiger Sprach-Reload den Schnell-Login nicht wieder verliert.
@@ -2288,20 +1989,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 const appContainer = document.getElementById('app-container');
                 if (loginModal) loginModal.classList.add('hidden');
                 if (appContainer) appContainer.classList.remove('hidden');
-            // Push-Aktivierung nach dem Login einmal anbieten. Bereits aktivierte Geräte werden nicht erneut gefragt.
-            setTimeout(() => {
-                try {
-                    if (localStorage.getItem("brisbois_push_aktiv") !== "1" && typeof window.brisboisPushAktivieren === "function") {
-                        window.brisboisPushAktivieren();
-                    }
-                } catch(e) { console.warn("Push-Aktivierung nach Login übersprungen:", e); }
-            }, 700);
                 const badge = document.getElementById('user-badge');
                 if (badge) badge.innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
             }
         }
 
-        window.anmeldenMitTeam = async function(event) {
+        window.anmeldenMitTeam = function(event) {
             event.preventDefault();
             const name = document.getElementById('login-name-select').value;
             const eingegebenesPasswort = document.getElementById('login-passwort').value;
@@ -2316,15 +2009,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             eingeloggterMitarbeiter = name;
             const maObjekt = globalDaten.mitarbeiterListe.find(m => m.name === name);
             eingeloggteRolle = maObjekt ? maObjekt.rolle : "Verleger";
-
-            // Login dauerhaft auf diesem Gerät merken. Dadurch bleibt die
-            // Anmeldung auch nach dem Schließen des Safari-Tabs erhalten.
-            try {
-                await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
-            } catch(e) {
-                console.warn("Dauerhafter Login konnte nicht gespeichert werden:", e);
-            }
-
             setTimeout(() => { try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {} }, 50);
             
             oeffneAppNachLogin();
@@ -2355,17 +2039,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             const isChefOrTech = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin';
             const isSekretariat = eingeloggteRolle.includes('Sekretariat');
-
-            // Didier Michel und Jeff Brisbois sind Chefs und sollen auf der
-            // Startseite keine Krankmeldung einreichen können.
-            const startKrankmeldungButton = document.getElementById('start-krankmeldung-button');
-            const istChefOhneKrankmeldung =
-                eingeloggterMitarbeiter === 'Didier Michel' ||
-                eingeloggterMitarbeiter === 'Jeff Brisbois';
-            if (startKrankmeldungButton) {
-                startKrankmeldungButton.classList.toggle('hidden', istChefOhneKrankmeldung);
-            }
-
             const darfWochenplanung = isChefOrTech || isSekretariat;
             const darfMaterialliste = isChefOrTech || isSekretariat;
             const darfUrlaubBuero = urlaubIstBuero();
@@ -2826,7 +2499,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         window.projektBearbeitenOeffnen = function() {
-            if(!isChefOrPrivileged()) { alert("Verleger dürfen Baustellen nicht bearbeiten."); return; }
             if(!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             const p = globalDaten.projekte[aktuellesProjekt];
 
@@ -2857,7 +2529,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         window.projektLoeschenBestätigen = async function() {
-            if(!isChefOrPrivileged()) { alert("Verleger dürfen Baustellen nicht löschen."); return; }
             if(!aktuellesProjekt) return;
             if(confirm(`Möchtest du das Projekt "${aktuellesProjekt}" wirklich unwiderruflich löschen?`)) {
                 const zuLoeschen = aktuellesProjekt;
@@ -2918,11 +2589,51 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // Entfernt veraltete Baustellen aus alten Wochenplanungen/Zuweisungen,
         // z.B. wenn eine Baustelle in einer älteren Portalversion gelöscht wurde.
         function veralteteBaustellenBereinigen() {
-            // Absichtlich keine automatische Bereinigung.
-            // Wochenplanung/Zuweisungen dürfen beim Login nicht verschwinden.
-            // Bei einer echten Baustellen-Löschung wird gezielt in
-            // projektLoeschenBestätigen() bereinigt.
-            return false;
+            const projekte = globalDaten.projekte || {};
+            let changed = false;
+
+            Object.keys(globalDaten.zuweisungen || {}).forEach(ma => {
+                const alt = globalDaten.zuweisungen[ma] || [];
+                const neu = alt.filter(p => Object.prototype.hasOwnProperty.call(projekte, p));
+                if (JSON.stringify(alt) !== JSON.stringify(neu)) {
+                    globalDaten.zuweisungen[ma] = neu;
+                    changed = true;
+                }
+            });
+
+            Object.keys(globalDaten.wochenplanung || {}).forEach(ma => {
+                Object.keys(globalDaten.wochenplanung[ma] || {}).forEach(tag => {
+                    const alt = Array.isArray(globalDaten.wochenplanung[ma][tag])
+                        ? globalDaten.wochenplanung[ma][tag] : [];
+                    const neu = alt.filter(e => e && Object.prototype.hasOwnProperty.call(projekte, e.baustelle));
+                    if (neu.length) {
+                        if (JSON.stringify(alt) !== JSON.stringify(neu)) {
+                            globalDaten.wochenplanung[ma][tag] = neu;
+                            changed = true;
+                        }
+                    } else if (Object.prototype.hasOwnProperty.call(globalDaten.wochenplanung[ma], tag)) {
+                        delete globalDaten.wochenplanung[ma][tag];
+                        changed = true;
+                    }
+                });
+            });
+
+            Object.keys(globalDaten.zeiterfassung || {}).forEach(ma => {
+                Object.keys(globalDaten.zeiterfassung[ma] || {}).forEach(tag => {
+                    const z = globalDaten.zeiterfassung[ma][tag];
+                    if (!z || !Array.isArray(z.baustellen)) return;
+                    const neu = z.baustellen.filter(b => Object.prototype.hasOwnProperty.call(projekte, b));
+                    if (!neu.length && z.automatischGeplant) {
+                        delete globalDaten.zeiterfassung[ma][tag];
+                        changed = true;
+                    } else if (neu.length !== z.baustellen.length) {
+                        z.baustellen = neu;
+                        changed = true;
+                    }
+                });
+            });
+
+            return changed;
         }
 
         function startseiteAktualisieren() {
@@ -3151,7 +2862,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             });
         }
 
-        window.mehrfachZuweisungGeändert = async function(mitarbeiter, projekt, istHinzugefuegt) {
+        window.mehrfachZuweisungGeändert = function(mitarbeiter, projekt, istHinzugefuegt) {
             if(!globalDaten.zuweisungen[mitarbeiter]) {
                 globalDaten.zuweisungen[mitarbeiter] = [];
             }
@@ -3161,12 +2872,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     globalDaten.zuweisungen[mitarbeiter].push(projekt);
                 }
             } else {
-                globalDaten.zuweisungen[mitarbeiter] =
-                    globalDaten.zuweisungen[mitarbeiter].filter(p => p !== projekt);
+                globalDaten.zuweisungen[mitarbeiter] = globalDaten.zuweisungen[mitarbeiter].filter(p => p !== projekt);
             }
 
-            // Wichtig: erst auf den Firebase-Speichervorgang warten.
-            await globalGlobalSpeichern();
+            globalGlobalSpeichern();
             allesAktualisieren();
         }
 
@@ -3204,11 +2913,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             });
         }
 
-        window.mitarbeiterVomProjektEntfernen = async function(maName) {
+        window.mitarbeiterVomProjektEntfernen = function(maName) {
             if(globalDaten.zuweisungen[maName]) {
-                globalDaten.zuweisungen[maName] =
-                    globalDaten.zuweisungen[maName].filter(p => p !== aktuellesProjekt);
-                await globalGlobalSpeichern();
+                globalDaten.zuweisungen[maName] = globalDaten.zuweisungen[maName].filter(p => p !== aktuellesProjekt);
+                globalGlobalSpeichern();
                 allesAktualisieren();
             }
         }
@@ -3228,15 +2936,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if(aktuellerWert) select.value = aktuellerWert;
         }
 
-        window.mitarbeiterZuAktuellemProjektHinzufuegen = async function() {
+        window.mitarbeiterZuAktuellemProjektHinzufuegen = function() {
             const select = document.getElementById('projekt-schnell-zuweisen-select');
             const maName = select.value;
             if(!maName) {
                 alert("Bitte wähle einen Mitarbeiter aus!");
-                return;
-            }
-            if(!aktuellesProjekt) {
-                alert("Bitte wähle zuerst eine Baustelle aus!");
                 return;
             }
 
@@ -3247,8 +2951,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 globalDaten.zuweisungen[maName].push(aktuellesProjekt);
             }
 
-            // Erst Firebase bestätigen, dann Anzeige aktualisieren.
-            await globalGlobalSpeichern();
+            globalGlobalSpeichern();
             allesAktualisieren();
         }
 
@@ -3366,39 +3069,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if(aktuellerWert) select.value = aktuellerWert;
         }
 
-        // Benachrichtigungston: wird nach der ersten Benutzerinteraktion freigeschaltet.
-        let benachrichtigungsAudioFreigeschaltet = false;
-        let letzterBenachrichtigungsStand = null;
-
-        function benachrichtigungsAudioFreischalten() {
-            benachrichtigungsAudioFreigeschaltet = true;
-        }
-        ['click','touchstart','pointerdown','keydown'].forEach(evt => {
-            document.addEventListener(evt, benachrichtigungsAudioFreischalten, { once: true, passive: true });
-        });
-
-        function benachrichtigungstonAbspielen() {
-            if (!benachrichtigungsAudioFreigeschaltet) return;
-            try {
-                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContextClass) return;
-                const ctx = new AudioContextClass();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, ctx.currentTime);
-                osc.frequency.setValueAtTime(1175, ctx.currentTime + 0.09);
-                gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.16, ctx.currentTime + 0.02);
-                gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.23);
-                osc.onended = () => { try { ctx.close(); } catch(e) {} };
-            } catch(e) { console.warn('Benachrichtigungston konnte nicht abgespielt werden:', e); }
-        }
-
         function benachrichtigungenAnzeigen() {
             const container = document.getElementById('benachrichtigungen-liste');
             if(!container) return;
@@ -3421,7 +3091,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         .replace(/^📢\s*/, '')
                         .replace(/^🚨\s*/, '')
                         .replace(/^🤖\s*/, '')
-                        .replace(/\s*\((?:Chef|Team|Verleger|Techniker|Sekretariat|Admin|Büro|Buero|Baustellen-Pin|Baustellen-Plan|Urlaubsantrag|Urlaubsentscheidung)\).*$/i, '')
+                        .replace(/\s*\((?:Chef|Team|Baustellen-Pin|Baustellen-Plan|Urlaubsantrag|Urlaubsentscheidung)\).*$/i, '')
                         .trim();
                     // Verleger dürfen nur Nachrichten sehen, die an alle oder
                     // ausdrücklich an sie selbst gerichtet sind. Nachrichten an
@@ -3462,7 +3132,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     : (isChefMsg ? "border-amber-500 bg-amber-50/50 shadow-md font-medium" : "border-blue-300 bg-slate-50 shadow-md font-medium");
                 
                 const zielAnzeige = item.empfaenger !== "Alle" ? `<span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-bold">Direkt an: ${item.empfaenger}</span>` : `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded font-bold">An alle</span>`;
-                const zielBaustelleText = '';
+                const zielBaustelleText = item.projekt ? `<span class="bg-purple-100 text-purple-900 text-[10px] px-2 py-0.5 rounded font-bold">📍 Baustelle: ${item.projekt}</span>` : '';
                 const lesebestaetigungBadge = istGelesen ? `<span class="text-slate-400 text-[11px]">✔ Gelesen</span>` : `<span class="text-blue-600 font-bold text-[11px]">👉 Anklicken für Details</span>`;
 
                 container.innerHTML += `
@@ -3555,7 +3225,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        window.benachrichtigungAusListeEntfernen = async function() {
+        window.benachrichtigungAusListeEntfernen = function() {
             if (ausgewaehlteNachrichtIndex === null) return;
             const item = globalDaten.benachrichtigungen[ausgewaehlteNachrichtIndex];
             if(!item) return;
@@ -3563,21 +3233,21 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if(!item.geloeschtVon) item.geloeschtVon = [];
             if(!item.geloeschtVon.includes(eingeloggterMitarbeiter)) {
                 item.geloeschtVon.push(eingeloggterMitarbeiter);
-                try { await globalGlobalSpeichern(); }
-                catch(e) { console.error("Benachrichtigung konnte nicht gelöscht werden:", e); return; }
+                globalGlobalSpeichern();
             }
 
             document.getElementById('benachrichtigung-detail-modal').classList.add('hidden');
             benachrichtigungenAnzeigen();
         }
 
-        window.alleBenachrichtigungenAlsGelesenMarkieren = async function() {
+        window.alleBenachrichtigungenAlsGelesenMarkieren = function() {
             const liste = globalDaten.benachrichtigungen || [];
             let updated = false;
 
             liste.forEach(item => {
                 if(!item.geloeschtVon) item.geloeschtVon = [];
                 if(item.geloeschtVon.includes(eingeloggterMitarbeiter)) return;
+
                 if(!item.gelesenVon) item.gelesenVon = [];
                 if(!item.gelesenVon.includes(eingeloggterMitarbeiter)) {
                     item.gelesenVon.push(eingeloggterMitarbeiter);
@@ -3586,44 +3256,30 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             });
 
             if(updated) {
-                try { await globalGlobalSpeichern(); }
-                catch(e) { console.error("Als gelesen konnte nicht gespeichert werden:", e); return; }
+                globalGlobalSpeichern();
+                benachrichtigungenAnzeigen();
             }
-            benachrichtigungenAnzeigen();
         }
 
-        window.alleBenachrichtigungenLoeschen = async function() {
-            if(!confirm("Möchtest du wirklich alle sichtbaren Benachrichtigungen für dich löschen?")) return;
+        window.alleBenachrichtigungenLoeschen = function() {
+            if(confirm("Möchtest du wirklich alle sichtbaren Benachrichtigungen für dich löschen?")) {
+                const liste = globalDaten.benachrichtigungen || [];
+                let updated = false;
 
-            const liste = globalDaten.benachrichtigungen || [];
-            let updated = false;
+                liste.forEach(item => {
+                    if(!item.geloeschtVon) item.geloeschtVon = [];
+                    if(!item.geloeschtVon.includes(eingeloggterMitarbeiter)) {
+                        item.geloeschtVon.push(eingeloggterMitarbeiter);
+                        updated = true;
+                    }
+                });
 
-            liste.forEach(item => {
-                if(!item.geloeschtVon) item.geloeschtVon = [];
-                if(item.geloeschtVon.includes(eingeloggterMitarbeiter)) return;
-                item.geloeschtVon.push(eingeloggterMitarbeiter);
-                updated = true;
-            });
-
-            if(updated) {
-                try {
-                    await globalGlobalSpeichern();
-                } catch(e) {
-                    console.error("Benachrichtigungen konnten nicht gelöscht werden:", e);
-                    alert("Die Benachrichtigungen konnten nicht gespeichert werden. Bitte versuche es erneut.");
-                    return;
+                if(updated) {
+                    globalGlobalSpeichern();
+                    benachrichtigungenAnzeigen();
                 }
             }
-
-            benachrichtigungenAnzeigen();
         }
-
-        // Öffnet die Empfängerliste für Nachrichten.
-        // Alias für die bereits vorhandene Dropdown-Funktion, damit das Nachrichtenfenster
-        // bei allen Rollen (auch Verlegern) zuverlässig geöffnet werden kann.
-        window.nachrichtenEmpfaengerListeAktualisieren = function() {
-            empfaengerDropdownBefuellen();
-        };
 
         window.nachrichtModalOeffnen = function(vorbelegungEmpfaenger = '') {
             const modal = document.getElementById('nachricht-modal');
@@ -3637,7 +3293,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             setTimeout(() => { if (text) text.focus(); }, 50);
         };
 
-        window.nachrichtAbsenden = async function() {
+        window.nachrichtAbsenden = function() {
             const empfaenger = document.getElementById('nachricht-empfaenger').value;
             const text = document.getElementById('nachricht-text-input').value;
             if(!text.trim()) {
@@ -3646,57 +3302,24 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
 
             const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            const absenderAnzeige = eingeloggterMitarbeiter + ` (${(globalDaten.mitarbeiterListe || []).find(m => m.name === eingeloggterMitarbeiter)?.rolle || eingeloggteRolle})`;
-
+            
             if(!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
             globalDaten.benachrichtigungen.unshift({
-                von: absenderAnzeige,
+                von: eingeloggterMitarbeiter + ` (${(globalDaten.mitarbeiterListe || []).find(m => m.name === eingeloggterMitarbeiter)?.rolle || eingeloggteRolle})`,
                 empfaenger: empfaenger,
                 text: text,
                 datum: datum,
                 gelesenVon: [eingeloggterMitarbeiter],
                 geloeschtVon: [],
-                projekt: '',
+                projekt: aktuellesProjekt,
                 typ: 'nachricht'
             });
 
             globalGlobalSpeichern();
             document.getElementById('nachricht-modal').classList.add('hidden');
             benachrichtigungenAnzeigen();
-
-            // Push zusätzlich über den bereits eingerichteten Cloudflare Worker senden.
-            try {
-                const workerUrl = 'https://icy-tree-df33.magiera282.workers.dev/';
-                const tokenSnapshot = await getDocs(collection(db, 'pushTokens'));
-                const tokens = [];
-
-                tokenSnapshot.forEach((snap) => {
-                    const data = snap.data() || {};
-                    if (data.token && (empfaenger === 'Alle' || data.employeeName === empfaenger)) {
-                        if (!tokens.includes(data.token)) tokens.push(data.token);
-                    }
-                });
-
-                for (const token of tokens) {
-                    try {
-                        const response = await fetch(workerUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                token,
-                                title: `Neue Nachricht von ${eingeloggterMitarbeiter}`,
-                                body: text
-                            })
-                        });
-                        if (!response.ok) console.warn('Push-Versand fehlgeschlagen:', await response.text());
-                    } catch (pushError) {
-                        console.warn('Push-Gerät konnte nicht erreicht werden:', pushError);
-                    }
-                }
-            } catch (pushError) {
-                console.warn('Push-Versand konnte nicht gestartet werden:', pushError);
-            }
         }
+
         function profilLadenInTab() {
             document.getElementById('profil-name').value = eingeloggterMitarbeiter;
             const prof = globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] || { tel: "", email: "" };
@@ -3962,38 +3585,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.urlaubEntscheidung = urlaubEntscheidungNeu;
 
         window.abmelden = function() {
-            try {
-                localStorage.removeItem("brisbois_login_user");
-                localStorage.removeItem("brisbois_login_role");
-                localStorage.removeItem("brisbois_login_persistent");
-                localStorage.removeItem(BRISBOIS_LOGIN_KEY);
-            } catch(e) {}
-
-            try {
-                document.cookie = "brisbois_login=; max-age=0; path=/; SameSite=Lax; Secure";
-            } catch(e) {}
-
-            try {
-                const req = indexedDB.open("BrisboisPortal", 1);
-                req.onsuccess = () => {
-                    try {
-                        const dbi = req.result;
-                        const tx = dbi.transaction("login", "readwrite");
-                        tx.objectStore("login").delete("current");
-                        tx.oncomplete = () => { try { dbi.close(); } catch(e) {} };
-                    } catch(e) {}
-                };
-            } catch(e) {}
-
-            try {
-                sessionStorage.removeItem("brisbois_quick_user");
-                sessionStorage.removeItem("brisbois_quick_role");
-                sessionStorage.removeItem("brisbois_quick_login");
-            } catch(e) {}
-
-            eingeloggterMitarbeiter = "";
-            eingeloggteRolle = "";
-
             document.getElementById('app-container').classList.add('hidden');
             document.getElementById('login-modal').classList.remove('hidden');
             document.getElementById('login-passwort').value = "";
@@ -4100,7 +3691,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        function projektLaden(titel) {
+        async function projektLaden(titel) {
             const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
             if (!isChefOrTechOrSekr) {
                 const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
@@ -4116,6 +3707,19 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (!p.plaene) p.plaene = [];
             if (p.aktiverPlanIndex === undefined) p.aktiverPlanIndex = 0;
 
+            // Alte Versionen haben Bilder teilweise als Base64 direkt im Firestore-
+            // Projektdokument gespeichert. Diese alten Pläne würden das 1-MiB-Limit
+            // weiterhin auslösen. Beim ersten Öffnen werden sie deshalb einmalig
+            // nach Firebase Storage verschoben und im Projekt nur noch als Verweis
+            // gespeichert. Neue Pläne werden direkt in Storage abgelegt.
+            try {
+                await plaeneAltNachStorageMigrieren(titel);
+            } catch (migrationError) {
+                console.error('Plan-Migration fehlgeschlagen:', migrationError);
+                alert(`⚠️ Die vorhandenen Pläne konnten noch nicht in Firebase Storage verschoben werden.\n\n${migrationError.message || migrationError}`);
+                return;
+            }
+
             document.getElementById('projekt-titel').innerText = titel;
             document.getElementById('projekt-adresse').innerText = `Adresse: ${p.adresse}`;
             document.getElementById('anweisung-text').innerText = p.anweisung;
@@ -4130,6 +3734,22 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             startseiteAktualisieren();
         }
 
+        function planUrlHolen(plan) {
+            if (plan && typeof plan === 'object') return String(plan.url || plan.downloadURL || '');
+            return String(plan || '');
+        }
+
+        function planNameHolen(plan, idx) {
+            if (plan && typeof plan === 'object' && plan.name) return String(plan.name);
+            return `Plan ${idx + 1}`;
+        }
+
+        function planIstPdf(plan) {
+            const url = planUrlHolen(plan).toLowerCase();
+            const type = plan && typeof plan === 'object' ? String(plan.dateityp || plan.contentType || '').toLowerCase() : '';
+            return type.includes('application/pdf') || url.startsWith('data:application/pdf') || url.includes('.pdf') || url.includes('application/pdf');
+        }
+
         function plaeneLeisteAktualisieren() {
             const leiste = document.getElementById('plaene-auswahl-leiste');
             if(!leiste) return;
@@ -4141,11 +3761,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 return;
             }
 
-            p.plaene.forEach((planUrl, idx) => {
+            p.plaene.forEach((plan, idx) => {
                 const aktiv = idx === p.aktiverPlanIndex;
+                const name = escapeHtml(planNameHolen(plan, idx));
                 leiste.innerHTML += `
-                    <button type="button" onclick="aktivenPlanWechseln(${idx})" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1 ${aktiv ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
-                        📄 Plan ${idx + 1} ${aktiv ? '✓' : ''}
+                    <button type="button" title="${name}" onclick="aktivenPlanWechseln(${idx})" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1 ${aktiv ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
+                        📄 ${name} ${aktiv ? '✓' : ''}
                     </button>
                 `;
             });
@@ -4169,15 +3790,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             if (p.plaene && p.plaene.length > 0) {
                 const aktiverPlan = p.plaene[p.aktiverPlanIndex] || p.plaene[0];
+                const aktiverPlanUrl = planUrlHolen(aktiverPlan);
                 placeholder.style.display = 'none';
 
-                if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
+                if (planIstPdf(aktiverPlan)) {
                     bildEl.classList.add('hidden');
                     pdfViewer.classList.remove('hidden');
-                    pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
+                    pdfViewer.innerHTML = `<iframe src="${aktiverPlanUrl}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
                 } else {
                     pdfViewer.classList.add('hidden');
-                    bildEl.src = aktiverPlan;
+                    bildEl.src = aktiverPlanUrl;
                     bildEl.classList.remove('hidden');
                 }
             } else {
@@ -4199,37 +3821,24 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             document.getElementById('vollbild-titel').innerText = `📐 Großansicht: ${aktuellesProjekt} (Plan ${(p.aktiverPlanIndex || 0) + 1})`;
             vollbildZoomFaktor = 1;
-            mobilePlanOffsetX = 0;
-            mobilePlanOffsetY = 0;
             aktualisiereVollbildTransform();
 
             const bildEl = document.getElementById('vollbild-plan-bild');
             const pdfViewer = document.getElementById('vollbild-pdf-viewer');
             const aktiverPlan = p.plaene[p.aktiverPlanIndex || 0];
+            const aktiverPlanUrl = planUrlHolen(aktiverPlan);
 
-            if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
+            if (planIstPdf(aktiverPlan)) {
                 bildEl.classList.add('hidden');
                 pdfViewer.classList.remove('hidden');
-                pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
+                pdfViewer.innerHTML = `<iframe src="${aktiverPlanUrl}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
             } else {
                 pdfViewer.classList.add('hidden');
-                bildEl.src = aktiverPlan;
+                bildEl.src = aktiverPlanUrl;
                 bildEl.classList.remove('hidden');
             }
 
             document.getElementById('plan-vollbild-modal').classList.remove('hidden');
-
-            if (window.innerWidth <= 640) {
-                const mobilePlan = document.getElementById('vollbild-scroll-container');
-                if (mobilePlan && mobilePlan.dataset.mobilePlanGestures !== '1') {
-                    mobilePlan.dataset.mobilePlanGestures = '1';
-                    mobilePlan.addEventListener('touchstart', mobilePinTouchStart, {passive:false});
-                    mobilePlan.addEventListener('touchmove', mobilePinTouchMove, {passive:false});
-                    mobilePlan.addEventListener('touchend', mobilePinTouchEnd, {passive:false});
-                    mobilePlan.addEventListener('touchcancel', mobilePinTouchEnd, {passive:false});
-                }
-            }
-
             vollbildPinsAnzeigen();
         }
 
@@ -4250,22 +3859,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         window.vollbildZoomReset = function() {
             vollbildZoomFaktor = 1;
-            mobilePlanOffsetX = 0;
-            mobilePlanOffsetY = 0;
             aktualisiereVollbildTransform();
         }
 
         function aktualisiereVollbildTransform() {
             const wrapper = document.getElementById('vollbild-transform-wrapper');
             if(wrapper) {
-                wrapper.style.transition = 'none';
-                wrapper.style.transform =
-                    `translate3d(${mobilePlanOffsetX}px, ${mobilePlanOffsetY}px, 0) scale(${vollbildZoomFaktor})`;
+                wrapper.style.transform = `scale(${vollbildZoomFaktor})`;
             }
         }
 
         window.startVollbildPan = function(e) {
-            if (window.matchMedia('(max-width: 640px)').matches) return;
             if(e.target.closest('#vollbild-pin-container') || e.target.closest('button')) return;
             isVollbildPanning = true;
             const container = document.getElementById('vollbild-scroll-container');
@@ -4308,166 +3912,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        let ausgewaehlterPinTyp = 'mangel';
-        let pinLongPressTimer = null;
-        let pinLongPressWirdGetriggert = false;
-        let pinTouchStartX = 0;
-        let pinTouchStartY = 0;
-
-        // Mobile pinch-zoom: eigener Zoom des Plans, nicht der gesamten Webseite.
-        let mobilePinchAktiv = false;
-        let mobilePinchStartAbstand = 0;
-        let mobilePinchStartZoom = 1;
-        let mobilePlanOffsetX = 0;
-        let mobilePlanOffsetY = 0;
-        let mobilePanAktiv = false;
-        let mobilePanStartX = 0;
-        let mobilePanStartY = 0;
-        let mobilePanStartOffsetX = 0;
-        let mobilePanStartOffsetY = 0;
-
-        window.pinTypWaehlen = function(typ) {
-            ausgewaehlterPinTyp = typ;
-            document.querySelectorAll('.pin-typ-btn').forEach(b => b.classList.remove('ring-2','ring-slate-900'));
-            const b = document.getElementById('pin-typ-' + typ);
-            if (b) b.classList.add('ring-2','ring-slate-900');
-
-            const input = document.getElementById('pin-eigener-name');
-            if (input) {
-                input.classList.toggle('hidden', typ !== 'eigen');
-                if (typ === 'eigen') setTimeout(() => input.focus(), 50);
-            }
-        };
-
-        function mobilePinModalOeffnen(x, y) {
-            temporärePinX = x;
-            temporärePinY = y;
-            const text = document.getElementById('pin-text-input');
-            const foto = document.getElementById('pin-foto-input');
-            const name = document.getElementById('pin-eigener-name');
-            if (text) text.value = "";
-            if (foto) foto.value = "";
-            if (name) name.value = "";
-            pinTypWaehlen(ausgewaehlterPinTyp);
-            document.getElementById('pin-modal').classList.remove('hidden');
-        }
-
-        function mobilePinPosition(event) {
-            const wrapper = document.getElementById('vollbild-transform-wrapper');
-            if (!wrapper || !event.touches || !event.touches[0]) return null;
-
-            const rect = wrapper.getBoundingClientRect();
-            const t = event.touches[0];
-
-            // rect enthält bereits Scale + Translation. Die relative Position
-            // des Fingers innerhalb des sichtbaren Plans bleibt dadurch korrekt.
-            const x = t.clientX - rect.left;
-            const y = t.clientY - rect.top;
-            if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
-
-            return { x: (x / rect.width) * 100, y: (y / rect.height) * 100 };
-        }
-
-        function mobileTouchAbstand(a,b) {
-            return Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
-        }
-
-        function mobilePinTouchStart(event) {
-            if (!event.touches) return;
-
-            // Zwei Finger: eigener Pinch-Zoom um den aktuellen Plan.
-            if (event.touches.length >= 2) {
-                pinLongPressWirdGetriggert = false;
-                clearTimeout(pinLongPressTimer);
-
-                mobilePinchAktiv = true;
-                mobilePanAktiv = false;
-                mobilePinchStartAbstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
-                mobilePinchStartZoom = vollbildZoomFaktor;
-                event.preventDefault();
-                return;
-            }
-
-            if (event.touches.length !== 1) return;
-
-            const t = event.touches[0];
-            pinTouchStartX = t.clientX;
-            pinTouchStartY = t.clientY;
-
-            // Ein Finger bewegt den Plan, sobald er gezoomt ist.
-            mobilePanAktiv = true;
-            mobilePanStartX = t.clientX;
-            mobilePanStartY = t.clientY;
-            mobilePanStartOffsetX = mobilePlanOffsetX;
-            mobilePanStartOffsetY = mobilePlanOffsetY;
-
-            // Wenn Pin-Modus aktiv ist, startet zusätzlich der Long-Press.
-            if (pinModusAktiv) {
-                pinLongPressWirdGetriggert = true;
-                clearTimeout(pinLongPressTimer);
-
-                pinLongPressTimer = setTimeout(() => {
-                    if (!pinLongPressWirdGetriggert) return;
-                    const pos = mobilePinPosition(event);
-                    if (pos) {
-                        pinLongPressWirdGetriggert = false;
-                        mobilePanAktiv = false;
-                        mobilePinModalOeffnen(pos.x, pos.y);
-                    }
-                }, 650);
-            }
-        }
-
-        function mobilePinTouchMove(event) {
-            if (!event.touches) return;
-
-            // Zwei Finger = Pinch-Zoom.
-            if (event.touches.length >= 2) {
-                pinLongPressWirdGetriggert = false;
-                clearTimeout(pinLongPressTimer);
-                mobilePanAktiv = false;
-                mobilePinchAktiv = true;
-
-                const abstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
-                if (mobilePinchStartAbstand > 0) {
-                    const faktor = abstand / mobilePinchStartAbstand;
-                    vollbildZoomFaktor = Math.max(0.7, Math.min(4, mobilePinchStartZoom * faktor));
-                    aktualisiereVollbildTransform();
-                }
-                event.preventDefault();
-                return;
-            }
-
-            if (event.touches.length !== 1) return;
-
-            const t = event.touches[0];
-            const dx = t.clientX - pinTouchStartX;
-            const dy = t.clientY - pinTouchStartY;
-
-            // Bewegung beendet einen Long-Press.
-            if (Math.hypot(dx, dy) > 12) {
-                pinLongPressWirdGetriggert = false;
-                clearTimeout(pinLongPressTimer);
-            }
-
-            // Plan mit einem Finger verschieben.
-            if (mobilePanAktiv) {
-                mobilePlanOffsetX = mobilePanStartOffsetX + dx;
-                mobilePlanOffsetY = mobilePanStartOffsetY + dy;
-                aktualisiereVollbildTransform();
-                event.preventDefault();
-            }
-        }
-
-        function mobilePinTouchEnd(event) {
-            if (!event || event.touches.length < 2) {
-                mobilePinchAktiv = false;
-            }
-            mobilePanAktiv = false;
-            pinLongPressWirdGetriggert = false;
-            clearTimeout(pinLongPressTimer);
-        }
-
         window.vollbildGrundrissKlickVerarbeiten = function(event) {
             if (!pinModusAktiv) return;
             const p = globalDaten.projekte[aktuellesProjekt];
@@ -4492,12 +3936,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.pinSpeichernBestätigen = async function() {
             const text = document.getElementById('pin-text-input').value.trim();
             const fotoInput = document.getElementById('pin-foto-input');
-            const eigenerName = (document.getElementById('pin-eigener-name')?.value || '').trim();
-
-            if (ausgewaehlterPinTyp === 'eigen' && !eigenerName) {
-                alert("Bitte gib einen Namen für den eigenen Pin ein!");
-                return;
-            }
 
             if (!text) {
                 alert("Bitte gib eine Beschreibung oder einen Mangel für den Pin ein!");
@@ -4527,9 +3965,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     foto: fotoUrl,
                     von: eingeloggterMitarbeiter,
                     zeit: datum,
-                    gelesenVon: [],
-                    typ: ausgewaehlterPinTyp,
-                    name: ausgewaehlterPinTyp === 'eigen' ? eigenerName : (ausgewaehlterPinTyp === 'frage' ? 'Frage' : 'Mangel')
+                    gelesenVon: []
                 });
 
                 if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
@@ -4577,13 +4013,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 if (pinPlanIdx !== aktiverPlanIdx) return;
 
                 const pinEl = document.createElement('div');
-                const pinTyp = pin.typ || 'mangel';
-                const pinFarbe = pinTyp === 'frage' ? 'bg-blue-600' : pinTyp === 'eigen' ? 'bg-amber-500' : 'bg-red-600';
-                const pinSymbol = pinTyp === 'frage' ? '❓' : pinTyp === 'eigen' ? '📍' : '⚠️';
-                pinEl.className = `absolute -ml-4 -mt-8 ${pinFarbe} text-white font-black text-sm w-8 h-8 rounded-full flex items-center justify-center shadow-2xl border-2 border-white cursor-pointer hover:scale-125 transition pointer-events-auto`;
+                pinEl.className = "absolute -ml-4 -mt-8 bg-red-600 text-white font-black text-sm w-8 h-8 rounded-full flex items-center justify-center shadow-2xl border-2 border-white cursor-pointer hover:scale-125 transition pointer-events-auto";
                 pinEl.style.left = pin.x + '%';
                 pinEl.style.top = pin.y + '%';
-                pinEl.innerHTML = pinSymbol;
+                pinEl.innerHTML = `📌`;
                 
                 pinEl.onclick = function(e) {
                     e.stopPropagation();
@@ -5081,39 +4514,20 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     return;
                 }
 
-                /*
-                 * WICHTIG: Der Portal-Login ist ein eigener Schnell-Login und kein
-                 * Firebase-Auth-Login. Deshalb kann Firebase Storage je nach
-                 * Storage-Regeln den Upload mit permission-denied ablehnen.
-                 * Bilder werden deshalb direkt als komprimierte Datei im Projekt
-                 * gespeichert. So funktioniert der Grundriss auch ohne Storage-
-                 * Berechtigung. PDFs verwenden weiterhin Firebase Storage.
-                 */
-                const uploadDatei = istPdf ? datei : await planBildKomprimieren(datei);
-                let url = '';
+                // ALLE neuen Pläne werden jetzt in Firebase Storage gespeichert.
+                // Im Firestore-Projekt bleiben nur kleine Metadaten und der Storage-Link.
+                // Dadurch gibt es keine künstliche 3-Plan-Grenze mehr durch das 1-MiB-
+                // Firestore-Dokumentlimit.
+                const uploadDatei = istPdf ? datei : await planBildKomprimieren(datei, 3000, 0.88);
+                const hochgeladen = await uploadBaustellenPlan(uploadDatei, aktuellesProjekt);
 
-                if (!istPdf) {
-                    // Das Bild bewusst klein halten, damit das Firestore-Dokument
-                    // unter dem Größenlimit bleibt und trotzdem gut lesbar ist.
-                    const reader = new FileReader();
-                    url = await new Promise((resolve, reject) => {
-                        reader.onerror = () => reject(new Error('Das Bild konnte nicht gelesen werden.'));
-                        reader.onload = () => resolve(String(reader.result || ''));
-                        reader.readAsDataURL(uploadDatei);
-                    });
-                    if (!url || url.length > 800000) {
-                        throw new Error('Das Bild ist trotz Komprimierung noch zu groß. Bitte ein kleineres Bild auswählen.');
-                    }
-                } else {
-                    // PDFs werden weiterhin als Datei in Firebase Storage abgelegt.
-                    url = await uploadBaustellenDatei(uploadDatei, "plaene", aktuellesProjekt);
-                }
-
-                await speichereGrundrissPlan(url, {
+                await speichereGrundrissPlan(hochgeladen.url, {
                     dateiname: datei.name,
+                    name: datei.name,
                     dateityp: uploadDatei.type || (istPdf ? "application/pdf" : "image/jpeg"),
                     groesse: uploadDatei.size,
-                    speicherart: istPdf ? 'firebase-storage' : 'firestore-bild'
+                    speicherart: 'firebase-storage',
+                    storagePath: hochgeladen.pfad
                 });
                 alert(`✅ Plan „${datei.name}“ wurde erfolgreich hochgeladen.`);
             } catch (error) {
@@ -5122,12 +4536,80 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 alert(
                     "❌ Der Plan konnte nicht hochgeladen werden.\n\n" +
                     msg +
-                    (istPdf ? "\n\nBei PDF-Plänen muss Firebase Storage freigeschaltet sein." : "")
+                    "\n\nBitte prüfe, ob Firebase Storage für das Portal freigegeben ist."
                 );
             } finally {
-                // Derselbe Plan kann direkt danach erneut ausgewählt werden.
                 const inputs = document.querySelectorAll('input[type="file"]');
                 inputs.forEach(input => { if (input.accept && input.accept.includes('image')) input.value = ''; });
+            }
+        }
+
+        async function uploadBaustellenPlan(datei, projektname) {
+            if (!datei) throw new Error("Keine Datei ausgewählt.");
+            if (!storage) throw new Error("Firebase Storage ist nicht verfügbar. Bitte Firebase Storage aktivieren.");
+
+            const sichererProjektname = String(projektname || "baustelle").replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, "_").slice(0, 80);
+            const sichererDateiname = String(datei.name || "plan").replace(/[^a-zA-Z0-9äöüÄÖÜß._ -]/g, "_").slice(0, 120);
+            const dateiname = `${Date.now()}_${crypto.randomUUID()}_${sichererDateiname}`;
+            const pfad = `baustellen/${sichererProjektname}/plaene/${dateiname}`;
+            const ziel = storageRef(storage, pfad);
+            await uploadBytes(ziel, datei, { contentType: datei.type || "application/octet-stream" });
+            return { url: await getDownloadURL(ziel), pfad };
+        }
+
+        async function plaeneAltNachStorageMigrieren(titel) {
+            const p = globalDaten.projekte[titel];
+            if (!p || !Array.isArray(p.plaene) || p.plaene.length === 0) return;
+
+            const altePlaene = p.plaene;
+            const neuePlaene = [];
+            let migrationNoetig = false;
+
+            for (let i = 0; i < altePlaene.length; i++) {
+                const plan = altePlaene[i];
+                const url = planUrlHolen(plan);
+                const istDataUrl = url.startsWith('data:');
+
+                if (!istDataUrl) {
+                    if (plan && typeof plan === 'object') {
+                        neuePlaene.push(plan);
+                    } else {
+                        neuePlaene.push({
+                            url,
+                            name: `Plan ${i + 1}`,
+                            dateityp: planIstPdf(plan) ? 'application/pdf' : 'image/jpeg',
+                            speicherart: 'bestehender-link'
+                        });
+                        migrationNoetig = true;
+                    }
+                    continue;
+                }
+
+                if (!storage) throw new Error('Firebase Storage ist nicht verfügbar. Die alten Planbilder müssen einmalig nach Storage verschoben werden.');
+
+                const antwort = await fetch(url);
+                if (!antwort.ok) throw new Error(`Alter Plan ${i + 1} konnte nicht gelesen werden.`);
+                const blob = await antwort.blob();
+                const mime = blob.type || (url.startsWith('data:application/pdf') ? 'application/pdf' : 'image/jpeg');
+                const ext = mime.includes('pdf') ? 'pdf' : 'jpg';
+                const file = new File([blob], `Plan-${i + 1}.${ext}`, { type: mime });
+                const hochgeladen = await uploadBaustellenPlan(file, titel);
+
+                neuePlaene.push({
+                    url: hochgeladen.url,
+                    name: planNameHolen(plan, i),
+                    dateityp: mime,
+                    groesse: file.size,
+                    speicherart: 'firebase-storage',
+                    storagePath: hochgeladen.pfad,
+                    migriertAm: new Date().toISOString()
+                });
+                migrationNoetig = true;
+            }
+
+            if (migrationNoetig) {
+                p.plaene = neuePlaene;
+                await setDoc(doc(db, "projekte", titel), p);
             }
         }
 
@@ -5135,8 +4617,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const p = globalDaten.projekte[aktuellesProjekt];
             if (!p) return;
             if (!p.plaene) p.plaene = [];
-            // Rückwärtskompatibel: alte Einträge können weiterhin Strings sein.
-            p.plaene.push(ergebnisUrl);
+            p.plaene.push({
+                url: ergebnisUrl,
+                name: meta.name || meta.dateiname || `Plan ${p.plaene.length + 1}`,
+                dateityp: meta.dateityp || '',
+                groesse: meta.groesse || 0,
+                speicherart: meta.speicherart || 'firebase-storage',
+                storagePath: meta.storagePath || ''
+            });
             p.aktiverPlanIndex = p.plaene.length - 1;
             
             if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
@@ -6260,26 +5748,6 @@ body { top:0 !important; }
 </script>
 <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
-
-<script>
-(function(){
-  function attachMobilePlanControls(){
-    if (window.innerWidth > 640) return;
-    const plan = document.getElementById('vollbild-scroll-container');
-    if (!plan || plan.dataset.mobilePlanControlsBound === '1') return;
-    plan.dataset.mobilePlanControlsBound = '1';
-
-    plan.addEventListener('touchstart', mobilePinTouchStart, {passive:false});
-    plan.addEventListener('touchmove', mobilePinTouchMove, {passive:false});
-    plan.addEventListener('touchend', mobilePinTouchEnd, {passive:false});
-    plan.addEventListener('touchcancel', mobilePinTouchEnd, {passive:false});
-  }
-
-  document.addEventListener('DOMContentLoaded', attachMobilePlanControls);
-  setTimeout(attachMobilePlanControls, 300);
-  setTimeout(attachMobilePlanControls, 1200);
-})();
-</script>
 
 </body>
 </html>
