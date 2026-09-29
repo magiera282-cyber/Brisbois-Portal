@@ -4514,10 +4514,15 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     return;
                 }
 
-                // ALLE neuen Pläne werden jetzt in Firebase Storage gespeichert.
+                // WICHTIG: Alte Pläne dieser Baustelle können noch als große Base64-Daten
+                // direkt im Firestore-Projekt liegen. Bevor wir den neuen Plan hinzufügen,
+                // werden diese alten Daten einmalig nach Firebase Storage migriert.
+                // Sonst würde der nächste setDoc weiterhin am 1-MiB-Firestore-Limit scheitern.
+                await plaeneAltNachStorageMigrieren(aktuellesProjekt);
+
+                // ALLE neuen Pläne werden in Firebase Storage gespeichert.
                 // Im Firestore-Projekt bleiben nur kleine Metadaten und der Storage-Link.
-                // Dadurch gibt es keine künstliche 3-Plan-Grenze mehr durch das 1-MiB-
-                // Firestore-Dokumentlimit.
+                // Dadurch können beliebig viele Pläne pro Baustelle gespeichert werden.
                 const uploadDatei = istPdf ? datei : await planBildKomprimieren(datei, 3000, 0.88);
                 const hochgeladen = await uploadBaustellenPlan(uploadDatei, aktuellesProjekt);
 
