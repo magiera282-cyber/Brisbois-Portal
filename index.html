@@ -860,8 +860,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                             <span class="text-xs font-bold text-slate-400 uppercase">Aktuelle Baustelle</span>
                             <span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-bold">Zugewiesen</span>
                         </div>
-                        <h3 class="text-xl font-bold text-slate-900" id="start-aktuelle-baustelle">Wohnkomplex Kirchberg</h3>
-                        <p class="text-xs text-slate-500" id="start-baustelle-adresse">15 Avenue J.F. Kennedy, Luxemburg</p>
+                        <h3 class="text-xl font-bold text-slate-900" id="start-aktuelle-baustelle">Keine Baustelle zugeordnet</h3>
+                        <p class="text-xs text-slate-500" id="start-baustelle-adresse">Bitte wende dich an die Arbeitsvorbereitung.</p>
                     </div>
                     <button onclick="wechselnTab('auftraege')" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-xl text-xs transition shadow">
                         🔍 Zur Baustellen-Ansicht & Plänen →
@@ -940,7 +940,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                             <div class="flex items-center gap-2 flex-wrap">
-                                <h2 id="projekt-titel" class="text-2xl font-bold text-slate-900">Wohnkomplex Kirchberg</h2>
+                                <h2 id="projekt-titel" class="text-2xl font-bold text-slate-900">Keine Baustelle zugeordnet</h2>
                                 <button onclick="projektBearbeitenOeffnen()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2.5 py-1 rounded-lg font-bold transition chef-only">
                                     ✏️ Bearbeiten
                                 </button>
@@ -948,7 +948,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                                     🗑️ Löschen
                                 </button>
                             </div>
-                            <p id="projekt-adresse" class="text-slate-500 text-sm mt-1">Adresse: 15 Avenue J.F. Kennedy, Luxemburg-Kirchberg</p>
+                            <p id="projekt-adresse" class="text-slate-500 text-sm mt-1">Bitte wende dich an die Arbeitsvorbereitung.</p>
                         </div>
                         <div class="flex items-center gap-2">
                             <select id="projekt-status-dropdown" onchange="statusAendern(this.value)" class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1.5 rounded-full font-bold border border-emerald-300">
@@ -1724,9 +1724,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         Object.defineProperty(window, "eingeloggteRolle", { get: () => eingeloggteRolle, configurable: true });
         Object.defineProperty(window, "aktuellesProjekt", { get: () => aktuellesProjekt, set: v => { aktuellesProjekt = v || ""; }, configurable: true });
         let aktuellesProjekt = "";
-        // Planbilder werden separat pro Baustelle gespeichert, damit das
-        // eigentliche Projekt-Dokument klein bleibt.
-        const projektPlaeneCache = {};
         let pinModusAktiv = false;
         let temporärePinX = 0;
         let temporärePinY = 0;
@@ -1992,10 +1989,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (!snapshot.empty) {
                 const neueProjekte = {};
                 snapshot.forEach((docSnap) => {
-                    const daten = docSnap.data() || {};
-                    if (projektPlaeneCache[docSnap.id]) daten.plaene = projektPlaeneCache[docSnap.id].slice();
-                    else if (!Array.isArray(daten.plaene)) daten.plaene = [];
-                    neueProjekte[docSnap.id] = daten;
+                    neueProjekte[docSnap.id] = docSnap.data();
                 });
                 globalDaten.projekte = neueProjekte;
                 // Sobald Firebase die echte Projektliste geliefert hat, werden alte/gelöschte Baustellen
@@ -2049,11 +2043,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         async function projektSpeichern(titel) {
             try {
                 const projDaten = globalDaten.projekte[titel];
-                if (!projDaten) return;
-                // Planbilder werden separat gespeichert und dürfen nie wieder
-                // in das grosse Baustellen-Dokument geschrieben werden.
-                const speicherDaten = {...projDaten, plaene: []};
-                await setDoc(doc(db, "projekte", titel), speicherDaten);
+                await setDoc(doc(db, "projekte", titel), projDaten);
             } catch(e) {
                 console.error("Fehler beim Speichern des Projekts:", e);
                 alert(`⚠️ Baustelle konnte nicht gespeichert werden. ${e.message || "Bitte prüfe deine Firebase-Verbindung und Regeln."}`);
@@ -2423,6 +2413,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     projektLaden(ersteBaustelle);
                 } else {
                     aktuellesProjekt = "";
+                    const projektTitelEl = document.getElementById('projekt-titel');
+                    const projektAdresseEl = document.getElementById('projekt-adresse');
+                    if (projektTitelEl) projektTitelEl.innerText = "Keine Baustelle zugeordnet";
+                    if (projektAdresseEl) projektAdresseEl.innerText = "Bitte wende dich an die Arbeitsvorbereitung.";
                 }
             }
 
@@ -4110,63 +4104,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        async function ladePlaeneFuerProjekt(titel) {
-            const p = globalDaten.projekte[titel];
-            if (!p) return;
-            if (p.aktiverPlanIndex === undefined) p.aktiverPlanIndex = 0;
-
-            // Neue Struktur: die eigentlichen Planbilder liegen einzeln in
-            // der Unterkollektion der Baustelle. Das verhindert, dass das
-            // 1-MB-Limit des Projekt-Dokuments erreicht wird.
-            try {
-                const snap = await getDocs(collection(db, 'projekte', titel, 'plaene'));
-                const geladenePlaene = [];
-                snap.forEach(planSnap => {
-                    const d = planSnap.data() || {};
-                    if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id });
-                });
-                geladenePlaene.sort((a,b) => a.index - b.index);
-
-                // Alte Pläne, die noch direkt im Projekt-Dokument liegen,
-                // einmalig in einzelne Plan-Dokumente übernehmen.
-                const altePlaene = Array.isArray(p.plaene) ? p.plaene.slice() : [];
-                if (geladenePlaene.length === 0 && altePlaene.length > 0) {
-                    for (let i = 0; i < altePlaene.length; i++) {
-                        const url = String(altePlaene[i] || '');
-                        if (!url) continue;
-                        await setDoc(doc(db, 'projekte', titel, 'plaene', crypto.randomUUID()), {
-                            index: i,
-                            url,
-                            erstelltAm: new Date().toISOString(),
-                            dateityp: url.startsWith('data:application/pdf') ? 'application/pdf' : 'image/jpeg',
-                            migriert: true
-                        });
-                    }
-                    // Nur die großen Planbilder aus dem Projekt-Dokument entfernen.
-                    // Alle anderen Baustellendaten (Pins, Team, Status usw.) bleiben erhalten.
-                    p.plaene = [];
-                    await setDoc(doc(db, 'projekte', titel), p);
-
-                    const neu = await getDocs(collection(db, 'projekte', titel, 'plaene'));
-                    geladenePlaene.length = 0;
-                    neu.forEach(planSnap => {
-                        const d = planSnap.data() || {};
-                        if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id });
-                    });
-                    geladenePlaene.sort((a,b) => a.index - b.index);
-                }
-
-                p.plaene = geladenePlaene.map(x => x.url);
-                projektPlaeneCache[titel] = p.plaene.slice();
-                if (p.aktiverPlanIndex >= p.plaene.length) p.aktiverPlanIndex = Math.max(0, p.plaene.length - 1);
-            } catch (e) {
-                console.warn('Plan-Unterkollektion konnte nicht geladen werden; vorhandene lokale Pläne bleiben erhalten:', e);
-                if (!Array.isArray(p.plaene)) p.plaene = [];
-                projektPlaeneCache[titel] = p.plaene.slice();
-            }
-        }
-
-        async function projektLaden(titel) {
+        function projektLaden(titel) {
             const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
             if (!isChefOrTechOrSekr) {
                 const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
@@ -4179,7 +4117,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             aktuellesProjekt = titel;
             const p = globalDaten.projekte[titel];
 
-            if (!Array.isArray(p.plaene)) p.plaene = [];
+            if (!p.plaene) p.plaene = [];
             if (p.aktiverPlanIndex === undefined) p.aktiverPlanIndex = 0;
 
             document.getElementById('projekt-titel').innerText = titel;
@@ -4187,7 +4125,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             document.getElementById('anweisung-text').innerText = p.anweisung;
             document.getElementById('projekt-status-dropdown').value = p.status;
 
-            // Zuerst die Baustelle normal anzeigen, damit nichts blockiert.
             projektListeAktualisieren();
             plaeneLeisteAktualisieren();
             planVorschauAnzeigen();
@@ -4195,13 +4132,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             projektTeamAnzeigen();
             schnellZuweisungDropdownBefuellen();
             startseiteAktualisieren();
-
-            // Danach die Plan-Unterkollektion laden/migrieren.
-            await ladePlaeneFuerProjekt(titel);
-            if (aktuellesProjekt !== titel) return;
-            plaeneLeisteAktualisieren();
-            planVorschauAnzeigen();
-            projektListeAktualisieren();
         }
 
         function plaeneLeisteAktualisieren() {
@@ -4227,9 +4157,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         window.aktivenPlanWechseln = function(idx) {
             const p = globalDaten.projekte[aktuellesProjekt];
-            if (!p || !Array.isArray(p.plaene) || !p.plaene[idx]) return;
             p.aktiverPlanIndex = idx;
-            // Nur den kleinen Index im Projekt-Dokument speichern.
             projektSpeichern(aktuellesProjekt);
             planVorschauAnzeigen();
             plaeneLeisteAktualisieren();
@@ -5208,31 +5136,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         async function speichereGrundrissPlan(ergebnisUrl, meta = {}) {
-            const titel = aktuellesProjekt;
-            const p = globalDaten.projekte[titel];
+            const p = globalDaten.projekte[aktuellesProjekt];
             if (!p) return;
-            if (!Array.isArray(p.plaene)) p.plaene = [];
-
-            // Der eigentliche Plan wird als eigenes Dokument gespeichert.
-            // Damit wächst das Baustellen-Dokument nicht mehr mit jedem Bild.
-            const index = p.plaene.length;
-            const planId = crypto.randomUUID();
-            await setDoc(doc(db, 'projekte', titel, 'plaene', planId), {
-                index,
-                url: ergebnisUrl,
-                dateiname: meta.dateiname || '',
-                dateityp: meta.dateityp || '',
-                groesse: Number(meta.groesse || 0),
-                speicherart: meta.speicherart || '',
-                erstelltAm: new Date().toISOString(),
-                erstelltVon: eingeloggterMitarbeiter || ''
-            });
-
-            // Lokal für die bestehende Anzeige vorhalten. Diese Werte werden
-            // NICHT mehr in das Projekt-Dokument geschrieben.
+            if (!p.plaene) p.plaene = [];
+            // Rückwärtskompatibel: alte Einträge können weiterhin Strings sein.
             p.plaene.push(ergebnisUrl);
-            p.aktiverPlanIndex = index;
-
+            p.aktiverPlanIndex = p.plaene.length - 1;
+            
             if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
             const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
             globalDaten.benachrichtigungen.unshift({
@@ -5245,16 +5155,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 projekt: aktuellesProjekt
             });
 
-            // Nur den kleinen aktiven Index im Projekt-Dokument speichern.
-            // Die Bilddaten bleiben ausschließlich in der Plan-Unterkollektion.
-            const projektOhnePlanbilder = {...p, plaene: []};
-            globalDaten.projekte[titel] = projektOhnePlanbilder;
-            await setDoc(doc(db, 'projekte', titel), projektOhnePlanbilder);
-            // Für die aktuelle Anzeige die Planliste wieder lokal setzen.
-            globalDaten.projekte[titel].plaene = p.plaene;
-            globalDaten.projekte[titel].aktiverPlanIndex = index;
-            projektPlaeneCache[titel] = p.plaene.slice();
-
+            await projektSpeichern(aktuellesProjekt);
             await window.globalGlobalSpeichern();
             plaeneLeisteAktualisieren();
             planVorschauAnzeigen();
