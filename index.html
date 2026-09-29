@@ -4676,34 +4676,66 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         };
 
-        async function projektPinAnzeigen(index) {
-            const p = globalDaten.projekte[aktuellesProjekt];
-            if (!p || !Array.isArray(p.pins) || !p.pins[index]) return;
-            const pin = p.pins[index];
-            const planIdx = pin.planIndex !== undefined ? Number(pin.planIndex) : 0;
-
-            if (!Array.isArray(p.plaene) || p.plaene.length === 0) {
-                await ladePlaeneFuerProjekt(aktuellesProjekt);
-            }
-            if (!Array.isArray(p.plaene) || !p.plaene[planIdx]) {
-                alert('Der zu diesem Pin gehörende Plan konnte nicht gefunden werden.');
+        window.projektPinAnzeigen = async function(index) {
+            const projektName = aktuellesProjekt;
+            if (!projektName || !globalDaten.projekte[projektName]) {
+                alert('Bitte öffne zuerst die gewünschte Baustelle.');
                 return;
             }
 
+            let p = globalDaten.projekte[projektName];
+            if (!Array.isArray(p.pins) || !p.pins[index]) {
+                alert('Dieser Pin ist nicht mehr vorhanden.');
+                return;
+            }
+
+            const pin = p.pins[index];
+            const planIdx = Number.isFinite(Number(pin.planIndex)) ? Number(pin.planIndex) : 0;
+
+            // Die Pläne müssen vollständig geladen sein, bevor wir zum Pin springen.
+            if (!Array.isArray(p.plaene) || p.plaene.length === 0 || !p.plaene[planIdx]) {
+                await ladePlaeneFuerProjekt(projektName);
+                p = globalDaten.projekte[projektName];
+            }
+
+            if (!p || !Array.isArray(p.plaene) || !p.plaene[planIdx]) {
+                alert(`Der zu diesem Pin gehörende Plan ${planIdx + 1} konnte nicht geladen werden.`);
+                return;
+            }
+
+            // Erst lokal den richtigen Plan setzen, dann die Großansicht öffnen.
+            // Das Speichern des aktiven Index darf den Sprung nicht blockieren.
             p.aktiverPlanIndex = planIdx;
             hervorgehobenerPinIndex = index;
-            await projektSpeichern(aktuellesProjekt);
             plaeneLeisteAktualisieren();
             planVorschauAnzeigen();
+
             await vollbildOeffnen();
 
+            // Pin nach dem Rendern nochmals anzeigen und deutlich hervorheben.
             setTimeout(() => {
                 vollbildPinsAnzeigen();
-                setTimeout(() => {
-                    hervorgehobenerPinIndex = null;
-                    vollbildPinsAnzeigen();
-                }, 5000);
-            }, 150);
+                const container = document.getElementById('vollbild-pin-container');
+                const pinElemente = container ? container.children : [];
+                const ziel = pinElemente[index];
+                if (ziel) {
+                    ziel.classList.add('pin-neu-blinken');
+                    try { ziel.scrollIntoView({behavior:'smooth', block:'center', inline:'center'}); } catch(e) {}
+                }
+            }, 250);
+
+            // Als gelesen markieren, ohne den Sprung zum Pin zu blockieren.
+            if (!Array.isArray(pin.gelesenVon)) pin.gelesenVon = [];
+            if (eingeloggterMitarbeiter && !pin.gelesenVon.includes(eingeloggterMitarbeiter)) {
+                pin.gelesenVon.push(eingeloggterMitarbeiter);
+                projektSpeichern(projektName).catch(e => console.warn('Pin-Lesestatus konnte nicht gespeichert werden:', e));
+            }
+
+            setTimeout(() => {
+                hervorgehobenerPinIndex = null;
+                vollbildPinsAnzeigen();
+                projektPinListeAnzeigen();
+            }, 5000);
         }
 
         function projektPinListeAnzeigen() {
