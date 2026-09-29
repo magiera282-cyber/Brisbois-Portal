@@ -3691,7 +3691,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
         }
 
-        async function projektLaden(titel) {
+        function projektLaden(titel) {
             const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
             if (!isChefOrTechOrSekr) {
                 const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
@@ -3706,19 +3706,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             if (!p.plaene) p.plaene = [];
             if (p.aktiverPlanIndex === undefined) p.aktiverPlanIndex = 0;
-
-            // Alte Versionen haben Bilder teilweise als Base64 direkt im Firestore-
-            // Projektdokument gespeichert. Diese alten Pläne würden das 1-MiB-Limit
-            // weiterhin auslösen. Beim ersten Öffnen werden sie deshalb einmalig
-            // nach Firebase Storage verschoben und im Projekt nur noch als Verweis
-            // gespeichert. Neue Pläne werden direkt in Storage abgelegt.
-            try {
-                await plaeneAltNachStorageMigrieren(titel);
-            } catch (migrationError) {
-                console.error('Plan-Migration fehlgeschlagen:', migrationError);
-                alert(`⚠️ Die vorhandenen Pläne konnten noch nicht in Firebase Storage verschoben werden.\n\n${migrationError.message || migrationError}`);
-                return;
-            }
 
             document.getElementById('projekt-titel').innerText = titel;
             document.getElementById('projekt-adresse').innerText = `Adresse: ${p.adresse}`;
