@@ -357,8 +357,18 @@ body::after {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: rgba(255,255,255,0.82);
+  background: rgba(255,255,255,0.55);
   pointer-events: none;
+}
+
+/* Slightly transparent app panels so the fixed Brisbois logo remains clearly visible. */
+main .bg-white.rounded-xl,
+main .bg-white.rounded-2xl,
+main .bg-white.rounded-3xl,
+main .bg-white.rounded-lg {
+  background-color: rgba(255,255,255,0.74) !important;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
 }
 </style>
 </head>
