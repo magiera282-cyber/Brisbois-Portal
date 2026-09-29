@@ -466,6 +466,21 @@ main.tab-content:not(#tab-dashboard) .text-slate-500 { color: #fff !important; }
 main.tab-content:not(#tab-dashboard) label.text-slate-600,
 main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !important; }
 </style>
+
+<style id="iphone-scroll-smooth-fix">
+@media (max-width: 768px) {
+  html, body {
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-y: auto !important;
+  }
+  body {
+    touch-action: pan-y !important;
+  }
+  .modal, .overlay, .popup, .sheet, .drawer, .page, .content, main {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+</style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
