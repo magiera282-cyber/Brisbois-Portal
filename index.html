@@ -271,6 +271,19 @@ function kiKurzbeschreibungAuswerten(){
   50% { transform: scale(1.28); box-shadow: 0 0 0 12px rgba(239,68,68,0); }
 }
 .pin-neu-blinken { animation: pinNeuBlinken 0.8s ease-in-out infinite; z-index: 50 !important; }
+
+/* Startseite: modernes transparentes Grau statt dunklem Kasten */
+#tab-startseite > div:first-child {
+  background: rgba(71, 85, 105, 0.48) !important;
+  border-color: rgba(255,255,255,0.28) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+#tab-startseite > div:first-child > div.absolute.inset-0 {
+  background: rgba(51,65,85,0.16) !important;
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+}
 </style>
 </style>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -874,8 +887,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         <!-- TAB 0: STARTSEITE -->
         <main id="tab-startseite" class="tab-content max-w-7xl mx-auto p-4 md:p-8 space-y-6">
-            <div class="relative rounded-3xl overflow-hidden shadow-2xl bg-slate-900 border border-slate-700 text-white p-6 md:p-12 bg-cover bg-center" style="background-image: linear-gradient(to bottom right, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.8)), url('https://images.unsplash.com/photo-1541888946425-d0fbb18f0653?w=1600&auto=format&fit=crop&q=80');">
-                <div class="absolute inset-0 bg-blue-950/30 backdrop-blur-[2px]"></div>
+            <div class="relative rounded-3xl overflow-hidden shadow-2xl bg-slate-900 border border-slate-700 text-white p-6 md:p-12 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1541888946425-d0fbb18f0653?w=1600&auto=format&fit=crop&q=80');">
+                <div class="absolute inset-0 bg-slate-700/10 backdrop-blur-[1px]"></div>
                 
                 <div class="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
                     <div class="lg:col-span-2 space-y-4">
