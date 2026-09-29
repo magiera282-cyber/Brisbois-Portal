@@ -1921,8 +1921,24 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         let benachrichtigungenEchtzeitInitialisiert = false;
         let bekannteBenachrichtigungenSignaturen = new Set();
 
+        // Prüft alle bisher verwendeten Lösch-Markierungen. Dadurch tauchen
+        // bereits gelöschte/ausgeblendete Benachrichtigungen nicht wieder auf,
+        // auch wenn ältere Datensätze ein anderes Löschfeld verwenden.
+        function benachrichtigungIstFuerAktuellenMitarbeiterGeloescht(item) {
+            if (!item || !eingeloggterMitarbeiter) return false;
+            const name = String(eingeloggterMitarbeiter);
+            const listen = [
+                item.geloeschtVon, item.geloeschtFuer, item.deletedBy, item.deletedFor,
+                item.ausgeblendetVon, item.ausgeblendetFuer
+            ];
+            if (listen.some(v => Array.isArray(v) && v.some(x => String(x) === name))) return true;
+            if (item.geloescht === true || item.deleted === true || item.ausgeblendet === true) return true;
+            return false;
+        }
+
         function benachrichtigungIstFuerAktuellenMitarbeiter(item) {
             if (!item || !eingeloggterMitarbeiter) return false;
+            if (benachrichtigungIstFuerAktuellenMitarbeiterGeloescht(item)) return false;
             if (item.empfaenger === 'Alle' || item.empfaenger === eingeloggterMitarbeiter) return true;
             if (String(item.von || '').startsWith(eingeloggterMitarbeiter)) return false;
             if (istEingeloggterBueroMitarbeiter()) {
@@ -2053,6 +2069,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         const signatur = JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || '']);
                         if (!bekannteBenachrichtigungenSignaturen.has(signatur) &&
                             !String(item.von || '').startsWith(eingeloggterMitarbeiter) &&
+                            !benachrichtigungIstFuerAktuellenMitarbeiterGeloescht(item) &&
                             benachrichtigungIstFuerAktuellenMitarbeiter(item)) {
                             neueNachrichtPopupAnzeigen(item);
                         }
@@ -3527,12 +3544,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if(!container) return;
             container.innerHTML = '';
 
-            const liste = globalDaten.benachrichtigungen || [];
+            const liste = Array.isArray(globalDaten.benachrichtigungen) ? globalDaten.benachrichtigungen : [];
             let ungelesenZaehler = 0;
 
+            // Zähler immer zuerst zurücksetzen, damit kein alter Wert (z.B. 22)
+            // während eines Firebase-Refreshs stehen bleibt.
+            const badgeVorab = document.getElementById('badge-count');
+            if (badgeVorab) { badgeVorab.classList.add('hidden'); badgeVorab.innerText = ''; }
+
             const gefilterteListe = liste.map((item, originalIndex) => {
+                if (benachrichtigungIstFuerAktuellenMitarbeiterGeloescht(item)) return null;
                 if(!item.geloeschtVon) item.geloeschtVon = [];
-                if(item.geloeschtVon.includes(eingeloggterMitarbeiter)) return null;
 
                 let anzeigen = false;
 
