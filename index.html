@@ -4716,10 +4716,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             setTimeout(() => {
                 vollbildPinsAnzeigen();
                 const container = document.getElementById('vollbild-pin-container');
-                const pinElemente = container ? container.children : [];
-                const ziel = pinElemente[index];
+                const ziel = container ? container.querySelector(`[data-pin-index="${index}"]`) : null;
                 if (ziel) {
                     ziel.classList.add('pin-neu-blinken');
+                    ziel.style.animation = 'pinNeuBlinken 0.8s ease-in-out infinite';
+                    ziel.style.zIndex = '999';
                     try { ziel.scrollIntoView({behavior:'smooth', block:'center', inline:'center'}); } catch(e) {}
                 }
             }, 250);
@@ -4783,7 +4784,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 const pinTyp = pin.typ || 'mangel';
                 const pinFarbe = pinTyp === 'frage' ? 'bg-blue-600' : pinTyp === 'eigen' ? 'bg-amber-500' : 'bg-red-600';
                 const pinSymbol = pinTyp === 'frage' ? '❓' : pinTyp === 'eigen' ? '📍' : '⚠️';
-                pinEl.className = `absolute -ml-4 -mt-8 ${pinFarbe} text-white font-black text-sm w-8 h-8 rounded-full flex items-center justify-center shadow-2xl border-2 border-white cursor-pointer hover:scale-125 transition pointer-events-auto ${hervorgehobenerPinIndex === index ? 'pin-neu-blinken' : ''}`;
+                pinEl.className = `absolute -ml-4 -mt-8 ${pinFarbe} text-white font-black text-sm w-8 h-8 rounded-full flex items-center justify-center shadow-2xl border-2 border-white cursor-pointer hover:scale-125 transition pointer-events-auto`;
+                pinEl.dataset.pinIndex = String(index);
+                if (hervorgehobenerPinIndex === index) {
+                    pinEl.classList.add('pin-neu-blinken');
+                    pinEl.style.animation = 'pinNeuBlinken 0.8s ease-in-out infinite';
+                    pinEl.style.zIndex = '999';
+                }
                 pinEl.style.left = pin.x + '%';
                 pinEl.style.top = pin.y + '%';
                 pinEl.innerHTML = pinSymbol;
