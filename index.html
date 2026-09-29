@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>brisbois; bembé - Internes Baustellen-Portal</title>
+    <title>brisbois; bembé - Internes Baustellen-Portal (Cloud)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet.js für die echte interaktive Karte -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -858,12 +858,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
     <div id="app-container" class="hidden">
         <header class="bg-slate-900 text-white p-4 md:px-6 shadow-md flex justify-between items-center border-b-2 border-amber-600">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-slate-800/75 border border-white/20 flex items-center justify-center shadow-lg backdrop-blur-sm">
-                    <span class="text-white text-xl font-black tracking-tight">B</span>
-                </div>
+                <div class="bg-amber-600 text-white font-black text-xl px-3 py-1.5 rounded shadow">b;b</div>
                 <div>
-                    <h1 class="text-lg md:text-xl font-semibold tracking-[.08em] text-white lowercase" style="font-family: Georgia, 'Times New Roman', serif;">brisbois; bembé</h1>
-                    <p class="text-xs text-slate-400 font-medium tracking-widest uppercase">Artisans de sols</p>
+                    <h1 class="text-lg md:text-xl font-bold tracking-wider uppercase text-white">brisbois<span class="text-amber-500">;</span> bembé</h1>
+                    <p class="text-xs text-slate-400 font-medium tracking-widest uppercase">Artisans de sols (Cloud)</p>
                 </div>
             </div>
             <div class="flex items-center gap-3">
@@ -3527,8 +3525,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         function benachrichtigungenAnzeigen() {
             const container = document.getElementById('benachrichtigungen-liste');
-            const badge = document.getElementById('badge-count');
-            if(badge) { badge.innerText = ''; badge.classList.add('hidden'); }
             if(!container) return;
             container.innerHTML = '';
 
@@ -3536,8 +3532,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             let ungelesenZaehler = 0;
 
             const gefilterteListe = liste.map((item, originalIndex) => {
-                if(!item || item.geloescht === true || item.gelöscht === true || item.deleted === true) return null;
-                if(!Array.isArray(item.geloeschtVon)) item.geloeschtVon = [];
+                if(!item.geloeschtVon) item.geloeschtVon = [];
                 if(item.geloeschtVon.includes(eingeloggterMitarbeiter)) return null;
 
                 let anzeigen = false;
