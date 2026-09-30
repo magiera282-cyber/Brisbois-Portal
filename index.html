@@ -4337,19 +4337,92 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function chefStundenAnzeigen() {
             const grid = document.getElementById('chef-stunden-grid');
             if(!grid) return;
-            grid.innerHTML = '';
-            globalDaten.mitarbeiterListe.slice(9, 15).forEach(v => {
-                const std = (70 + Math.floor(Math.random() * 20)).toFixed(1);
-                grid.innerHTML += `
-                    <div class="bg-slate-50 p-3 rounded-lg border flex justify-between items-center">
+
+            const zeiten = globalDaten.zeiterfassung || {};
+            const now = new Date();
+            const monatKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            const monatName = now.toLocaleDateString('de-DE', { month:'long', year:'numeric' });
+
+            // Netto-Stunden aus der tatsächlich gespeicherten Zeiterfassung berechnen.
+            // Es werden keine Zufallswerte oder Demo-Stunden mehr verwendet.
+            function minutenAusNettoWert(wert) {
+                if (typeof wert === 'number' && Number.isFinite(wert)) return Math.max(0, wert * 60);
+                const text = String(wert || '').replace(',', '.');
+                const hm = text.match(/(\d+)\s*:\s*(\d{1,2})/);
+                if (hm) return Number(hm[1]) * 60 + Number(hm[2]);
+                const dez = text.match(/(\d+(?:\.\d+)?)\s*(?:Std|Stunden)?/i);
+                return dez ? Number(dez[1]) * 60 : 0;
+            }
+
+            function minutenAusEintrag(e) {
+                if (!e) return 0;
+                // Krankheit wird separat aus den gespeicherten Krankmeldungen berechnet.
+                // Ein Kranktag zählt dabei mit 8 Arbeitsstunden.
+                if (e.status === 'Krank' || e.krankheitstage) return 0;
+                if (e.nettoStunden) {
+                    const m = minutenAusNettoWert(e.nettoStunden);
+                    if (m > 0) return m;
+                }
+                if (e.start && e.feierabend) {
+                    const start = autoZeitMinuten(e.start);
+                    const ende = autoZeitMinuten(e.feierabend);
+                    const pause = Number(e.pauseMinuten || 0);
+                    if (ende > start) return Math.max(0, ende - start - pause);
+                }
+                return 0;
+            }
+
+            // Für jeden gespeicherten Krankheitstag werden 8 Stunden angerechnet.
+            // Überschneidungen mehrerer Krankmeldungen desselben Mitarbeiters werden nur einmal gezählt.
+            function krankMinutenImMonat(mitarbeiterName) {
+                const krankmeldungen = Array.isArray(globalDaten.krankmeldungen) ? globalDaten.krankmeldungen : [];
+                const tageSet = new Set();
+                const monatStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                const monatEnde = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                const monatStartStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+                const monatEndeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(monatEnde.getDate()).padStart(2,'0')}`;
+
+                krankmeldungen.forEach(k => {
+                    if (!k || String(k.mitarbeiter || '').trim() !== String(mitarbeiterName || '').trim()) return;
+                    const von = String(k.von || '');
+                    const bis = String(k.bis || von);
+                    if (!von) return;
+                    const start = von < monatStartStr ? monatStartStr : von;
+                    const ende = bis > monatEndeStr ? monatEndeStr : bis;
+                    if (start > ende) return;
+                    const d = new Date(`${start}T00:00:00`);
+                    const end = new Date(`${ende}T00:00:00`);
+                    while (d <= end) {
+                        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                        tageSet.add(key);
+                        d.setDate(d.getDate() + 1);
+                    }
+                });
+                return tageSet.size * 8 * 60;
+            }
+
+            const personen = (globalDaten.mitarbeiterListe || []).filter(m => m && m.name);
+            grid.innerHTML = personen.map(v => {
+                const tage = zeiten[v.name] || {};
+                let minuten = krankMinutenImMonat(v.name);
+                Object.keys(tage).forEach(tag => {
+                    if (String(tag).startsWith(monatKey)) minuten += minutenAusEintrag(tage[tag]);
+                });
+                const std = (minuten / 60).toFixed(2);
+                const rolle = String(v.rolle || 'Mitarbeiter');
+                return `
+                    <div class="bg-slate-50 p-3 rounded-lg border flex justify-between items-center gap-3">
                         <div>
-                            <span class="font-bold text-slate-900">${v.name}</span>
-                            <p class="text-xs text-slate-500">Verleger</p>
+                            <span class="font-bold text-slate-900">${escapeHtml(v.name)}</span>
+                            <p class="text-xs text-slate-500">${escapeHtml(rolle)}</p>
                         </div>
-                        <span class="text-lg font-extrabold text-blue-600">${std} Std</span>
+                        <span class="text-lg font-extrabold text-blue-600 whitespace-nowrap">${std} Std</span>
                     </div>
                 `;
-            });
+            }).join('') || '<p class="text-xs text-slate-400 italic">Keine Mitarbeiter vorhanden.</p>';
+
+            const heading = document.querySelector('#chef-urlaubs-bereich h3');
+            if (heading) heading.textContent = `📊 Erfasste Stunden im Team (${monatName})`;
         }
 
         /* ==================== URLAUBSSYSTEM – NEU ====================
