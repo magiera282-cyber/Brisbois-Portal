@@ -1454,7 +1454,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <div class="bg-blue-50 rounded-xl p-4"><div class="text-xs text-blue-700">Ausgaben heute</div><div id="lager-stat-ausgaben" class="text-2xl font-black text-blue-700">0</div></div>
                 </div>
                 <div class="mt-5 flex flex-col md:flex-row gap-2">
-                    <input id="lager-suche" oninput="lagerAnzeigen()" placeholder="🔎 Artikel suchen..." class="flex-1 px-3 py-2 border rounded-xl text-sm">
+                    <input id="lager-suche" oninput="lagerAnzeigen()" onkeydown="if(event.key==='Enter'){event.preventDefault();lagerSucheEnter();}" placeholder="🔎 Artikel suchen... (Enter = Artikel öffnen)" class="flex-1 px-3 py-2 border rounded-xl text-sm">
                     <select id="lager-filter" onchange="lagerAnzeigen()" class="px-3 py-2 border rounded-xl text-sm bg-white"><option value="">Alle Kategorien</option><option>Werkzeug</option><option>Material</option><option>Verbrauchsmaterial</option><option>Maschine</option><option>Arbeitsschutz</option><option>Sonstiges</option></select>
                 </div>
                 <div class="mt-4 overflow-x-auto">
@@ -6168,6 +6168,25 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             tbody.innerHTML=''; arr.forEach((x)=>{const i=globalDaten.lagerbestand.indexOf(x),krit=x.bestand<=x.mindestbestand; tbody.innerHTML+=`<tr class="border-b border-slate-100 align-top"><td class="p-2"><input id="lag-n-${i}" value="${lagerEsc(x.name)}" class="w-44 px-2 py-2 border rounded-lg text-xs"></td><td class="p-2"><select id="lag-k-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['Werkzeug','Material','Verbrauchsmaterial','Maschine','Arbeitsschutz','Sonstiges'].map(c=>`<option ${x.kategorie===c?'selected':''}>${c}</option>`).join('')}</select></td><td class="p-2"><input id="lag-b-${i}" type="number" min="0" step="0.01" value="${x.bestand}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td><td class="p-2"><input id="lag-m-${i}" type="number" min="0" step="0.01" value="${x.mindestbestand}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td><td class="p-2"><input id="lag-o-${i}" type="number" min="0" step="0.01" value="${x.bestellmenge}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td><td class="p-2"><input id="lag-r-${i}" value="${lagerEsc(x.ort)}" class="w-28 px-2 py-2 border rounded-lg text-xs"></td><td class="p-2">${krit?'<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-[10px] font-bold">🔴 Bestellen</span>':'<span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-[10px] font-bold">🟢 OK</span>'}</td><td class="p-2 text-right whitespace-nowrap"><button type="button" onclick="lagerWareneingang(${i})" class="bg-emerald-100 text-emerald-800 px-2 py-2 rounded-lg text-xs font-bold">＋ Eingang</button> <button type="button" onclick="lagerAusgabe(${i})" class="bg-blue-100 text-blue-800 px-2 py-2 rounded-lg text-xs font-bold">👷 Ausgabe</button> <button type="button" onclick="lagerZeileSpeichern(${i})" class="bg-slate-900 text-white px-2 py-2 rounded-lg text-xs font-bold">💾</button> <button type="button" onclick="lagerLoeschen(${i})" class="bg-red-100 text-red-700 px-2 py-2 rounded-lg text-xs font-bold">✕</button></td></tr>`;});
             leer?.classList.toggle('hidden',arr.length>0); const best=globalDaten.lagerbestand.filter(x=>x.bestand<=x.mindestbestand).length; document.getElementById('lager-stat-artikel').textContent=globalDaten.lagerbestand.length; document.getElementById('lager-stat-ok').textContent=globalDaten.lagerbestand.filter(x=>x.bestand>x.mindestbestand).length; document.getElementById('lager-stat-bestellen').textContent=best; document.getElementById('lager-bestell-badge').textContent=best?`(${best})`:''; const heute=new Date().toISOString().slice(0,10); document.getElementById('lager-stat-ausgaben').textContent=lagerAusgabenAlle().filter(x=>String(x.datum||'').startsWith(heute)).length; lagerAusgabenAnzeigen();
         }
+        window.lagerSucheEnter=function(){
+            if(!lagerBerechtigt()) return;
+            lagerNormalisieren();
+            const input=document.getElementById('lager-suche');
+            const q=String(input?.value||'').trim().toLowerCase();
+            if(!q){ alert('Bitte einen Artikel eingeben.'); return; }
+            const f=document.getElementById('lager-filter')?.value||'';
+            const treffer=globalDaten.lagerbestand.filter(x=>([x.name,x.kategorie,x.ort].join(' ').toLowerCase().includes(q))&&(!f||x.kategorie===f));
+            const modal=document.getElementById('lager-suchergebnis-modal');
+            const body=document.getElementById('lager-suchergebnis-body');
+            const title=document.getElementById('lager-suchergebnis-titel');
+            if(!modal||!body||!title) return;
+            title.textContent=treffer.length===1 ? `🔎 ${treffer[0].name}` : `🔎 Suchergebnis für „${input.value.trim()}“`;
+            if(!treffer.length){ body.innerHTML='<div class="p-6 text-center text-slate-500">Kein passender Artikel gefunden.</div>'; }
+            else { body.innerHTML=treffer.map(x=>{ const krit=Number(x.bestand)<=Number(x.mindestbestand); return `<div class="border border-slate-200 rounded-xl p-4 bg-slate-50"><div class="flex justify-between gap-3"><div><div class="font-black text-slate-900 text-lg">${lagerEsc(x.name||'')}</div><div class="text-xs text-slate-500 mt-1">${lagerEsc(x.kategorie||'')} · Lagerort: ${lagerEsc(x.ort||'—')}</div></div><div>${krit?'<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">🔴 Nachbestellen</span>':'<span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-bold">🟢 Bestand OK</span>'}</div></div><div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4"><div class="bg-white rounded-lg p-3 border"><div class="text-[10px] uppercase text-slate-500 font-bold">Bestand</div><div class="text-xl font-black">${x.bestand} ${lagerEsc(x.einheit||'')}</div></div><div class="bg-white rounded-lg p-3 border"><div class="text-[10px] uppercase text-slate-500 font-bold">Mindestbestand</div><div class="text-xl font-black">${x.mindestbestand} ${lagerEsc(x.einheit||'')}</div></div><div class="bg-white rounded-lg p-3 border"><div class="text-[10px] uppercase text-slate-500 font-bold">Bestellmenge</div><div class="text-xl font-black">${x.bestellmenge} ${lagerEsc(x.einheit||'')}</div></div><div class="bg-white rounded-lg p-3 border"><div class="text-[10px] uppercase text-slate-500 font-bold">Ausgaben</div><div class="text-xl font-black">${(x.ausgaben||[]).length}</div></div></div></div>`; }).join(''); }
+            modal.classList.remove('hidden');
+        };
+        window.lagerSucheErgebnisSchliessen=function(){ document.getElementById('lager-suchergebnis-modal')?.classList.add('hidden'); };
+
         window.lagerNeuerArtikel=async function(){if(!lagerBerechtigt())return alert('Keine Berechtigung.'); lagerNormalisieren(); globalDaten.lagerbestand.push({id:'LAG_'+Date.now(),name:'',kategorie:'Werkzeug',bestand:0,mindestbestand:1,bestellmenge:1,einheit:'Stk',ort:'',ausgaben:[],bestellstatus:''}); await globalGlobalSpeichern(); lagerAnzeigen(); setTimeout(()=>document.getElementById('lag-n-'+(globalDaten.lagerbestand.length-1))?.focus(),50);};
         window.lagerZeileSpeichern=async function(i){if(!lagerBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; x.name=document.getElementById('lag-n-'+i)?.value.trim()||''; x.kategorie=document.getElementById('lag-k-'+i)?.value||'Sonstiges'; x.bestand=Number(document.getElementById('lag-b-'+i)?.value)||0; x.mindestbestand=Number(document.getElementById('lag-m-'+i)?.value)||0; x.bestellmenge=Number(document.getElementById('lag-o-'+i)?.value)||0; x.ort=document.getElementById('lag-r-'+i)?.value.trim()||''; if(!x.name)return alert('Bitte Artikelname eintragen.'); await globalGlobalSpeichern(); lagerAnzeigen();};
         window.lagerLoeschen=async function(i){if(!lagerBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; if(!confirm(`„${x.name}“ wirklich aus dem Lager löschen?`))return; globalDaten.lagerbestand.splice(i,1); await globalGlobalSpeichern(); lagerAnzeigen();};
@@ -7223,6 +7242,19 @@ body { top:0 !important; }
     <div class="border-t p-4 flex justify-end">
       <button type="button" onclick="lagerBestellungSchliessen()" class="bg-slate-200 hover:bg-slate-300 px-5 py-2.5 rounded-lg font-semibold text-sm">Schließen</button>
     </div>
+  </div>
+</div>
+
+
+<!-- MODAL: LAGERSUCHE ENTER -->
+<div id="lager-suchergebnis-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[80] flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+    <div class="flex justify-between items-center border-b p-5">
+      <h3 id="lager-suchergebnis-titel" class="text-lg font-black text-slate-900">🔎 Artikelsuche</h3>
+      <button type="button" onclick="lagerSucheErgebnisSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+    </div>
+    <div id="lager-suchergebnis-body" class="p-5 overflow-y-auto"></div>
+    <div class="border-t p-4 flex justify-end"><button type="button" onclick="lagerSucheErgebnisSchliessen()" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold">Schließen</button></div>
   </div>
 </div>
 
