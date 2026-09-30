@@ -2818,7 +2818,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 if (ersteBaustelle) {
                     projektLaden(ersteBaustelle);
                 } else {
-                    aktuellesProjekt = "";
+                    projektDetailsLeeren();
                 }
             }
 
@@ -4685,6 +4685,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             if (anzahlAnzuigenderProjekte === 0) {
                 liste.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-4">Dir sind derzeit noch keine Baustellen zugewiesen.</p>`;
+                // Wichtig: Bei Verlegern/Lageristen darf keine zuvor geöffnete
+                // Baustelle im Detailbereich sichtbar bleiben.
+                if (!isChefOrTechOrSekr) projektDetailsLeeren();
             }
         }
 
@@ -4740,6 +4743,30 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 console.warn('Plan-Unterkollektion konnte nicht geladen werden; vorhandene lokale Pläne bleiben erhalten:', e);
                 if (!Array.isArray(p.plaene)) p.plaene = [];
             }
+        }
+
+        function projektDetailsLeeren() {
+            aktuellesProjekt = "";
+            const titel = document.getElementById('projekt-titel');
+            const adresse = document.getElementById('projekt-adresse');
+            const anweisung = document.getElementById('anweisung-text');
+            const status = document.getElementById('projekt-status-dropdown');
+            if (titel) titel.innerText = 'Keine Baustelle ausgewählt';
+            if (adresse) adresse.innerText = 'Dir ist derzeit keine Baustelle zugewiesen.';
+            if (anweisung) anweisung.innerText = 'Es ist keine Baustelle zur Bearbeitung freigegeben.';
+            if (status) status.value = 'Anstehend';
+
+            // Keine fremden Baustellendaten im Detailbereich stehen lassen.
+            const team = document.getElementById('projekt-team-container');
+            if (team) team.innerHTML = '<span class="text-xs text-slate-400 italic">Keine Baustelle ausgewählt.</span>';
+            const planButtons = document.getElementById('plaene-leiste');
+            if (planButtons) planButtons.innerHTML = '';
+            const planVorschau = document.getElementById('plan-vorschau');
+            if (planVorschau) planVorschau.innerHTML = '<div class="text-sm text-slate-400 italic p-4">Keine Baustelle ausgewählt.</div>';
+            const packliste = document.getElementById('packliste-container');
+            if (packliste) packliste.innerHTML = '';
+            const problemButton = document.querySelector('[onclick*="problemMelden"]');
+            if (problemButton) problemButton.classList.add('hidden');
         }
 
         async function projektLaden(titel) {
