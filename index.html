@@ -6172,7 +6172,44 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.lagerZeileSpeichern=async function(i){if(!lagerBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; x.name=document.getElementById('lag-n-'+i)?.value.trim()||''; x.kategorie=document.getElementById('lag-k-'+i)?.value||'Sonstiges'; x.bestand=Number(document.getElementById('lag-b-'+i)?.value)||0; x.mindestbestand=Number(document.getElementById('lag-m-'+i)?.value)||0; x.bestellmenge=Number(document.getElementById('lag-o-'+i)?.value)||0; x.ort=document.getElementById('lag-r-'+i)?.value.trim()||''; if(!x.name)return alert('Bitte Artikelname eintragen.'); await globalGlobalSpeichern(); lagerAnzeigen();};
         window.lagerLoeschen=async function(i){if(!lagerBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; if(!confirm(`„${x.name}“ wirklich aus dem Lager löschen?`))return; globalDaten.lagerbestand.splice(i,1); await globalGlobalSpeichern(); lagerAnzeigen();};
         window.lagerWareneingang=async function(i){if(!lagerBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; const m=prompt(`Wie viele ${x.einheit} „${x.name}“ sind eingetroffen?`,'1'); if(m===null)return; const n=Number(m); if(!Number.isFinite(n)||n<=0)return alert('Bitte eine gültige Menge eingeben.'); x.bestand+=n; x.bestellstatus=''; x.letzterEingang={menge:n,datum:new Date().toISOString(),von:eingeloggterMitarbeiter}; await globalGlobalSpeichern(); lagerAnzeigen();};
-        window.lagerAusgabe=async function(i){if(!lagerBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; const namen=(globalDaten.mitarbeiterListe||[]).map(m=>m.name).filter(Boolean); const mitarbeiter=prompt(`Mitarbeiter für Ausgabe von „${x.name}“:\n\n${namen.join('\n')}`,''); if(!mitarbeiter)return; const gefunden=namen.find(n=>n.toLowerCase()===mitarbeiter.toLowerCase()); if(!gefunden)return alert('Mitarbeiter nicht gefunden. Bitte den Namen genau eingeben.'); const m=prompt(`Wie viele ${x.einheit} „${x.name}“ an ${gefunden}?`,'1'); if(m===null)return; const n=Number(m); if(!Number.isFinite(n)||n<=0)return alert('Bitte eine gültige Menge eingeben.'); if(n>x.bestand)return alert(`Nicht genügend Bestand. Aktuell: ${x.bestand} ${x.einheit}.`); x.bestand-=n; x.ausgaben=x.ausgaben||[]; x.ausgaben.unshift({id:'AUS_'+Date.now(),mitarbeiter:gefunden,menge:n,datum:new Date().toISOString(),ausgegebenVon:eingeloggterMitarbeiter}); await globalGlobalSpeichern(); lagerAnzeigen();};
+        window.lagerAusgabe=async function(i){
+            if(!lagerBerechtigt())return;
+            lagerNormalisieren();
+            const x=globalDaten.lagerbestand[i];
+            if(!x)return;
+            const select=document.getElementById('lager-ausgabe-mitarbeiter');
+            const artikel=document.getElementById('lager-ausgabe-artikel');
+            const menge=document.getElementById('lager-ausgabe-menge');
+            const modal=document.getElementById('lager-ausgabe-modal');
+            if(!select||!artikel||!menge||!modal)return;
+            select.innerHTML='<option value="">— Mitarbeiter auswählen —</option>'+(globalDaten.mitarbeiterListe||[]).map(m=>m&&m.name?`<option value="${lagerEsc(String(m.name))}">${lagerEsc(String(m.name))}</option>`:'').join('');
+            artikel.textContent=`${x.name} · Bestand: ${x.bestand} ${x.einheit}`;
+            menge.value='1';
+            menge.max=String(x.bestand);
+            modal.dataset.lagerIndex=String(i);
+            modal.classList.remove('hidden');
+            setTimeout(()=>select.focus(),50);
+        };
+        window.lagerAusgabeSchliessen=function(){document.getElementById('lager-ausgabe-modal')?.classList.add('hidden');};
+        window.lagerAusgabeBestaetigen=async function(){
+            const modal=document.getElementById('lager-ausgabe-modal');
+            const i=Number(modal?.dataset.lagerIndex);
+            lagerNormalisieren();
+            const x=globalDaten.lagerbestand[i];
+            const select=document.getElementById('lager-ausgabe-mitarbeiter');
+            const menge=document.getElementById('lager-ausgabe-menge');
+            const mitarbeiter=select?.value||'';
+            const n=Number(menge?.value);
+            if(!x||!mitarbeiter)return alert('Bitte einen Mitarbeiter auswählen.');
+            if(!Number.isFinite(n)||n<=0)return alert('Bitte eine gültige Menge eingeben.');
+            if(n>x.bestand)return alert(`Nicht genügend Bestand. Aktuell: ${x.bestand} ${x.einheit}.`);
+            x.bestand-=n;
+            x.ausgaben=x.ausgaben||[];
+            x.ausgaben.unshift({id:'AUS_'+Date.now(),mitarbeiter,menge:n,datum:new Date().toISOString(),ausgegebenVon:eingeloggterMitarbeiter});
+            await globalGlobalSpeichern();
+            lagerAusgabeSchliessen();
+            lagerAnzeigen();
+        };
         function lagerAusgabenAnzeigen(){const el=document.getElementById('lager-ausgaben-liste'); if(!el)return; const a=lagerAusgabenAlle().slice(0,20); el.innerHTML=a.length?a.map(x=>`<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3"><div><b>🔧 ${lagerEsc(x.artikel)}</b> – ${x.menge} ${lagerEsc(x.einheit)} an <b>${lagerEsc(x.mitarbeiter)}</b></div><div class="text-xs text-slate-500">${new Date(x.datum).toLocaleString('de-DE')} · von ${lagerEsc(x.ausgegebenVon)}</div></div>`).join(''):'<div class="text-sm text-slate-400 italic">Noch keine Werkzeugausgaben.</div>';}
         window.lagerBestellungAnzeigen=function(){if(!lagerBerechtigt())return; lagerNormalisieren(); const a=globalDaten.lagerbestand.filter(x=>x.bestand<=x.mindestbestand); if(!a.length)return alert('Aktuell muss nichts nachbestellt werden.'); alert('Nächste Bestellung:\n\n'+a.map(x=>`• ${x.name}: ${x.bestellmenge||Math.max(1,x.mindestbestand-x.bestand)} ${x.einheit}`).join('\n'));};
 
@@ -7131,6 +7168,29 @@ body { top:0 !important; }
   setTimeout(attachMobilePlanControls, 1200);
 })();
 </script>
+
+
+<!-- MODAL: LAGERAUSGABE -->
+<div id="lager-ausgabe-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4">
+    <div class="flex justify-between items-center border-b pb-3">
+      <div><h3 class="text-lg font-black text-slate-900">👷 Werkzeug / Material ausgeben</h3><p id="lager-ausgabe-artikel" class="text-xs text-slate-500 mt-1"></p></div>
+      <button type="button" onclick="lagerAusgabeSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mitarbeiter auswählen</label>
+      <select id="lager-ausgabe-mitarbeiter" class="w-full px-3 py-2.5 border rounded-lg bg-white text-sm font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none"></select>
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Menge</label>
+      <input id="lager-ausgabe-menge" type="number" min="0.01" step="0.01" value="1" class="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+    </div>
+    <div class="flex gap-2 pt-2">
+      <button type="button" onclick="lagerAusgabeBestaetigen()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg">✓ Ausgabe speichern</button>
+      <button type="button" onclick="lagerAusgabeSchliessen()" class="bg-slate-200 px-4 py-2.5 rounded-lg font-semibold">Abbrechen</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
