@@ -7003,8 +7003,8 @@ window.verlegerWochenplanSchliessen = function(){ const m=document.getElementByI
 function dashboardIstBerechtigt(){
             const r=String(window.eingeloggteRolle||'').toLowerCase().trim();
             const name=String(window.eingeloggterMitarbeiter||'').trim();
-            // Lageristen dürfen das Chef-Dashboard grundsätzlich nicht sehen.
-            if (r.includes('lagerist')) return false;
+            // Lageristen und Verleger dürfen das Chef-Dashboard grundsätzlich nicht sehen.
+            if (r.includes('lagerist') || r.includes('verleger')) return false;
             return r.includes('chef') || r.includes('admin') || r.includes('techniker') || r.includes('sekretariat') || r.includes('büro') || r.includes('buero') || name === 'Jeff Brisbois' || name === 'Didier Michel' || name === 'Christian Leppin';
         }
 
