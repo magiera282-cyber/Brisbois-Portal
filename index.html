@@ -6211,7 +6211,25 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             lagerAnzeigen();
         };
         function lagerAusgabenAnzeigen(){const el=document.getElementById('lager-ausgaben-liste'); if(!el)return; const a=lagerAusgabenAlle().slice(0,20); el.innerHTML=a.length?a.map(x=>`<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3"><div><b>🔧 ${lagerEsc(x.artikel)}</b> – ${x.menge} ${lagerEsc(x.einheit)} an <b>${lagerEsc(x.mitarbeiter)}</b></div><div class="text-xs text-slate-500">${new Date(x.datum).toLocaleString('de-DE')} · von ${lagerEsc(x.ausgegebenVon)}</div></div>`).join(''):'<div class="text-sm text-slate-400 italic">Noch keine Werkzeugausgaben.</div>';}
-        window.lagerBestellungAnzeigen=function(){if(!lagerBerechtigt())return; lagerNormalisieren(); const a=globalDaten.lagerbestand.filter(x=>x.bestand<=x.mindestbestand); if(!a.length)return alert('Aktuell muss nichts nachbestellt werden.'); alert('Nächste Bestellung:\n\n'+a.map(x=>`• ${x.name}: ${x.bestellmenge||Math.max(1,x.mindestbestand-x.bestand)} ${x.einheit}`).join('\n'));};
+        window.lagerBestellungAnzeigen=function(){
+            if(!lagerBerechtigt())return;
+            lagerNormalisieren();
+            const a=globalDaten.lagerbestand.filter(x=>x.name && x.bestand<=x.mindestbestand);
+            const modal=document.getElementById('lager-bestellung-modal');
+            const liste=document.getElementById('lager-bestellung-liste');
+            const leer=document.getElementById('lager-bestellung-leer');
+            const anzahl=document.getElementById('lager-bestellung-anzahl');
+            if(!modal||!liste)return;
+            anzahl.textContent=a.length ? `${a.length} Artikel` : 'Keine offenen Nachbestellungen';
+            if(!a.length){liste.innerHTML=''; leer.classList.remove('hidden'); modal.classList.remove('hidden'); return;}
+            leer.classList.add('hidden');
+            liste.innerHTML=a.map((x)=>{
+                const menge=x.bestellmenge||Math.max(1,x.mindestbestand-x.bestand);
+                return `<div class="flex items-center justify-between gap-3 border border-slate-200 rounded-xl p-3 bg-slate-50"><div class="min-w-0"><div class="font-bold text-slate-900">${lagerEsc(x.name)}</div><div class="text-xs text-slate-500 mt-1">${lagerEsc(x.kategorie)} · Bestand: <b>${x.bestand} ${lagerEsc(x.einheit)}</b> · Mindestbestand: ${x.mindestbestand} ${lagerEsc(x.einheit)}</div></div><div class="shrink-0 text-right"><div class="text-[10px] uppercase font-bold text-slate-500">Bestellen</div><div class="text-lg font-black text-amber-700">${menge} ${lagerEsc(x.einheit)}</div></div></div>`;
+            }).join('');
+            modal.classList.remove('hidden');
+        };
+        window.lagerBestellungSchliessen=function(){document.getElementById('lager-bestellung-modal')?.classList.add('hidden');};
 
         // ==================== MATERIALVERWALTUNG ====================
         function materiallisteBerechtigt(){
@@ -7188,6 +7206,22 @@ body { top:0 !important; }
     <div class="flex gap-2 pt-2">
       <button type="button" onclick="lagerAusgabeBestaetigen()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg">✓ Ausgabe speichern</button>
       <button type="button" onclick="lagerAusgabeSchliessen()" class="bg-slate-200 px-4 py-2.5 rounded-lg font-semibold">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: NÄCHSTE BESTELLUNG -->
+<div id="lager-bestellung-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+    <div class="flex justify-between items-center border-b p-5">
+      <div><h3 class="text-lg font-black text-slate-900">🛒 Nächste Bestellung</h3><p id="lager-bestellung-anzahl" class="text-xs text-slate-500 mt-1"></p></div>
+      <button type="button" onclick="lagerBestellungSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+    </div>
+    <div id="lager-bestellung-liste" class="p-5 space-y-2 overflow-y-auto"></div>
+    <div id="lager-bestellung-leer" class="hidden p-8 text-center text-slate-400 text-sm">🟢 Aktuell muss nichts nachbestellt werden.</div>
+    <div class="border-t p-4 flex justify-end">
+      <button type="button" onclick="lagerBestellungSchliessen()" class="bg-slate-200 hover:bg-slate-300 px-5 py-2.5 rounded-lg font-semibold text-sm">Schließen</button>
     </div>
   </div>
 </div>
