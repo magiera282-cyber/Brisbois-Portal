@@ -3207,30 +3207,65 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             document.getElementById('baustellen-adresse-karten-modal')?.classList.add('hidden');
         };
 
-        window.kiBaustellenAdresseKarteOeffnen = function() {
+        window.kiBaustellenAdresseKarteOeffnen = async function() {
             baustellenAdresseKarteZiel = 'ki';
             const modal = document.getElementById('baustellen-adresse-karten-modal');
+            const mapEl = document.getElementById('baustellen-adresse-map');
             const input = document.getElementById('karten-adresse-suche');
             const adresse = document.getElementById('ki-ergebnis-adresse')?.value.trim() || '';
-            if (!modal) return;
+            if (!modal || !mapEl) return;
+
             modal.classList.remove('hidden');
             if (input) input.value = adresse;
             baustellenAdressKartenAdresse = adresse;
             baustellenAdressKartenKoordinaten = Array.isArray(window._kiBaustelleKoordinaten) ? [...window._kiBaustelleKoordinaten] : null;
-            baustellenAdresseKarteSetStatus(adresse ? 'Adresse wird gesucht bzw. auf der Karte vorbereitet …' : 'Adresse eingeben oder direkt auf die Karte tippen.');
+            baustellenAdresseKarteSetStatus(adresse ? 'Adresse wird auf der Karte gesucht …' : 'Adresse eingeben oder direkt auf die Karte tippen.');
+
+            // Leaflet notfalls dynamisch laden, damit der KI-Kartenbutton auch dann funktioniert,
+            // wenn das externe Leaflet-Script beim ersten Laden des Portals noch nicht bereit war.
+            if (!window.L) {
+                await new Promise((resolve, reject) => {
+                    const existing = document.querySelector('script[data-brisbois-leaflet]');
+                    if (existing) {
+                        existing.addEventListener('load', resolve, {once:true});
+                        existing.addEventListener('error', reject, {once:true});
+                        return;
+                    }
+                    const sc = document.createElement('script');
+                    sc.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                    sc.async = true;
+                    sc.dataset.brisboisLeaflet = '1';
+                    sc.onload = resolve;
+                    sc.onerror = reject;
+                    document.head.appendChild(sc);
+                }).catch(() => {});
+            }
+
             setTimeout(async () => {
-                if (!baustellenAdressKartenMap) {
-                    baustellenAdressKartenMap = L.map('baustellen-adresse-map', { zoomControl: true }).setView([49.6116, 6.1319], 11);
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors' }).addTo(baustellenAdressKartenMap);
-                    baustellenAdressKartenMap.on('click', e => baustellenAdresseKarteMarkerSetzen(e.latlng.lat, e.latlng.lng, true));
+                if (!window.L) {
+                    baustellenAdresseKarteSetStatus('Karte konnte nicht geladen werden. Bitte Internetverbindung prüfen.', true);
+                    return;
                 }
-                baustellenAdressKartenMap.invalidateSize();
-                if (adresse) await baustellenAdresseKarteSuchen();
-                else if (baustellenAdressKartenKoordinaten) {
-                    baustellenAdresseKarteMarkerSetzen(...baustellenAdressKartenKoordinaten, false);
-                    baustellenAdressKartenMap.setView(baustellenAdressKartenKoordinaten, 18);
+                try {
+                    if (!baustellenAdressKartenMap) {
+                        baustellenAdressKartenMap = L.map(mapEl, { zoomControl: true }).setView([49.6116, 6.1319], 11);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            maxZoom: 20,
+                            attribution: '&copy; OpenStreetMap contributors'
+                        }).addTo(baustellenAdressKartenMap);
+                        baustellenAdressKartenMap.on('click', e => baustellenAdresseKarteMarkerSetzen(e.latlng.lat, e.latlng.lng, true));
+                    }
+                    baustellenAdressKartenMap.invalidateSize();
+                    if (adresse) await baustellenAdresseKarteSuchen();
+                    else if (baustellenAdressKartenKoordinaten) {
+                        baustellenAdresseKarteMarkerSetzen(...baustellenAdressKartenKoordinaten, false);
+                        baustellenAdressKartenMap.setView(baustellenAdressKartenKoordinaten, 18);
+                    }
+                } catch (err) {
+                    console.error('KI-Karte konnte nicht initialisiert werden:', err);
+                    baustellenAdresseKarteSetStatus('Karte konnte nicht initialisiert werden.', true);
                 }
-            }, 80);
+            }, 100);
         };
 
         async function baustellenAdresseKarteGeocodieren(q) {
