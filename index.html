@@ -6189,28 +6189,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         window.lagerNeuerArtikel=function(){
             if(!lagerBerechtigt()) return alert('Keine Berechtigung.');
-            ['lager-neu-name','lager-neu-bestand','lager-neu-mindest','lager-neu-bestell','lager-neu-ort','lager-neu-bild-url'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+            ['lager-neu-name','lager-neu-bestand','lager-neu-mindest','lager-neu-bestell','lager-neu-ort'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
             const k=document.getElementById('lager-neu-kategorie'); if(k) k.value='Werkzeug';
             const e=document.getElementById('lager-neu-einheit'); if(e) e.value='Stk';
-            const v=document.getElementById('lager-neu-bild-preview'); if(v){v.src='';v.classList.add('hidden');}
             document.getElementById('lager-neu-artikel-modal')?.classList.remove('hidden');
         };
         window.lagerNeuerArtikelSchliessen=function(){document.getElementById('lager-neu-artikel-modal')?.classList.add('hidden');};
-        window.lagerGoogleBildSuchen=function(){
-            const name=String(document.getElementById('lager-neu-name')?.value||'').trim();
-            if(!name) return alert('Bitte zuerst den Artikelnamen eingeben.');
-            const url='https://www.google.com/search?tbm=isch&q='+encodeURIComponent(name);
-            window.open(url,'_blank','noopener,noreferrer');
-        };
-        window.lagerBildVorschau=function(){
-            const url=String(document.getElementById('lager-neu-bild-url')?.value||'').trim();
-            const img=document.getElementById('lager-neu-bild-preview');
-            if(!img) return;
-            if(!url){img.src='';img.classList.add('hidden');return;}
-            img.onload=()=>img.classList.remove('hidden');
-            img.onerror=()=>{img.src='';img.classList.add('hidden');};
-            img.src=url;
-        };
         window.lagerNeuenArtikelSpeichern=async function(){
             if(!lagerBerechtigt()) return;
             const name=String(document.getElementById('lager-neu-name')?.value||'').trim();
@@ -6224,7 +6208,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 bestellmenge:Number(document.getElementById('lager-neu-bestell')?.value)||0,
                 einheit:document.getElementById('lager-neu-einheit')?.value||'Stk',
                 ort:String(document.getElementById('lager-neu-ort')?.value||'').trim(),
-                bildUrl:String(document.getElementById('lager-neu-bild-url')?.value||'').trim(),
                 ausgaben:[], bestellstatus:''
             });
             await globalGlobalSpeichern();
@@ -7266,11 +7249,6 @@ body { top:0 !important; }
       <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mindestbestand</label><input id="lager-neu-mindest" type="number" min="0" step="0.01" value="1" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
       <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bestellmenge</label><input id="lager-neu-bestell" type="number" min="0" step="0.01" value="1" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
       <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Lagerort</label><input id="lager-neu-ort" type="text" placeholder="z.B. Regal A1" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
-    </div>
-    <div class="border-t pt-4">
-      <div class="flex items-center justify-between gap-2 mb-2"><div><label class="block text-xs font-bold text-slate-700 uppercase">Artikelbild</label><p class="text-[11px] text-slate-500 mt-1">Google Bilder öffnen, Bild auswählen und die Bildadresse hier einfügen.</p></div><button type="button" onclick="lagerGoogleBildSuchen()" class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-bold">🔎 Google Bilder</button></div>
-      <input id="lager-neu-bild-url" type="url" oninput="lagerBildVorschau()" placeholder="Bild-URL hier einfügen …" class="w-full px-3 py-2.5 border rounded-lg text-sm">
-      <img id="lager-neu-bild-preview" class="hidden mt-3 w-32 h-32 object-contain rounded-xl border bg-slate-50 mx-auto" alt="Artikelbild Vorschau">
     </div>
     <div class="flex gap-2 pt-2">
       <button type="button" onclick="lagerNeuenArtikelSpeichern()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg">💾 Artikel speichern</button>
