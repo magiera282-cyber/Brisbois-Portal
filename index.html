@@ -1105,6 +1105,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             <button onclick="wechselnTab('startseite')" id="btn-startseite" class="tab-btn text-blue-600 border-b-2 border-blue-600 pb-1 whitespace-nowrap">🏠 Startseite</button>
             <button onclick="wechselnTab('auftraege')" id="btn-auftraege" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap">📁 Projekt & Baustelle</button>
             <button onclick="wechselnTab('materialliste')" id="btn-materialliste" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap materialliste-only hidden">📦 Materialliste</button>
+            <button onclick="wechselnTab('lager')" id="btn-lager" class="tab-btn text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap lager-only hidden">🏭 Lager & Werkzeug</button>
             <button onclick="wechselnTab('benachrichtigungen')" id="btn-benachrichtigungen" class="tab-btn md:hidden text-slate-600 hover:text-blue-600 pb-1 whitespace-nowrap flex items-center gap-1">
                 <span>🔔 Benachrichtigungen</span>
                 <span id="badge-count" class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full hidden">1</span>
@@ -1433,6 +1434,36 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
               <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><h3 class="font-black text-lg mb-3">📅 Heute im Einsatz</h3><div id="dashboard-heute" class="space-y-2"></div></section>
               <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-lg">⚠️ Baustellen-Probleme</h3><div class="flex items-center gap-2"><span id="dashboard-problem-info" class="text-xs text-slate-500"></span><span id="dashboard-probleme-count" class="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded-full"></span></div></div><div id="dashboard-probleme" class="space-y-2"></div></section>
               <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 lg:col-span-2"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-lg">🤒 Krankmeldungen</h3><span id="dashboard-krank-count" class="text-xs font-bold bg-red-100 text-red-700 px-2 py-1 rounded-full"></span></div><div id="dashboard-krankmeldungen" class="space-y-2"></div></section>
+            </div>
+        </main>
+
+        <!-- LAGER & WERKZEUG -->
+        <main id="tab-lager" class="tab-content max-w-7xl mx-auto p-4 md:p-8 hidden space-y-6">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b pb-4">
+                    <div><h2 class="text-2xl font-black text-slate-900">🏭 Lager & Werkzeug</h2><p class="text-sm text-slate-500 mt-1">Bestände, Wareneingänge, Werkzeugausgaben und automatische Nachbestellungen.</p></div>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" onclick="lagerNeuerArtikel()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold">＋ Artikel anlegen</button>
+                        <button type="button" onclick="lagerBestellungAnzeigen()" class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-2 rounded-xl text-xs font-bold">🛒 Nächste Bestellung <span id="lager-bestell-badge" class="ml-1"></span></button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                    <div class="bg-slate-50 rounded-xl p-4"><div class="text-xs text-slate-500">Artikel</div><div id="lager-stat-artikel" class="text-2xl font-black">0</div></div>
+                    <div class="bg-emerald-50 rounded-xl p-4"><div class="text-xs text-emerald-700">Bestand OK</div><div id="lager-stat-ok" class="text-2xl font-black text-emerald-700">0</div></div>
+                    <div class="bg-red-50 rounded-xl p-4"><div class="text-xs text-red-700">Nachbestellen</div><div id="lager-stat-bestellen" class="text-2xl font-black text-red-700">0</div></div>
+                    <div class="bg-blue-50 rounded-xl p-4"><div class="text-xs text-blue-700">Ausgaben heute</div><div id="lager-stat-ausgaben" class="text-2xl font-black text-blue-700">0</div></div>
+                </div>
+                <div class="mt-5 flex flex-col md:flex-row gap-2">
+                    <input id="lager-suche" oninput="lagerAnzeigen()" placeholder="🔎 Artikel suchen..." class="flex-1 px-3 py-2 border rounded-xl text-sm">
+                    <select id="lager-filter" onchange="lagerAnzeigen()" class="px-3 py-2 border rounded-xl text-sm bg-white"><option value="">Alle Kategorien</option><option>Werkzeug</option><option>Material</option><option>Verbrauchsmaterial</option><option>Maschine</option><option>Arbeitsschutz</option><option>Sonstiges</option></select>
+                </div>
+                <div class="mt-4 overflow-x-auto">
+                    <table class="w-full text-sm min-w-[1050px]"><thead><tr class="border-b text-left text-[11px] uppercase tracking-wide text-slate-500"><th class="p-2">Artikel</th><th class="p-2">Kategorie</th><th class="p-2">Bestand</th><th class="p-2">Mindestbestand</th><th class="p-2">Bestellmenge</th><th class="p-2">Lagerort</th><th class="p-2">Status</th><th class="p-2 text-right">Aktion</th></tr></thead><tbody id="lager-tbody"></tbody></table>
+                </div>
+                <div id="lager-leer" class="hidden text-center py-10 text-slate-400 text-sm">Noch keine Lagerartikel angelegt.</div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <h3 class="font-black text-lg mb-3">🧾 Letzte Werkzeugausgaben</h3><div id="lager-ausgaben-liste" class="space-y-2"></div>
             </div>
         </main>
 
@@ -2036,6 +2067,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 { bez: "Uzin KE 2000 S Dispersionsklebstoff (14 kg)", kat: "Verklebung", ort: "Regal C2", standardMenge: "5 Eimer", bild: "https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=400&auto=format&fit=crop&q=80" }
             ],
             materialliste: [],
+                lagerbestand: [],
             benachrichtigungen: [],
             projekte: basisProjekte,
             zuweisungen: {},
@@ -2261,6 +2293,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 }
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
                 globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
+                globalDaten.lagerbestand = Array.isArray(cloudDaten.lagerbestand) ? cloudDaten.lagerbestand : (globalDaten.lagerbestand || []);
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
                 if (!wochenplanungSeparatGeladen) {
                     globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
@@ -2383,6 +2416,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     benachrichtigungen: globalDaten.benachrichtigungen,
                     uzinKatalog: globalDaten.uzinKatalog,
                     materialliste: globalDaten.materialliste || [],
+                    lagerbestand: globalDaten.lagerbestand || [],
                     zuweisungen: globalDaten.zuweisungen,
                     wochenplanung: globalDaten.wochenplanung,
                     abwesenheiten: globalDaten.abwesenheiten,
@@ -2731,10 +2765,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             const darfWochenplanung = isChefOrTech || isSekretariat;
             const darfMaterialliste = isChefOrTech || isSekretariat;
+            const darfLager = isChefOrTech || isSekretariat || String(eingeloggteRolle||'').toLowerCase().includes('lagerist');
             const darfUrlaubBuero = urlaubIstBuero();
             document.querySelectorAll('.wochenplanung-only').forEach(el => el.classList.toggle('hidden', !darfWochenplanung));
             document.querySelectorAll('.dashboard-only').forEach(el => el.classList.toggle('hidden', !dashboardIstBerechtigt()));
             document.querySelectorAll('.materialliste-only').forEach(el => el.classList.toggle('hidden', !darfMaterialliste));
+            document.querySelectorAll('.lager-only').forEach(el => el.classList.toggle('hidden', !darfLager));
             try { abrechnungenAnzeigen(); } catch(e) { console.warn('Abrechnungen beim Login übersprungen:', e); }
             materiallisteAnzeigen();
             urlaubsantraegeAnzeigen();
@@ -6111,6 +6147,35 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try { await deleteDoc(doc(db, 'abrechnungen', id)); } catch(error) { console.error(error); alert('Die Abrechnung konnte nicht gelöscht werden.'); }
         };
 
+        // ==================== LAGER & WERKZEUG ====================
+        function lagerBerechtigt(){
+            const r=String(eingeloggteRolle||'').toLowerCase();
+            return istDauerhafterAdmin() || r.includes('chef') || r.includes('techniker') || r.includes('sekretariat') || r.includes('admin') || r.includes('lagerist');
+        }
+        function lagerNormalisieren(){
+            if(!Array.isArray(globalDaten.lagerbestand)) globalDaten.lagerbestand=[];
+            globalDaten.lagerbestand=globalDaten.lagerbestand.map((x,i)=>({
+                id:x.id||('LAG_'+Date.now()+'_'+i), name:String(x.name||x.produkt||'').trim(), kategorie:String(x.kategorie||'Sonstiges'), bestand:Number(x.bestand)||0, mindestbestand:Number(x.mindestbestand)||0, bestellmenge:Number(x.bestellmenge)||0, einheit:String(x.einheit||'Stk'), ort:String(x.ort||''), ausgaben:Array.isArray(x.ausgaben)?x.ausgaben:[], bestellstatus:String(x.bestellstatus||'')
+            }));
+        }
+        function lagerEsc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+        function lagerAusgabenAlle(){lagerNormalisieren(); const a=[]; globalDaten.lagerbestand.forEach(x=>(x.ausgaben||[]).forEach(y=>a.push({...y,artikel:x.name,einheit:x.einheit}))); return a.sort((a,b)=>String(b.datum||'').localeCompare(String(a.datum||'')));}
+        function lagerAnzeigen(){
+            if(!lagerBerechtigt()) return;
+            lagerNormalisieren(); const tbody=document.getElementById('lager-tbody'),leer=document.getElementById('lager-leer'); if(!tbody)return;
+            const q=(document.getElementById('lager-suche')?.value||'').toLowerCase(), f=document.getElementById('lager-filter')?.value||'';
+            const arr=globalDaten.lagerbestand.filter(x=>(!q||[x.name,x.kategorie,x.ort].join(' ').toLowerCase().includes(q))&&(!f||x.kategorie===f));
+            tbody.innerHTML=''; arr.forEach((x)=>{const i=globalDaten.lagerbestand.indexOf(x),krit=x.bestand<=x.mindestbestand; tbody.innerHTML+=`<tr class="border-b border-slate-100 align-top"><td class="p-2"><input id="lag-n-${i}" value="${lagerEsc(x.name)}" class="w-44 px-2 py-2 border rounded-lg text-xs"></td><td class="p-2"><select id="lag-k-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['Werkzeug','Material','Verbrauchsmaterial','Maschine','Arbeitsschutz','Sonstiges'].map(c=>`<option ${x.kategorie===c?'selected':''}>${c}</option>`).join('')}</select></td><td class="p-2"><input id="lag-b-${i}" type="number" min="0" step="0.01" value="${x.bestand}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td><td class="p-2"><input id="lag-m-${i}" type="number" min="0" step="0.01" value="${x.mindestbestand}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td><td class="p-2"><input id="lag-o-${i}" type="number" min="0" step="0.01" value="${x.bestellmenge}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td><td class="p-2"><input id="lag-r-${i}" value="${lagerEsc(x.ort)}" class="w-28 px-2 py-2 border rounded-lg text-xs"></td><td class="p-2">${krit?'<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-[10px] font-bold">🔴 Bestellen</span>':'<span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-[10px] font-bold">🟢 OK</span>'}</td><td class="p-2 text-right whitespace-nowrap"><button type="button" onclick="lagerWareneingang(${i})" class="bg-emerald-100 text-emerald-800 px-2 py-2 rounded-lg text-xs font-bold">＋ Eingang</button> <button type="button" onclick="lagerAusgabe(${i})" class="bg-blue-100 text-blue-800 px-2 py-2 rounded-lg text-xs font-bold">👷 Ausgabe</button> <button type="button" onclick="lagerZeileSpeichern(${i})" class="bg-slate-900 text-white px-2 py-2 rounded-lg text-xs font-bold">💾</button> <button type="button" onclick="lagerLoeschen(${i})" class="bg-red-100 text-red-700 px-2 py-2 rounded-lg text-xs font-bold">✕</button></td></tr>`;});
+            leer?.classList.toggle('hidden',arr.length>0); const best=globalDaten.lagerbestand.filter(x=>x.bestand<=x.mindestbestand).length; document.getElementById('lager-stat-artikel').textContent=globalDaten.lagerbestand.length; document.getElementById('lager-stat-ok').textContent=globalDaten.lagerbestand.filter(x=>x.bestand>x.mindestbestand).length; document.getElementById('lager-stat-bestellen').textContent=best; document.getElementById('lager-bestell-badge').textContent=best?`(${best})`:''; const heute=new Date().toISOString().slice(0,10); document.getElementById('lager-stat-ausgaben').textContent=lagerAusgabenAlle().filter(x=>String(x.datum||'').startsWith(heute)).length; lagerAusgabenAnzeigen();
+        }
+        window.lagerNeuerArtikel=async function(){if(!lagerBerechtigt())return alert('Keine Berechtigung.'); lagerNormalisieren(); globalDaten.lagerbestand.push({id:'LAG_'+Date.now(),name:'',kategorie:'Werkzeug',bestand:0,mindestbestand:1,bestellmenge:1,einheit:'Stk',ort:'',ausgaben:[],bestellstatus:''}); await globalGlobalSpeichern(); lagerAnzeigen(); setTimeout(()=>document.getElementById('lag-n-'+(globalDaten.lagerbestand.length-1))?.focus(),50);};
+        window.lagerZeileSpeichern=async function(i){if(!lagerBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; x.name=document.getElementById('lag-n-'+i)?.value.trim()||''; x.kategorie=document.getElementById('lag-k-'+i)?.value||'Sonstiges'; x.bestand=Number(document.getElementById('lag-b-'+i)?.value)||0; x.mindestbestand=Number(document.getElementById('lag-m-'+i)?.value)||0; x.bestellmenge=Number(document.getElementById('lag-o-'+i)?.value)||0; x.ort=document.getElementById('lag-r-'+i)?.value.trim()||''; if(!x.name)return alert('Bitte Artikelname eintragen.'); await globalGlobalSpeichern(); lagerAnzeigen();};
+        window.lagerLoeschen=async function(i){if(!lagerBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; if(!confirm(`„${x.name}“ wirklich aus dem Lager löschen?`))return; globalDaten.lagerbestand.splice(i,1); await globalGlobalSpeichern(); lagerAnzeigen();};
+        window.lagerWareneingang=async function(i){if(!lagerBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; const m=prompt(`Wie viele ${x.einheit} „${x.name}“ sind eingetroffen?`,'1'); if(m===null)return; const n=Number(m); if(!Number.isFinite(n)||n<=0)return alert('Bitte eine gültige Menge eingeben.'); x.bestand+=n; x.bestellstatus=''; x.letzterEingang={menge:n,datum:new Date().toISOString(),von:eingeloggterMitarbeiter}; await globalGlobalSpeichern(); lagerAnzeigen();};
+        window.lagerAusgabe=async function(i){if(!lagerBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; const namen=(globalDaten.mitarbeiterListe||[]).map(m=>m.name).filter(Boolean); const mitarbeiter=prompt(`Mitarbeiter für Ausgabe von „${x.name}“:\n\n${namen.join('\n')}`,''); if(!mitarbeiter)return; const gefunden=namen.find(n=>n.toLowerCase()===mitarbeiter.toLowerCase()); if(!gefunden)return alert('Mitarbeiter nicht gefunden. Bitte den Namen genau eingeben.'); const m=prompt(`Wie viele ${x.einheit} „${x.name}“ an ${gefunden}?`,'1'); if(m===null)return; const n=Number(m); if(!Number.isFinite(n)||n<=0)return alert('Bitte eine gültige Menge eingeben.'); if(n>x.bestand)return alert(`Nicht genügend Bestand. Aktuell: ${x.bestand} ${x.einheit}.`); x.bestand-=n; x.ausgaben=x.ausgaben||[]; x.ausgaben.unshift({id:'AUS_'+Date.now(),mitarbeiter:gefunden,menge:n,datum:new Date().toISOString(),ausgegebenVon:eingeloggterMitarbeiter}); await globalGlobalSpeichern(); lagerAnzeigen();};
+        function lagerAusgabenAnzeigen(){const el=document.getElementById('lager-ausgaben-liste'); if(!el)return; const a=lagerAusgabenAlle().slice(0,20); el.innerHTML=a.length?a.map(x=>`<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3"><div><b>🔧 ${lagerEsc(x.artikel)}</b> – ${x.menge} ${lagerEsc(x.einheit)} an <b>${lagerEsc(x.mitarbeiter)}</b></div><div class="text-xs text-slate-500">${new Date(x.datum).toLocaleString('de-DE')} · von ${lagerEsc(x.ausgegebenVon)}</div></div>`).join(''):'<div class="text-sm text-slate-400 italic">Noch keine Werkzeugausgaben.</div>';}
+        window.lagerBestellungAnzeigen=function(){if(!lagerBerechtigt())return; lagerNormalisieren(); const a=globalDaten.lagerbestand.filter(x=>x.bestand<=x.mindestbestand); if(!a.length)return alert('Aktuell muss nichts nachbestellt werden.'); alert('Nächste Bestellung:\n\n'+a.map(x=>`• ${x.name}: ${x.bestellmenge||Math.max(1,x.mindestbestand-x.bestand)} ${x.einheit}`).join('\n'));};
+
         // ==================== MATERIALVERWALTUNG ====================
         function materiallisteBerechtigt(){
             const r=String(eingeloggteRolle||'').toLowerCase();
@@ -6268,6 +6333,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             }
             if (tabName === 'dashboard') { window.dashboardAktualisieren(); }
             if (tabName === 'materialliste') { materiallisteAnzeigen(); }
+            if (tabName === 'lager') { lagerAnzeigen(); lagerAusgabenAnzeigen(); }
             if (tabName === 'abrechnungen') { abrechnungenAnzeigen(); }
             if (tabName === 'startseite') {
                 wetterLaden();
