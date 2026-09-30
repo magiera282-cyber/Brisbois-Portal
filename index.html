@@ -1035,9 +1035,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                                 <label class="block text-[10px] font-bold uppercase text-slate-500">Baustellenadresse</label>
                                 <div class="flex gap-2">
                                     <input id="ki-ergebnis-adresse" class="flex-1 min-w-0 px-2 py-2 border rounded-lg text-sm bg-white" placeholder="Adresse eingeben oder in Google Maps suchen">
-                                    <button type="button" onclick="kiGoogleMapsAdresseSuchen()" class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold" title="Adresse in Google Maps suchen">📍 Maps</button>
+                                    <button type="button" onclick="kiBaustellenAdresseKarteOeffnen()" class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold" title="Baustelle auf Karte auswählen">📍 Karte</button>
                                 </div>
-                                <div class="text-[10px] text-slate-500 mt-1">Adresse in Google Maps auswählen/kopieren und hier eintragen. Der Maps-Button öffnet die Suche direkt.</div>
+                                <div class="text-[10px] text-slate-500 mt-1">Adresse eingeben oder 📍 Karte öffnen. Dort kannst du das genaue Gebäude markieren.</div>
                             </div>
                         </div>
                         <div><label class="block text-[10px] font-bold uppercase text-slate-500">Arbeitsauftrag / Anweisung</label><textarea id="ki-ergebnis-anweisung" rows="6" class="w-full px-2 py-2 border rounded-lg text-sm bg-white"></textarea></div>
@@ -3130,6 +3130,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         let baustellenAdressKartenKoordinaten = null;
         let baustellenAdressKartenAdresse = '';
 
+        let baustellenAdresseKarteZiel = 'manuell';
+
         function baustellenAdresseKarteSetStatus(text, error=false) {
             const el = document.getElementById('karten-adresse-status');
             if (el) {
@@ -3139,9 +3141,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         window.baustellenAdresseKarteOeffnen = function() {
+            baustellenAdresseKarteZiel = 'manuell';
             const modal = document.getElementById('baustellen-adresse-karten-modal');
             const input = document.getElementById('karten-adresse-suche');
-            const adresse = document.getElementById('manuell-projekt-adresse')?.value.trim() || '';
+            const adresse = (baustellenAdresseKarteZiel === 'ki'
+                ? document.getElementById('ki-ergebnis-adresse')?.value.trim()
+                : document.getElementById('manuell-projekt-adresse')?.value.trim()) || '';
             if (!modal) return;
             modal.classList.remove('hidden');
             if (input) input.value = adresse;
@@ -3164,6 +3169,32 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         window.baustellenAdresseKarteSchliessen = function() {
             document.getElementById('baustellen-adresse-karten-modal')?.classList.add('hidden');
+        };
+
+        window.kiBaustellenAdresseKarteOeffnen = function() {
+            baustellenAdresseKarteZiel = 'ki';
+            const modal = document.getElementById('baustellen-adresse-karten-modal');
+            const input = document.getElementById('karten-adresse-suche');
+            const adresse = document.getElementById('ki-ergebnis-adresse')?.value.trim() || '';
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            if (input) input.value = adresse;
+            baustellenAdressKartenAdresse = adresse;
+            baustellenAdressKartenKoordinaten = Array.isArray(window._kiBaustelleKoordinaten) ? [...window._kiBaustelleKoordinaten] : null;
+            baustellenAdresseKarteSetStatus(adresse ? 'Adresse wird gesucht bzw. auf der Karte vorbereitet …' : 'Adresse eingeben oder direkt auf die Karte tippen.');
+            setTimeout(async () => {
+                if (!baustellenAdressKartenMap) {
+                    baustellenAdressKartenMap = L.map('baustellen-adresse-map', { zoomControl: true }).setView([49.6116, 6.1319], 11);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors' }).addTo(baustellenAdressKartenMap);
+                    baustellenAdressKartenMap.on('click', e => baustellenAdresseKarteMarkerSetzen(e.latlng.lat, e.latlng.lng, true));
+                }
+                baustellenAdressKartenMap.invalidateSize();
+                if (adresse) await baustellenAdresseKarteSuchen();
+                else if (baustellenAdressKartenKoordinaten) {
+                    baustellenAdresseKarteMarkerSetzen(...baustellenAdressKartenKoordinaten, false);
+                    baustellenAdressKartenMap.setView(baustellenAdressKartenKoordinaten, 18);
+                }
+            }, 80);
         };
 
         async function baustellenAdresseKarteGeocodieren(q) {
@@ -3259,9 +3290,15 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 return;
             }
             const adresse = baustellenAdressKartenAdresse || document.getElementById('karten-adresse-suche')?.value.trim() || '';
-            const adresseInput = document.getElementById('manuell-projekt-adresse');
+            const adresseInput = baustellenAdresseKarteZiel === 'ki'
+                ? document.getElementById('ki-ergebnis-adresse')
+                : document.getElementById('manuell-projekt-adresse');
             if (adresseInput && adresse) adresseInput.value = adresse;
-            window._neueBaustelleKoordinaten = [...baustellenAdressKartenKoordinaten];
+            if (baustellenAdresseKarteZiel === 'ki') {
+                window._kiBaustelleKoordinaten = [...baustellenAdressKartenKoordinaten];
+            } else {
+                window._neueBaustelleKoordinaten = [...baustellenAdressKartenKoordinaten];
+            }
             document.getElementById('baustellen-adresse-karten-modal')?.classList.add('hidden');
         };
 
@@ -5642,6 +5679,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 // nicht mehr blockieren.
                 const projekt = {
                     adresse: adresse || 'Adresse im Auftrag nicht erkannt',
+                    koordinaten: Array.isArray(window._kiBaustelleKoordinaten) ? [...window._kiBaustelleKoordinaten] : null,
                     status: 'Anstehend',
                     anweisung: anweisung || 'Arbeitsauftrag aus dem KI-Auftrag.',
                     kunde: window.letzterKiScan.kunde || '',
