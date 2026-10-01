@@ -7280,23 +7280,15 @@ body { top:0 !important; }
         }
     };
 
-    window.setPortalLanguage = async function(lang){
+    window.setPortalLanguage = function(lang){
         lang = lang === 'fr' ? 'fr' : 'de';
+        // Sprachwahl darf NIEMALS globale Firebase-Daten speichern oder überschreiben.
+        // Die Auswahl wird ausschließlich lokal auf diesem Gerät gespeichert.
         window.portalApplyLanguage(lang);
-        try{
-            const userName = window.__brisboisUserName || '';
-            const gd = window.__brisboisGlobalDaten || window.globalDaten;
-            if(userName && gd){
-                if(!gd.mitarbeiterProfil) gd.mitarbeiterProfil = {};
-                const old = gd.mitarbeiterProfil[userName] || {};
-                gd.mitarbeiterProfil[userName] = Object.assign({}, old, {sprache:lang});
-                if(typeof window.globalGlobalSpeichern === 'function') await window.globalGlobalSpeichern();
-            }
-        }catch(e){ console.warn('Sprache konnte nicht in der Cloud gespeichert werden:',e); }
-
-        // Kompletter Reload: dadurch wird wirklich die gesamte Seite übersetzt,
-        // nicht nur der Teil, der beim ersten Laden vorhanden war.
-        setTimeout(function(){ location.reload(); }, 150);
+        localStorage.setItem('brisbois_language', lang);
+        try {
+            if (typeof window.updateLanguageButtons === 'function') window.updateLanguageButtons(lang);
+        } catch(e) {}
     };
 
     window.portalLanguageAfterLogin = function(){
