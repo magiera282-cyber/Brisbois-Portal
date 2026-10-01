@@ -6720,6 +6720,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 return [];
             }
         }
+        // Wichtig: Die KI-Auswertung läuft in einem normalen Script, während
+        // die Materialliste in diesem module-Script definiert ist. Ohne diese
+        // globale Freigabe konnte der KI-Button beim Aufruf mit
+        // "materiallisteFuerKI is not defined" abbrechen.
+        window.materiallisteFuerKI = materiallisteFuerKI;
+
         function kiMaterialTextNorm(v){
             return String(v||'')
                 .toLowerCase()
