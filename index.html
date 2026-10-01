@@ -5950,6 +5950,44 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             return await getDownloadURL(ziel);
         }
 
+        async function pdfPlanAlsBildKomprimieren(datei, maxSeite = 1800, qualitaet = 0.78) {
+            if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
+            if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist noch nicht geladen. Bitte die Seite einmal neu laden.');
+
+            const daten = await datei.arrayBuffer();
+            const pdf = await window.pdfjsLib.getDocument({data: daten}).promise;
+            if (!pdf.numPages) throw new Error('Die PDF enthält keine Seiten.');
+
+            // Für Grundriss-Pläne wird die erste PDF-Seite als hochauflösendes
+            // JPG gespeichert. Dadurch ist kein Firebase-Storage-Zugriff nötig.
+            const seite = await pdf.getPage(1);
+            const basis = seite.getViewport({scale: 1});
+            const faktor = Math.min(1.8, maxSeite / Math.max(basis.width, basis.height));
+            const viewport = seite.getViewport({scale: faktor});
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(viewport.width));
+            canvas.height = Math.max(1, Math.round(viewport.height));
+            const ctx = canvas.getContext('2d', {alpha: false});
+            if (!ctx) throw new Error('Der PDF-Plan konnte nicht dargestellt werden.');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            await seite.render({canvasContext: ctx, viewport}).promise;
+
+            const blob = await new Promise((resolve, reject) => {
+                canvas.toBlob(b => b ? resolve(b) : reject(new Error('Der PDF-Plan konnte nicht komprimiert werden.')), 'image/jpeg', qualitaet);
+            });
+            const reader = new FileReader();
+            const dataUrl = await new Promise((resolve, reject) => {
+                reader.onerror = () => reject(new Error('Der umgewandelte PDF-Plan konnte nicht gelesen werden.'));
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.readAsDataURL(blob);
+            });
+            if (!dataUrl || dataUrl.length > 800000) {
+                throw new Error('Der PDF-Plan ist trotz Komprimierung noch zu groß. Bitte eine kleinere PDF auswählen.');
+            }
+            return dataUrl;
+        }
+
         async function verarbeiteGrundriss(datei) {
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
                 alert("Bitte zuerst eine Baustelle öffnen.");
@@ -5963,20 +6001,18 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     return;
                 }
 
-                /*
-                 * WICHTIG: Der Portal-Login ist ein eigener Schnell-Login und kein
-                 * Firebase-Auth-Login. Deshalb kann Firebase Storage je nach
-                 * Storage-Regeln den Upload mit permission-denied ablehnen.
-                 * Bilder werden deshalb direkt als komprimierte Datei im Projekt
-                 * gespeichert. So funktioniert der Grundriss auch ohne Storage-
-                 * Berechtigung. PDFs verwenden weiterhin Firebase Storage.
-                 */
-                const uploadDatei = istPdf ? datei : await planBildKomprimieren(datei);
                 let url = '';
+                let speicherart = 'firestore-bild';
+                let dateityp = 'image/jpeg';
 
-                if (!istPdf) {
-                    // Das Bild bewusst klein halten, damit das Firestore-Dokument
-                    // unter dem Größenlimit bleibt und trotzdem gut lesbar ist.
+                if (istPdf) {
+                    // PDF-Pläne werden direkt im Browser gerendert und als
+                    // komprimiertes Planbild im bestehenden Plan-Dokument gespeichert.
+                    // Damit funktioniert der PDF-Upload auch ohne Firebase Storage.
+                    url = await pdfPlanAlsBildKomprimieren(datei);
+                    speicherart = 'firestore-pdf-render';
+                } else {
+                    const uploadDatei = await planBildKomprimieren(datei);
                     const reader = new FileReader();
                     url = await new Promise((resolve, reject) => {
                         reader.onerror = () => reject(new Error('Das Bild konnte nicht gelesen werden.'));
@@ -5986,26 +6022,20 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     if (!url || url.length > 800000) {
                         throw new Error('Das Bild ist trotz Komprimierung noch zu groß. Bitte ein kleineres Bild auswählen.');
                     }
-                } else {
-                    // PDFs werden weiterhin als Datei in Firebase Storage abgelegt.
-                    url = await uploadBaustellenDatei(uploadDatei, "plaene", aktuellesProjekt);
+                    dateityp = uploadDatei.type || 'image/jpeg';
                 }
 
                 await speichereGrundrissPlan(url, {
                     dateiname: datei.name,
-                    dateityp: uploadDatei.type || (istPdf ? "application/pdf" : "image/jpeg"),
-                    groesse: uploadDatei.size,
-                    speicherart: istPdf ? 'firebase-storage' : 'firestore-bild'
+                    dateityp,
+                    groesse: datei.size,
+                    speicherart
                 });
                 alert(`✅ Plan „${datei.name}“ wurde erfolgreich hochgeladen.`);
             } catch (error) {
                 console.error("Fehler beim Hochladen des Plans:", error);
                 const msg = String(error?.message || error || 'Unbekannter Fehler');
-                alert(
-                    "❌ Der Plan konnte nicht hochgeladen werden.\n\n" +
-                    msg +
-                    (istPdf ? "\n\nBei PDF-Plänen muss Firebase Storage freigeschaltet sein." : "")
-                );
+                alert("❌ Der Plan konnte nicht hochgeladen werden.\n\n" + msg);
             } finally {
                 // Derselbe Plan kann direkt danach erneut ausgewählt werden.
                 const inputs = document.querySelectorAll('input[type="file"]');
