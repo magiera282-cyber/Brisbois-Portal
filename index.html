@@ -1923,6 +1923,23 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     alert("Das Gerät konnte noch nicht für Push registriert werden. Bitte prüfe die Firebase-Web-Push-Konfiguration.");
                     return false;
                 }
+                // Alte Push-Tokens desselben Mitarbeiters entfernen.
+                // Sonst kann ein iPhone nach einer erneuten Registrierung denselben
+                // Empfänger über mehrere alte Tokens doppelt benachrichtigen.
+                try {
+                    const eigeneTokens = await getDocs(collection(db, "pushTokens"));
+                    const loeschungen = [];
+                    eigeneTokens.forEach((snap) => {
+                        const data = snap.data() || {};
+                        if (data.employeeName === eingeloggterMitarbeiter && data.token && data.token !== token) {
+                            loeschungen.push(deleteDoc(snap.ref));
+                        }
+                    });
+                    if (loeschungen.length) await Promise.all(loeschungen);
+                } catch (cleanupError) {
+                    console.warn("Alte Push-Tokens konnten nicht bereinigt werden:", cleanupError);
+                }
+
                 const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter || "unbekannt") + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
                 await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, token, updatedAt: serverTimestamp() });
                 localStorage.setItem("brisbois_push_aktiv", "1");
@@ -1935,6 +1952,32 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 return false;
             }
         }
+        // Auch bereits aktivierte Geräte werden beim Login einmal bereinigt,
+        // damit alte Tokens auf dem iPhone nicht zu doppelten Pushs führen.
+        window.brisboisPushDuplikateBereinigen = async function() {
+            try {
+                if (!eingeloggterMitarbeiter || localStorage.getItem("brisbois_push_aktiv") !== "1") return;
+                if (!("Notification" in window) || Notification.permission !== "granted") return;
+                const reg = brisboisPushRegistration || await navigator.serviceWorker.register("./firebase-messaging-sw.js", { scope: "./" });
+                brisboisPushRegistration = reg;
+                const token = await getToken(messaging, { serviceWorkerRegistration: reg, vapidKey: "BAvLBPO-lmOeYe2cmTmGxfpirIHp-UjabyUeMTTGzyWRuKZd6A4hILJIDK6BZEOwE6Qm-z5Q-tcJwJ0AkKCDlrA" });
+                if (!token) return;
+                const eigeneTokens = await getDocs(collection(db, "pushTokens"));
+                const loeschungen = [];
+                eigeneTokens.forEach((snap) => {
+                    const data = snap.data() || {};
+                    if (data.employeeName === eingeloggterMitarbeiter && data.token && data.token !== token) {
+                        loeschungen.push(deleteDoc(snap.ref));
+                    }
+                });
+                if (loeschungen.length) await Promise.all(loeschungen);
+                const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter) + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
+                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, token, updatedAt: serverTimestamp() });
+            } catch (e) {
+                console.warn("Push-Duplikate konnten nicht bereinigt werden:", e);
+            }
+        };
+
         window.brisboisPushAktivieren = brisboisPushAktivieren;
 
         onMessage(messaging, (payload) => {
@@ -2699,6 +2742,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 try {
                     if (localStorage.getItem("brisbois_push_aktiv") !== "1" && typeof window.brisboisPushAktivieren === "function") {
                         window.brisboisPushAktivieren();
+                    } else if (typeof window.brisboisPushDuplikateBereinigen === "function") {
+                        window.brisboisPushDuplikateBereinigen();
                     }
                 } catch(e) { console.warn("Push-Aktivierung nach Login übersprungen:", e); }
             }, 700);
