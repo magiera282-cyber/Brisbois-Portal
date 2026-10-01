@@ -5016,7 +5016,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         window.vollbildZoomIn = function() {
-            vollbildZoomFaktor = Math.min(vollbildZoomFaktor + 0.3, 4);
+            vollbildZoomFaktor = Math.min(vollbildZoomFaktor + 0.3, 10);
             aktualisiereVollbildTransform();
         }
 
@@ -5046,7 +5046,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                           ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
             if (!aktiv) return;
 
-            const zoom = Math.max(0.7, Math.min(4, Number(vollbildZoomFaktor) || 1));
+            const zoom = Math.max(0.7, Math.min(10, Number(vollbildZoomFaktor) || 1));
 
             // Ganz wichtig für Pins: Plan und Pin-Container müssen dieselbe
             // echte Layout-Größe haben. Nur dann bleibt ein gespeicherter
@@ -5285,7 +5285,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 const abstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
                 if (mobilePinchStartAbstand > 0) {
                     const faktor = abstand / mobilePinchStartAbstand;
-                    vollbildZoomFaktor = Math.max(0.7, Math.min(4, mobilePinchStartZoom * faktor));
+                    vollbildZoomFaktor = Math.max(0.7, Math.min(10, mobilePinchStartZoom * faktor));
                     aktualisiereVollbildTransform();
                 }
                 event.preventDefault();
