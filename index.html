@@ -162,6 +162,11 @@ function kiMaterialZeilen(daten,globalInfo,reserve){
  const istKleber=(name)=>{const m=materialEintrag(name);return !!m && /kleber|klebstoff|adhes|colle|verkleb/i.test(String(m.kategorie||'')+' '+String(m.produkt||''));};
  daten.forEach(r=>{
    r.products.forEach(p=>{
+     // Fußleisten/Profile werden bei einer globalen lfm-Angabe nur einmal
+     // über globalInfo.footleisten berechnet. Die dynamische Produkterkennung
+     // kann sie zusätzlich als Raumprodukt erkennen; das darf keine zweite
+     // Berechnung erzeugen.
+     if(globalInfo.footleisten && /fu(?:ß|ss)leisten?|sockelleiste|leiste|profil/i.test(String(p))) return;
      if(/NC|WAKOL Z 615/.test(p))addCalc(p,r.qm,r.schichtdicke);
      else if(/PE /.test(p)||/MK|KE |WK |WAKOL D/.test(p)){
        // Kleber im Raum wird nur hier gerechnet; globale Kleber werden unten auf alle Räume gerechnet.
