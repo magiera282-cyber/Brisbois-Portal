@@ -111,16 +111,13 @@ function kiGlobalInfo(text){
  const beforeAll=idx>=0?t.slice(0,idx):'';
  const lastRoom=beforeAll.match(/(?:^|[\s;,.!?])([0-9]+)\s*[:.)\-]?\s*(?:raum|zimmer|bereich)\b/gi);
  const segment=lastRoom&&lastRoom.length?beforeAll.slice(beforeAll.lastIndexOf(lastRoom[lastRoom.length-1])):beforeAll;
- const products=idx>=0?kiAlleProdukte(segment).filter(p=>{
-   const m=(window.materiallisteFuerKI ? window.materiallisteFuerKI() : []).find(x=>String(x.produkt||'').toLowerCase()===String(p||'').toLowerCase());
-   return /MK|KE |WK |WAKOL D/.test(p) || !!m;
- }):[];
+ const products=idx>=0?kiAlleProdukte(segment).filter(p=>/MK|KE |WK |WAKOL D/.test(p)):[];
  const foot=/fu(?:ß|ss)leisten?\b[^.\n]*/i.exec(t);
  return {all,products,footleisten:foot?foot[0].trim():''};
 }
 function kiRaumDaten(room,reserve){
  const t=room.text,qm=kiFlaecheErkennen(t),belag=kiBelagErkennen(t);
- const products=(typeof window.kiAlleProdukte==='function'?window.kiAlleProdukte(t):kiAlleProdukte(t)),schwimmend=/schwimmend|floating/i.test(t);
+ const products=kiAlleProdukte(t),schwimmend=/schwimmend|floating/i.test(t);
  const voll=/voll(?:flächig)?\s*(?:verklebt|verklebung)|vollflächig\s*(?:verklebt|verklebung)|voll\s*verkleben/i.test(t);
  const unterlage=/unterlage|trittschall|dämmunterlage|däm[m-]?unterlage/i.test(t);
  const um=(t.match(/(?:unterlage|trittschall|dämmunterlage|däm[m-]?unterlage)\s*(?:von\s*)?(\d+(?:[.,]\d+)?)\s*mm/i)||t.match(/(\d+(?:[.,]\d+)?)\s*mm\s*(?:unterlage|trittschall|dämmunterlage|däm[m-]?unterlage)/i)||[])[1];
@@ -156,24 +153,12 @@ function kiProfessionelleAnweisung(daten,globalInfo){
 }
 function kiMaterialZeilen(daten,globalInfo,reserve){
  const map=new Map();
- const addCalc=(name,qm,dicke)=>{const calcFn=(typeof window.kiCalc==='function'?window.kiCalc:kiCalc);const c=calcFn(name,qm,dicke,reserve);if(!c)return;const old=map.get(name);if(!old)map.set(name,c);else{old.minKg+=c.minKg;old.maxKg+=c.maxKg;old.gebindeMin=old.packung?Math.ceil(old.minKg/old.packung):old.gebindeMin;old.gebindeMax=old.packung?Math.ceil(old.maxKg/old.packung):old.gebindeMax;}};
- const materialEintrag=(name)=>(window.materiallisteFuerKI ? window.materiallisteFuerKI() : []).find(m=>String(m.produkt||'').toLowerCase()===String(name||'').toLowerCase());
- const istDynamischesMaterial=(name)=>{const m=materialEintrag(name);return !!m && !!m.produkt;};
- const istKleber=(name)=>{const m=materialEintrag(name);return !!m && /kleber|klebstoff|adhes|colle|verkleb/i.test(String(m.kategorie||'')+' '+String(m.produkt||''));};
+ const addCalc=(name,qm,dicke)=>{const c=kiCalc(name,qm,dicke,reserve);if(!c)return;const old=map.get(name);if(!old)map.set(name,c);else{old.minKg+=c.minKg;old.maxKg+=c.maxKg;old.gebindeMin=Math.ceil(old.minKg/old.packung);old.gebindeMax=Math.ceil(old.maxKg/old.packung);}};
  daten.forEach(r=>{
    r.products.forEach(p=>{
-     // Fußleisten/Profile werden bei einer globalen lfm-Angabe nur einmal
-     // über globalInfo.footleisten berechnet. Die dynamische Produkterkennung
-     // kann sie zusätzlich als Raumprodukt erkennen; das darf keine zweite
-     // Berechnung erzeugen.
-     if(globalInfo.footleisten && /fu(?:ß|ss)leisten?|sockelleiste|leiste|profil/i.test(String(p))) return;
      if(/NC|WAKOL Z 615/.test(p))addCalc(p,r.qm,r.schichtdicke);
      else if(/PE /.test(p)||/MK|KE |WK |WAKOL D/.test(p)){
        // Kleber im Raum wird nur hier gerechnet; globale Kleber werden unten auf alle Räume gerechnet.
-       if(!(globalInfo.all&&globalInfo.products.includes(p)))addCalc(p,r.qm,null);
-     } else if(istDynamischesMaterial(p)){
-       // Neu in der Materialliste angelegte Produkte (z.B. UZIN LE 44)
-       // werden ebenfalls mit den dort hinterlegten Verbrauchsdaten berechnet.
        if(!(globalInfo.all&&globalInfo.products.includes(p)))addCalc(p,r.qm,null);
      }
    });
@@ -184,19 +169,13 @@ function kiMaterialZeilen(daten,globalInfo,reserve){
    globalInfo.products.forEach(p=>addCalc(p,total,null));
  }
  if(globalInfo.footleisten){
-   const text=globalInfo.footleisten;
-   const dyn=(window.materiallisteFuerKI ? window.materiallisteFuerKI() : []).filter(m=>/fu(?:ß|ss)leisten?|sockelleiste|leiste|profil/i.test(String(m.produkt)+' '+String(m.suchbegriffe)));
-   const chosen=dyn.find(m=>(window.kiProduktSuchbegriffe?window.kiProduktSuchbegriffe(m):[]).some(b=>(window.kiMaterialTextNorm?window.kiMaterialTextNorm(text):String(text||'').toLowerCase()).includes(b))) || dyn[0];
-   const lm=(text.match(/(\d+(?:[.,]\d+)?)\s*(?:lfm|m)\b/i)||[])[1];
-   if(chosen && lm){
-      const calc=(window.kiMaterialBerechnungAusListe ? window.kiMaterialBerechnungAusListe : (()=>null))(chosen.produkt,parseFloat(lm.replace(',','.')),null,reserve);
-      if(calc)map.set('__FUSSLEISTE_'+chosen.produkt,calc);
-   } else if(chosen){ map.set('__FUSSLEISTE_'+chosen.produkt,{produkt:chosen.produkt,status:'lfm-fehlt'}); }
+   const m=globalInfo.footleisten.match(/(\d+(?:[.,]\d+)?)\s*(?:lfm|m)\b/i);
+   if(m)map.set('__FUSSLEISTE',{produkt:'Fußleisten Eiche lackiert Standardmaß',m2:parseFloat(m[1].replace(',','.'))*(reserve?1.10:1),unit:'lfm'});
+   else map.set('__FUSSLEISTE',{produkt:'Fußleisten Eiche lackiert Standardmaß',m2:null});
  }
  const lines=[];
  for(const c of map.values()){
-   if(c.stueck!=null){lines.push(`${c.produkt} | ${c.stueck} Stück = ${c.packungen} Packung(en) à ${c.stueckProGebinde} Stück (${c.lfm.toFixed(1)} lfm)`);}
-   else if(c.minKg!=null){const packs=c.gebindeMin===c.gebindeMax?String(c.gebindeMin):`${c.gebindeMin}–${c.gebindeMax}`;lines.push(`${c.produkt} | ${packs} × ${c.packung} kg`);}
+   if(c.minKg!=null){const packs=c.gebindeMin===c.gebindeMax?String(c.gebindeMin):`${c.gebindeMin}–${c.gebindeMax}`;lines.push(`${c.produkt} | ${packs} × ${c.packung} kg`);}
    else if(c.m2!=null)lines.push(`${c.produkt} | ${c.m2.toFixed(1)} ${c.unit||'m²'}`);
    else lines.push(`${c.produkt} | Menge prüfen`);
  }
@@ -231,10 +210,6 @@ function kiKurzbeschreibungAuswerten(){
  window.letzterKiScan={kunde:'',auftragsnummer:'',termin:'',flaeche:String(total||''),belag:[...new Set(daten.map(r=>r.belag).filter(Boolean))].join(', '),arbeiten:[],ansprechpartner:'',telefon:'',email:'',sprache:'Deutsch',unsicher,roherText:text,originalDatei:null,raeume:daten,materialBerechnung:material};
  const bereich=document.getElementById('ki-ergebnis-bereich');if(bereich)bereich.classList.remove('hidden');
 }
-// Explizit global machen, damit der Button im HTML-Attribut onclick auf allen
-// Browsern/WebViews zuverlässig dieselbe Funktion aufruft.
-window.kiKurzbeschreibungAuswerten=kiKurzbeschreibungAuswerten;
-window.__kiMateriallisteBereit=true;
 </script>
 
 <style>
@@ -701,8 +676,6 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
             </div>
             <div class="flex items-center gap-2">
                 <button type="button" onclick="vollbildZoomIn()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Vergrößern">+</button>
-                <button type="button" onclick="vollbildPinModusUmschalten()" id="vollbild-pin-btn" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Pin setzen">📌</button>
-                <button type="button" onclick="vollbildPinsSichtbarkeitUmschalten()" id="vollbild-pins-btn" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Pins ausblenden" aria-label="Pins ausblenden">👁️</button>
                 <button type="button" onclick="vollbildZoomReset()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition" title="Zurücksetzen">⌂</button>
                 <button type="button" onclick="vollbildZoomOut()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Verkleinern">-</button>
                 <button type="button" onclick="vollbildSchliessen()" class="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg text-sm transition ml-2">✕ Schließen</button>
@@ -710,14 +683,14 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
         </div>
 
         <div id="vollbild-scroll-container" 
-             class="flex-1 overflow-auto relative cursor-grab active:cursor-grabbing flex items-start justify-start p-4 bg-slate-950"
+             class="flex-1 overflow-auto relative cursor-grab active:cursor-grabbing flex items-center justify-center p-4 bg-slate-950"
              onmousedown="startVollbildPan(event)"
              onmousemove="vollbildPanBewegen(event)"
              onmouseup="stopVollbildPan()"
              onmouseleave="stopVollbildPan()"
              onclick="vollbildGrundrissKlickVerarbeiten(event)">
             
-            <div id="vollbild-transform-wrapper" class="relative inline-block origin-top-left" style="transform: translate3d(0,0,0);">
+            <div id="vollbild-transform-wrapper" class="relative inline-block transition-transform duration-100 origin-center" style="transform: scale(1);">
                 <img id="vollbild-plan-bild" class="hidden block max-w-none select-none shadow-2xl rounded-lg" alt="Grundriss Vollbild">
                 <div id="vollbild-pdf-viewer" class="hidden relative inline-block select-none w-[900px] h-[700px] bg-white border shadow-2xl rounded-lg"></div>
                 <div id="vollbild-pin-container" class="absolute inset-0 pointer-events-none z-20"></div>
@@ -1038,7 +1011,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         </div>
 
                         <div class="flex flex-wrap gap-3 mt-4">
-                            <button type="button" onclick="try{if(typeof window.kiKurzbeschreibungAuswerten!=='function')throw new Error('KI-Auswertung ist noch nicht geladen'); window.kiKurzbeschreibungAuswerten()}catch(e){console.error('KI-Auswertung:',e);alert('Die KI-Auswertung konnte nicht gestartet werden. '+(e&&e.message?e.message:'Bitte erneut versuchen.'))}"
+                            <button type="button" onclick="kiKurzbeschreibungAuswerten()"
                                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 rounded-xl">
                                 🤖 KI-Auftrag auswerten
                             </button>
@@ -1515,13 +1488,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     </div>
                 </div>
                 <div class="mt-4 p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900">
-                    <b>So funktioniert es:</b> Produktname + Verbrauch eintragen. Bei Verbrauch pro m²/mm wird die vom Auftrag erkannte Spachteldicke automatisch berücksichtigt. Ein Gebindegewicht/-volumen kann zusätzlich hinterlegt werden. Für Fußleisten/Profile wähle „lfm → Stück → Packung“ und trage z. B. Länge 2,70 m sowie 10 Stück pro Packung ein – die KI berechnet daraus automatisch Stück und Packungen.
+                    <b>So funktioniert es:</b> Produktname + Verbrauch eintragen. Bei Verbrauch pro m²/mm wird die vom Auftrag erkannte Spachteldicke automatisch berücksichtigt. Ein Gebindegewicht/-volumen kann zusätzlich hinterlegt werden, damit die KI auch Säcke, Eimer oder Kanister berechnen kann.
                 </div>
                 <div class="mt-5 overflow-x-auto">
                     <table class="w-full text-sm min-w-[1050px]">
                         <thead>
                             <tr class="border-b text-left text-[11px] uppercase tracking-wide text-slate-500">
-                                <th class="p-2">Produkt</th><th class="p-2">Hersteller</th><th class="p-2">Kategorie</th><th class="p-2">Verbrauch von</th><th class="p-2">Verbrauch bis</th><th class="p-2">Einheit</th><th class="p-2">Gebinde</th><th class="p-2">Länge/Stk.</th><th class="p-2">Stk./Packung</th><th class="p-2">Suchbegriffe</th><th class="p-2 text-right">Aktion</th>
+                                <th class="p-2">Produkt</th><th class="p-2">Hersteller</th><th class="p-2">Kategorie</th><th class="p-2">Verbrauch von</th><th class="p-2">Verbrauch bis</th><th class="p-2">Einheit</th><th class="p-2">Gebinde</th><th class="p-2">Suchbegriffe</th><th class="p-2 text-right">Aktion</th>
                             </tr>
                         </thead>
                         <tbody id="materialliste-tbody"></tbody>
@@ -1948,23 +1921,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     alert("Das Gerät konnte noch nicht für Push registriert werden. Bitte prüfe die Firebase-Web-Push-Konfiguration.");
                     return false;
                 }
-                // Alte Push-Tokens desselben Mitarbeiters entfernen.
-                // Sonst kann ein iPhone nach einer erneuten Registrierung denselben
-                // Empfänger über mehrere alte Tokens doppelt benachrichtigen.
-                try {
-                    const eigeneTokens = await getDocs(collection(db, "pushTokens"));
-                    const loeschungen = [];
-                    eigeneTokens.forEach((snap) => {
-                        const data = snap.data() || {};
-                        if (data.employeeName === eingeloggterMitarbeiter && data.token && data.token !== token) {
-                            loeschungen.push(deleteDoc(snap.ref));
-                        }
-                    });
-                    if (loeschungen.length) await Promise.all(loeschungen);
-                } catch (cleanupError) {
-                    console.warn("Alte Push-Tokens konnten nicht bereinigt werden:", cleanupError);
-                }
-
                 const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter || "unbekannt") + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
                 await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, token, updatedAt: serverTimestamp() });
                 localStorage.setItem("brisbois_push_aktiv", "1");
@@ -1977,32 +1933,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 return false;
             }
         }
-        // Auch bereits aktivierte Geräte werden beim Login einmal bereinigt,
-        // damit alte Tokens auf dem iPhone nicht zu doppelten Pushs führen.
-        window.brisboisPushDuplikateBereinigen = async function() {
-            try {
-                if (!eingeloggterMitarbeiter || localStorage.getItem("brisbois_push_aktiv") !== "1") return;
-                if (!("Notification" in window) || Notification.permission !== "granted") return;
-                const reg = brisboisPushRegistration || await navigator.serviceWorker.register("./firebase-messaging-sw.js", { scope: "./" });
-                brisboisPushRegistration = reg;
-                const token = await getToken(messaging, { serviceWorkerRegistration: reg, vapidKey: "BAvLBPO-lmOeYe2cmTmGxfpirIHp-UjabyUeMTTGzyWRuKZd6A4hILJIDK6BZEOwE6Qm-z5Q-tcJwJ0AkKCDlrA" });
-                if (!token) return;
-                const eigeneTokens = await getDocs(collection(db, "pushTokens"));
-                const loeschungen = [];
-                eigeneTokens.forEach((snap) => {
-                    const data = snap.data() || {};
-                    if (data.employeeName === eingeloggterMitarbeiter && data.token && data.token !== token) {
-                        loeschungen.push(deleteDoc(snap.ref));
-                    }
-                });
-                if (loeschungen.length) await Promise.all(loeschungen);
-                const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter) + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
-                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, token, updatedAt: serverTimestamp() });
-            } catch (e) {
-                console.warn("Push-Duplikate konnten nicht bereinigt werden:", e);
-            }
-        };
-
         window.brisboisPushAktivieren = brisboisPushAktivieren;
 
         onMessage(messaging, (payload) => {
@@ -2767,8 +2697,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 try {
                     if (localStorage.getItem("brisbois_push_aktiv") !== "1" && typeof window.brisboisPushAktivieren === "function") {
                         window.brisboisPushAktivieren();
-                    } else if (typeof window.brisboisPushDuplikateBereinigen === "function") {
-                        window.brisboisPushDuplikateBereinigen();
                     }
                 } catch(e) { console.warn("Push-Aktivierung nach Login übersprungen:", e); }
             }, 700);
@@ -5039,9 +4967,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             document.getElementById('vollbild-titel').innerText = `📐 Großansicht: ${aktuellesProjekt} (Plan ${(p.aktiverPlanIndex || 0) + 1})`;
             vollbildZoomFaktor = 1;
-            vollbildPinsSichtbar = true;
-            const pinsBtnBeimOeffnen = document.getElementById('vollbild-pins-btn');
-            if (pinsBtnBeimOeffnen) { pinsBtnBeimOeffnen.innerText = '👁️'; pinsBtnBeimOeffnen.title = 'Pins ausblenden'; pinsBtnBeimOeffnen.setAttribute('aria-label','Pins ausblenden'); }
             mobilePlanOffsetX = 0;
             mobilePlanOffsetY = 0;
             aktualisiereVollbildTransform();
@@ -5062,14 +4987,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             document.getElementById('plan-vollbild-modal').classList.remove('hidden');
 
-            const vollPinBtn = document.getElementById('vollbild-pin-btn');
-            if (vollPinBtn) {
-                vollPinBtn.className = pinModusAktiv
-                    ? "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse"
-                    : "bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition";
-                vollPinBtn.innerText = pinModusAktiv ? "📌✓" : "📌";
-            }
-
             if (window.innerWidth <= 640) {
                 const mobilePlan = document.getElementById('vollbild-scroll-container');
                 if (mobilePlan && mobilePlan.dataset.mobilePlanGestures !== '1') {
@@ -5089,22 +5006,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             planVorschauAnzeigen();
         }
 
-        window.vollbildPinsSichtbarkeitUmschalten = function() {
-            vollbildPinsSichtbar = !vollbildPinsSichtbar;
-            const container = document.getElementById('vollbild-pin-container');
-            const btn = document.getElementById('vollbild-pins-btn');
-            if (container) {
-                container.style.display = vollbildPinsSichtbar ? 'block' : 'none';
-            }
-            if (btn) {
-                btn.innerText = vollbildPinsSichtbar ? '👁️' : '🚫';
-                btn.title = vollbildPinsSichtbar ? 'Pins ausblenden' : 'Pins einblenden';
-                btn.setAttribute('aria-label', btn.title);
-            }
-        };
-
         window.vollbildZoomIn = function() {
-            vollbildZoomFaktor = Math.min(vollbildZoomFaktor + 0.3, 10);
+            vollbildZoomFaktor = Math.min(vollbildZoomFaktor + 0.3, 4);
             aktualisiereVollbildTransform();
         }
 
@@ -5120,61 +5023,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             aktualisiereVollbildTransform();
         }
 
-        let vollbildPinsSichtbar = true;
-
-            function aktualisiereVollbildTransform() {
+        function aktualisiereVollbildTransform() {
             const wrapper = document.getElementById('vollbild-transform-wrapper');
-            if (!wrapper) return;
-
-            wrapper.style.transition = 'none';
-            wrapper.style.transform = `translate3d(${mobilePlanOffsetX}px, ${mobilePlanOffsetY}px, 0)`;
-
-            const bild = document.getElementById('vollbild-plan-bild');
-            const pdf = document.getElementById('vollbild-pdf-viewer');
-            const pins = document.getElementById('vollbild-pin-container');
-            const aktiv = (bild && !bild.classList.contains('hidden')) ? bild :
-                          ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
-            if (!aktiv) return;
-
-            const zoom = Math.max(0.7, Math.min(10, Number(vollbildZoomFaktor) || 1));
-
-            // Ganz wichtig für Pins: Plan und Pin-Container müssen dieselbe
-            // echte Layout-Größe haben. Nur dann bleibt ein gespeicherter
-            // Prozentwert auch nach dem Speichern exakt auf derselben Stelle.
-            let baseW = 0, baseH = 0;
-            if (aktiv === bild && bild.naturalWidth && bild.naturalHeight) {
-                baseW = bild.naturalWidth;
-                baseH = bild.naturalHeight;
-                const maxW = Math.max(1, window.innerWidth * 0.92);
-                const maxH = Math.max(1, (window.innerHeight - 150) * 0.92);
-                const fit = Math.min(1, maxW / baseW, maxH / baseH);
-                baseW *= fit;
-                baseH *= fit;
-            } else {
-                baseW = 900;
-                baseH = 700;
-            }
-
-            const targetW = Math.max(1, Math.round(baseW * zoom));
-            const targetH = Math.max(1, Math.round(baseH * zoom));
-
-            wrapper.style.width = `${targetW}px`;
-            wrapper.style.height = `${targetH}px`;
-
-            if (aktiv === bild) {
-                bild.style.transform = 'none';
-                bild.style.width = `${targetW}px`;
-                bild.style.height = `${targetH}px`;
-            } else {
-                pdf.style.transform = 'none';
-                pdf.style.width = `${targetW}px`;
-                pdf.style.height = `${targetH}px`;
-            }
-
-            if (pins) {
-                pins.style.transform = 'none';
-                pins.style.width = `${targetW}px`;
-                pins.style.height = `${targetH}px`;
+            if(wrapper) {
+                wrapper.style.transition = 'none';
+                wrapper.style.transform =
+                    `translate3d(${mobilePlanOffsetX}px, ${mobilePlanOffsetY}px, 0) scale(${vollbildZoomFaktor})`;
             }
         }
 
@@ -5209,25 +5063,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             projektSpeichern(aktuellesProjekt);
         }
 
-        window.vollbildPinModusUmschalten = function() {
-            pinModusAktiv = !pinModusAktiv;
-            const btn = document.getElementById('vollbild-pin-btn');
-            if (btn) {
-                btn.className = pinModusAktiv
-                    ? "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse"
-                    : "bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition";
-                btn.title = pinModusAktiv ? "Pin setzen ist aktiv" : "Pin setzen";
-                btn.innerText = pinModusAktiv ? "📌✓" : "📌";
-            }
-            const outside = document.getElementById('pin-modus-btn');
-            if (outside) {
-                outside.className = pinModusAktiv
-                    ? "text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm animate-pulse"
-                    : "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
-                outside.innerText = pinModusAktiv ? "📌 Pin setzen (Aktiv)" : "📌 Pin setzen (Aus)";
-            }
-        };
-
         window.pinModusUmschalten = function() {
             pinModusAktiv = !pinModusAktiv;
             const btn = document.getElementById('pin-modus-btn');
@@ -5235,13 +5070,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 btn.className = "text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm animate-pulse";
                 btn.innerText = "📌 Pin setzen (Aktiv im Vollbild)";
                 vollbildOeffnen();
-                setTimeout(() => {
-                    const vb = document.getElementById('vollbild-pin-btn');
-                    if (vb) {
-                        vb.className = "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse";
-                        vb.innerText = "📌✓";
-                    }
-                }, 0);
             } else {
                 btn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
                 btn.innerText = "📌 Pin setzen (Aus)";
@@ -5294,17 +5122,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         function mobilePinPosition(event) {
             const wrapper = document.getElementById('vollbild-transform-wrapper');
-            const bild = document.getElementById('vollbild-plan-bild');
-            const pdf = document.getElementById('vollbild-pdf-viewer');
-            const plan = (bild && !bild.classList.contains('hidden')) ? bild :
-                         ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
-            if (!wrapper || !plan || !event.touches || !event.touches[0]) return null;
+            if (!wrapper || !event.touches || !event.touches[0]) return null;
 
-            // Immer gegen die tatsächlich sichtbare, skalierte Planfläche rechnen.
-            // Dadurch bleibt der Pin auch bei starkem Zoom und beim Verschieben
-            // exakt an der Stelle, an der der Finger auf den Plan gesetzt wurde.
-            const rect = plan.getBoundingClientRect();
+            const rect = wrapper.getBoundingClientRect();
             const t = event.touches[0];
+
+            // rect enthält bereits Scale + Translation. Die relative Position
+            // des Fingers innerhalb des sichtbaren Plans bleibt dadurch korrekt.
             const x = t.clientX - rect.left;
             const y = t.clientY - rect.top;
             if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
@@ -5375,7 +5199,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 const abstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
                 if (mobilePinchStartAbstand > 0) {
                     const faktor = abstand / mobilePinchStartAbstand;
-                    vollbildZoomFaktor = Math.max(0.7, Math.min(10, mobilePinchStartZoom * faktor));
+                    vollbildZoomFaktor = Math.max(0.7, Math.min(4, mobilePinchStartZoom * faktor));
                     aktualisiereVollbildTransform();
                 }
                 event.preventDefault();
@@ -5418,16 +5242,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (!p || !p.plaene || p.plaene.length === 0) return;
 
             const wrapper = document.getElementById('vollbild-transform-wrapper');
-            const bild = document.getElementById('vollbild-plan-bild');
-            const pdf = document.getElementById('vollbild-pdf-viewer');
-            const plan = (bild && !bild.classList.contains('hidden')) ? bild :
-                         ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
-            if (!wrapper || !plan) return;
-
-            // Desktop ebenfalls direkt auf der sichtbaren Planfläche messen.
-            // So sind Scrollposition, Zoom und die tatsächliche Planfläche
-            // automatisch berücksichtigt.
-            const rect = plan.getBoundingClientRect();
+            const rect = wrapper.getBoundingClientRect();
+            
             const klickX = event.clientX - rect.left;
             const klickY = event.clientY - rect.top;
 
@@ -5463,22 +5279,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 let fotoUrl = "";
                 const foto = fotoInput.files && fotoInput.files[0];
                 if (foto) {
-                    // Pin-Fotos werden direkt als komprimiertes Bild im Pin gespeichert.
-                    // Dadurch hängt das Speichern auf iPhone/PC nicht von Firebase Storage ab.
-                    if (!String(foto.type || '').startsWith('image/')) {
-                        throw new Error('Bitte ein JPG- oder PNG-Foto auswählen.');
-                    }
-                    const maxFotoMB = 12;
-                    if (foto.size > maxFotoMB * 1024 * 1024) {
-                        throw new Error(`Das Foto darf maximal ${maxFotoMB} MB groß sein.`);
-                    }
-                    const fotoDatei = await planBildKomprimieren(foto, 1400, 0.72);
-                    const fotoReader = new FileReader();
-                    fotoUrl = await new Promise((resolve, reject) => {
-                        fotoReader.onerror = () => reject(new Error('Das Mangel-Foto konnte nicht gelesen werden.'));
-                        fotoReader.onload = () => resolve(String(fotoReader.result || ''));
-                        fotoReader.readAsDataURL(fotoDatei);
-                    });
+                    fotoUrl = await uploadBaustellenDatei(foto, "mangel-fotos", aktuellesProjekt);
                 }
 
                 const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -5513,28 +5314,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     planIndex: planIdx
                 });
 
-                // Der Pin wird zuerst sicher im Baustellen-Dokument gespeichert.
-                // Die globale Benachrichtigung darf den Speichervorgang nicht mehr
-                // blockieren (sonst bleibt auf dem iPhone dauerhaft „Wird gespeichert...“).
                 await projektSpeichern(aktuellesProjekt);
-                try {
-                    await Promise.race([
-                        window.globalGlobalSpeichern(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Portal-Synchronisation dauert zu lange')), 8000))
-                    ]);
-                } catch (syncError) {
-                    console.warn('Pin gespeichert, globale Benachrichtigung wird später synchronisiert:', syncError);
-                }
+                await window.globalGlobalSpeichern();
                 document.getElementById('pin-modal').classList.add('hidden');
                 vollbildPinsAnzeigen();
                 benachrichtigungenAnzeigen();
 
-                // Pin-Modus bleibt nach dem Speichern aktiv, damit direkt der
-                // nächste Pin gesetzt werden kann, ohne die Großansicht zu schließen.
-                const vollPinBtn = document.getElementById('vollbild-pin-btn');
-                if (vollPinBtn && pinModusAktiv) {
-                    vollPinBtn.className = "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse";
-                    vollPinBtn.innerText = "📌✓";
+                pinModusAktiv = false;
+                const modusBtn = document.getElementById('pin-modus-btn');
+                if (modusBtn) {
+                    modusBtn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
+                    modusBtn.innerText = "📌 Pin setzen (Aus)";
                 }
             } catch (error) {
                 console.error("Fehler beim Speichern des Mangel-Pins:", error);
@@ -5648,12 +5438,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         function vollbildPinsAnzeigen() {
-            const pinContainer = document.getElementById('vollbild-pin-container');
-            if (pinContainer) pinContainer.style.display = vollbildPinsSichtbar ? 'block' : 'none';
             const container = document.getElementById('vollbild-pin-container');
             if (!container || !aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             container.innerHTML = '';
-            container.style.display = vollbildPinsAnzeigen ? 'block' : 'none';
 
             const p = globalDaten.projekte[aktuellesProjekt];
             const pins = (p && p.pins) ? p.pins : [];
@@ -6163,44 +5950,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             return await getDownloadURL(ziel);
         }
 
-        async function pdfPlanAlsBildKomprimieren(datei, maxSeite = 1800, qualitaet = 0.78) {
-            if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
-            if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist noch nicht geladen. Bitte die Seite einmal neu laden.');
-
-            const daten = await datei.arrayBuffer();
-            const pdf = await window.pdfjsLib.getDocument({data: daten}).promise;
-            if (!pdf.numPages) throw new Error('Die PDF enthält keine Seiten.');
-
-            // Für Grundriss-Pläne wird die erste PDF-Seite als hochauflösendes
-            // JPG gespeichert. Dadurch ist kein Firebase-Storage-Zugriff nötig.
-            const seite = await pdf.getPage(1);
-            const basis = seite.getViewport({scale: 1});
-            const faktor = Math.min(1.8, maxSeite / Math.max(basis.width, basis.height));
-            const viewport = seite.getViewport({scale: faktor});
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.max(1, Math.round(viewport.width));
-            canvas.height = Math.max(1, Math.round(viewport.height));
-            const ctx = canvas.getContext('2d', {alpha: false});
-            if (!ctx) throw new Error('Der PDF-Plan konnte nicht dargestellt werden.');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            await seite.render({canvasContext: ctx, viewport}).promise;
-
-            const blob = await new Promise((resolve, reject) => {
-                canvas.toBlob(b => b ? resolve(b) : reject(new Error('Der PDF-Plan konnte nicht komprimiert werden.')), 'image/jpeg', qualitaet);
-            });
-            const reader = new FileReader();
-            const dataUrl = await new Promise((resolve, reject) => {
-                reader.onerror = () => reject(new Error('Der umgewandelte PDF-Plan konnte nicht gelesen werden.'));
-                reader.onload = () => resolve(String(reader.result || ''));
-                reader.readAsDataURL(blob);
-            });
-            if (!dataUrl || dataUrl.length > 800000) {
-                throw new Error('Der PDF-Plan ist trotz Komprimierung noch zu groß. Bitte eine kleinere PDF auswählen.');
-            }
-            return dataUrl;
-        }
-
         async function verarbeiteGrundriss(datei) {
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
                 alert("Bitte zuerst eine Baustelle öffnen.");
@@ -6214,18 +5963,20 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     return;
                 }
 
+                /*
+                 * WICHTIG: Der Portal-Login ist ein eigener Schnell-Login und kein
+                 * Firebase-Auth-Login. Deshalb kann Firebase Storage je nach
+                 * Storage-Regeln den Upload mit permission-denied ablehnen.
+                 * Bilder werden deshalb direkt als komprimierte Datei im Projekt
+                 * gespeichert. So funktioniert der Grundriss auch ohne Storage-
+                 * Berechtigung. PDFs verwenden weiterhin Firebase Storage.
+                 */
+                const uploadDatei = istPdf ? datei : await planBildKomprimieren(datei);
                 let url = '';
-                let speicherart = 'firestore-bild';
-                let dateityp = 'image/jpeg';
 
-                if (istPdf) {
-                    // PDF-Pläne werden direkt im Browser gerendert und als
-                    // komprimiertes Planbild im bestehenden Plan-Dokument gespeichert.
-                    // Damit funktioniert der PDF-Upload auch ohne Firebase Storage.
-                    url = await pdfPlanAlsBildKomprimieren(datei);
-                    speicherart = 'firestore-pdf-render';
-                } else {
-                    const uploadDatei = await planBildKomprimieren(datei);
+                if (!istPdf) {
+                    // Das Bild bewusst klein halten, damit das Firestore-Dokument
+                    // unter dem Größenlimit bleibt und trotzdem gut lesbar ist.
                     const reader = new FileReader();
                     url = await new Promise((resolve, reject) => {
                         reader.onerror = () => reject(new Error('Das Bild konnte nicht gelesen werden.'));
@@ -6235,20 +5986,26 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     if (!url || url.length > 800000) {
                         throw new Error('Das Bild ist trotz Komprimierung noch zu groß. Bitte ein kleineres Bild auswählen.');
                     }
-                    dateityp = uploadDatei.type || 'image/jpeg';
+                } else {
+                    // PDFs werden weiterhin als Datei in Firebase Storage abgelegt.
+                    url = await uploadBaustellenDatei(uploadDatei, "plaene", aktuellesProjekt);
                 }
 
                 await speichereGrundrissPlan(url, {
                     dateiname: datei.name,
-                    dateityp,
-                    groesse: datei.size,
-                    speicherart
+                    dateityp: uploadDatei.type || (istPdf ? "application/pdf" : "image/jpeg"),
+                    groesse: uploadDatei.size,
+                    speicherart: istPdf ? 'firebase-storage' : 'firestore-bild'
                 });
                 alert(`✅ Plan „${datei.name}“ wurde erfolgreich hochgeladen.`);
             } catch (error) {
                 console.error("Fehler beim Hochladen des Plans:", error);
                 const msg = String(error?.message || error || 'Unbekannter Fehler');
-                alert("❌ Der Plan konnte nicht hochgeladen werden.\n\n" + msg);
+                alert(
+                    "❌ Der Plan konnte nicht hochgeladen werden.\n\n" +
+                    msg +
+                    (istPdf ? "\n\nBei PDF-Plänen muss Firebase Storage freigeschaltet sein." : "")
+                );
             } finally {
                 // Derselbe Plan kann direkt danach erneut ausgewählt werden.
                 const inputs = document.querySelectorAll('input[type="file"]');
@@ -6652,8 +6409,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 verbrauchBis:m.verbrauchBis!=null?Number(m.verbrauchBis):(m.max!=null?Number(m.max):(m.faktor!=null?Number(m.faktor):'')),
                 einheit:String(m.einheit||'kg/m²').trim(),
                 gebinde:m.gebinde!=null?Number(m.gebinde):(m.packung!=null?Number(m.packung):''),
-                laengeProStueck:m.laengeProStueck!=null?Number(m.laengeProStueck):(m.laenge!=null?Number(m.laenge):''),
-                stueckProGebinde:m.stueckProGebinde!=null?Number(m.stueckProGebinde):(m.stueckPackung!=null?Number(m.stueckPackung):''),
                 suchbegriffe:String(m.suchbegriffe||'').trim(),
                 aktiv:m.aktiv!==false
             }));
@@ -6674,11 +6429,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <td class="p-2"><input id="mat-k-${i}" value="${materiallisteEscape(m.kategorie)}" class="w-32 px-2 py-2 border rounded-lg text-xs"></td>
                     <td class="p-2"><input id="mat-v1-${i}" type="number" step="0.001" min="0" value="${m.verbrauchVon!==''?m.verbrauchVon:''}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
                     <td class="p-2"><input id="mat-v2-${i}" type="number" step="0.001" min="0" value="${m.verbrauchBis!==''?m.verbrauchBis:''}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
-                    <td class="p-2"><select id="mat-e-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['kg/m²','kg/m²/mm','l/m²','l/m²/mm','Stk/m²','kg/lfm','l/lfm','Stk','lfm → Stück → Packung'].map(x=>`<option ${m.einheit===x?'selected':''}>${x}</option>`).join('')}</select></td>
-                    <td class="p-2"><input id="mat-g-${i}" type="number" step="0.01" min="0" value="${m.gebinde!==''?m.gebinde:''}" placeholder="z.B. 25 kg" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
-                    <td class="p-2"><input id="mat-l-${i}" type="number" step="0.01" min="0" value="${m.laengeProStueck!==''?m.laengeProStueck:''}" placeholder="2,70 m" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
-                    <td class="p-2"><input id="mat-sp-${i}" type="number" step="1" min="0" value="${m.stueckProGebinde!==''?m.stueckProGebinde:''}" placeholder="10" class="w-20 px-2 py-2 border rounded-lg text-xs"></td>
-                    <td class="p-2"><input id="mat-s-${i}" value="${materiallisteEscape(m.suchbegriffe)}" placeholder="z.B. LE44, Kleber, Fußleiste" class="w-48 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><select id="mat-e-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['kg/m²','kg/m²/mm','l/m²','l/m²/mm','Stk/m²','kg/lfm','l/lfm','Stk'].map(x=>`<option ${m.einheit===x?'selected':''}>${x}</option>`).join('')}</select></td>
+                    <td class="p-2"><input id="mat-g-${i}" type="number" step="0.01" min="0" value="${m.gebinde!==''?m.gebinde:''}" placeholder="z.B. 25" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-s-${i}" value="${materiallisteEscape(m.suchbegriffe)}" placeholder="z.B. NC160, Ausgleichsmasse" class="w-48 px-2 py-2 border rounded-lg text-xs"></td>
                     <td class="p-2 text-right whitespace-nowrap"><button type="button" onclick="materiallisteZeileSpeichern(${i})" class="bg-emerald-600 text-white px-2.5 py-2 rounded-lg text-xs font-bold">💾</button> <button type="button" onclick="materiallisteZeileLoeschen(${i})" class="bg-red-100 text-red-700 px-2.5 py-2 rounded-lg text-xs font-bold">✕</button></td>
                 </tr>`;
             });
@@ -6686,7 +6439,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.materiallisteNeueZeile=function(){
             if(!materiallisteBerechtigt()) return alert('Nur Chef, Techniker und Sekretariat dürfen die Materialliste verwalten.');
             materiallisteNormalisieren();
-            globalDaten.materialliste.push({id:'MAT_'+Date.now(),produkt:'',hersteller:'',kategorie:'Material',verbrauchVon:'',verbrauchBis:'',einheit:'kg/m²',gebinde:'',laengeProStueck:'',stueckProGebinde:'',suchbegriffe:'',aktiv:true});
+            globalDaten.materialliste.push({id:'MAT_'+Date.now(),produkt:'',hersteller:'UZIN',kategorie:'Material',verbrauchVon:'',verbrauchBis:'',einheit:'kg/m²',gebinde:'',suchbegriffe:'',aktiv:true});
             materiallisteAnzeigen();
             setTimeout(()=>document.getElementById('mat-p-'+(globalDaten.materialliste.length-1))?.focus(),50);
         };
@@ -6700,22 +6453,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             m.verbrauchBis=parseFloat(document.getElementById('mat-v2-'+i)?.value)||m.verbrauchVon;
             m.einheit=document.getElementById('mat-e-'+i)?.value||'kg/m²';
             m.gebinde=parseFloat(document.getElementById('mat-g-'+i)?.value)||'';
-            m.laengeProStueck=parseFloat(document.getElementById('mat-l-'+i)?.value)||'';
-            m.stueckProGebinde=parseFloat(document.getElementById('mat-sp-'+i)?.value)||'';
             m.suchbegriffe=document.getElementById('mat-s-'+i)?.value.trim()||'';
-            const einheitNorm=String(m.einheit||'').toLowerCase();
-            const istLfmPack=einheitNorm.includes('lfm') && einheitNorm.includes('stück') && einheitNorm.includes('packung');
-            if(istLfmPack){
-                // Fußleisten/Profile: Verbrauchsfeld bleibt leer. Entscheidend sind Länge/Stück und Stück/Packung.
-                if(!m.produkt || !(m.laengeProStueck>0) || !(m.stueckProGebinde>0)){
-                    return alert('Für Fußleisten/Profile bitte Produkt, Länge pro Stück und Stück pro Packung eintragen.');
-                }
-                // Kein künstlicher kg/m²-Verbrauch nötig; KI erkennt diese Sonder-Einheit direkt.
-                m.verbrauchVon='';
-                m.verbrauchBis='';
-            } else if(!m.produkt || !(m.verbrauchVon>0)){
-                return alert('Bitte mindestens Produkt und Verbrauch eintragen.');
-            }
+            if(!m.produkt || !m.verbrauchVon){ return alert('Bitte mindestens Produkt und Verbrauch eintragen.'); }
             if(m.verbrauchBis==='' || m.verbrauchBis<m.verbrauchVon) m.verbrauchBis=m.verbrauchVon;
             try{ await globalGlobalSpeichern(); materiallisteAnzeigen(); alert('Material gespeichert. Die KI verwendet diesen Eintrag ab sofort bei neuen Aufträgen.'); }catch(e){ console.error(e); alert('Material konnte nicht gespeichert werden: '+(e.message||e)); }
         };
@@ -6737,96 +6476,23 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try{await globalGlobalSpeichern();materiallisteAnzeigen();alert('Die bereits im Portal vorhandenen KI-Produkte wurden in die Materialliste übernommen.');}catch(e){alert('Die Standardwerte konnten nicht gespeichert werden.');}
         };
         function materiallisteFuerKI(){
-            // Die KI darf niemals abbrechen, nur weil die Materialliste beim
-            // ersten Laden noch nicht initialisiert ist.
-            if(typeof globalDaten==='undefined' || !globalDaten) return [];
-            try{
-                materiallisteNormalisieren();
-                return Array.isArray(globalDaten.materialliste)
-                    ? globalDaten.materialliste.filter(m=>{
-                        if(m.aktiv===false || !m.produkt) return false;
-                        const einheit=String(m.einheit||'').toLowerCase();
-                        const istLfmPack=einheit.includes('lfm') && einheit.includes('stück') && einheit.includes('packung');
-                        // Bei Fußleisten/Profilen gibt es keinen kg/m²-Verbrauch.
-                        // Länge je Stück + Stück je Packung sind die notwendigen Werte.
-                        if(istLfmPack) return Number(m.laengeProStueck)>0 && Number(m.stueckProGebinde)>0;
-                        return Number(m.verbrauchVon)>0;
-                      })
-                    : [];
-            }catch(e){
-                console.warn('Materialliste für KI konnte nicht gelesen werden:',e);
-                return [];
-            }
-        }
-        // Wichtig: Die KI-Auswertung läuft in einem normalen Script, während
-        // die Materialliste in diesem module-Script definiert ist. Ohne diese
-        // globale Freigabe konnte der KI-Button beim Aufruf mit
-        // "materiallisteFuerKI is not defined" abbrechen.
-        window.materiallisteFuerKI = materiallisteFuerKI;
-
-        function kiMaterialTextNorm(v){
-            return String(v||'')
-                .toLowerCase()
-                .replace(/[–—_]/g,'-')
-                .replace(/[^a-z0-9äöüß]+/gi,' ')
-                .replace(/\s+/g,' ')
-                .trim();
-        }
-        function kiProduktSuchbegriffe(m){
-            const raw=[m?.produkt||'',m?.suchbegriffe||''].join(',').split(/[,;|]+/);
-            const out=[];
-            raw.forEach(x=>{
-                const n=kiMaterialTextNorm(x);
-                if(!n)return;
-                out.push(n);
-                // Herstellerpräfix entfernen: „UZIN LE 44“ wird auch als „LE 44“ erkannt.
-                out.push(n.replace(/^(?:uzin|wakol|mapei|ardex|bostik)\s+/i,''));
-                // Allgemeine Materialbezeichnungen am Ende entfernen: „LE 44 Kleber“ -> „LE 44“.
-                out.push(n.replace(/\s+(?:kleber|klebstoff|adhesiv|adhäsiv|colle|adhésif)$/i,''));
-                out.push(n.replace(/^(?:uzin|wakol|mapei|ardex|bostik)\s+/i,'').replace(/\s+(?:kleber|klebstoff|adhesiv|adhäsiv|colle|adhésif)$/i,''));
-            });
-            return [...new Set(out.filter(x=>x.length>=3))];
+            materiallisteNormalisieren();
+            return globalDaten.materialliste.filter(m=>m.aktiv!==false && m.produkt && Number(m.verbrauchVon)>0);
         }
         function kiProduktAusMaterialliste(text, liste){
-            const t=kiMaterialTextNorm(text);
+            const t=String(text||'').toLowerCase();
             let best=null,bestScore=0;
             liste.forEach(m=>{
-                const begriffe=kiProduktSuchbegriffe(m);
+                const begriffe=[m.produkt,m.suchbegriffe||''].join(',').split(/[,;|]+/).map(x=>x.trim().toLowerCase()).filter(Boolean);
                 let score=0;
-                begriffe.forEach(b=>{
-                    if(!b)return;
-                    if(t.includes(b)) score=Math.max(score,b.length+100);
-                    else {
-                        const teile=b.split(' ').filter(x=>x.length>=2);
-                        const treffer=teile.filter(x=>t.includes(x)).length;
-                        if(teile.length>=2 && treffer===teile.length) score=Math.max(score,teile.join('').length+50);
-                    }
-                });
+                begriffe.forEach(b=>{ if(b && t.includes(b)) score=Math.max(score,b.length); });
                 if(score>bestScore){bestScore=score;best=m;}
             });
             return best;
         }
-        // Diese Hilfsfunktionen werden von der klassischen KI-Auswertung außerhalb
-        // dieses module-Scripts verwendet und müssen deshalb ebenfalls global sein.
-        window.kiMaterialTextNorm = kiMaterialTextNorm;
-        window.kiProduktSuchbegriffe = kiProduktSuchbegriffe;
-        window.kiProduktAusMaterialliste = kiProduktAusMaterialliste;
-
         function kiMaterialBerechnungAusListe(name,qm,dicke,reserve){
             const m=materiallisteFuerKI().find(x=>String(x.produkt).toLowerCase()===String(name).toLowerCase());
             if(!m || !qm) return null;
-            // Sonderlogik für Profile/Fußleisten: Auftrag nennt laufende Meter; daraus werden Stück und Packungen.
-            const einheitNorm=String(m.einheit||'').toLowerCase();
-            const istLfmPack=einheitNorm.includes('lfm') && einheitNorm.includes('stück') && einheitNorm.includes('packung');
-            if(istLfmPack){
-                const laenge=Number(m.laengeProStueck)||0;
-                const stkPack=Number(m.stueckProGebinde)||0;
-                if(!(laenge>0) || !(stkPack>0)) return {produkt:m.produkt,status:'länge-oder-packung-fehlt'};
-                const lfm=qm*(reserve?1.10:1);
-                const stueck=Math.ceil(lfm/laenge);
-                const packungen=Math.ceil(stueck/stkPack);
-                return {produkt:m.produkt,lfm,stueck,packungen,laengeProStueck:laenge,stueckProGebinde:stkPack,einheit:m.einheit,hersteller:m.hersteller,kategorie:m.kategorie};
-            }
             const v1=Number(m.verbrauchVon), v2=Number(m.verbrauchBis)||v1;
             let factor1=v1, factor2=v2;
             if(/\/mm$/i.test(m.einheit)){ if(!dicke)return {produkt:m.produkt,status:'dicke-fehlt'}; factor1*=dicke; factor2*=dicke; }
@@ -6838,43 +6504,21 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // KI nutzt zuerst die vom Team gepflegte Materialliste; die alten eingebauten Werte bleiben als Fallback erhalten.
         const _kiCalcAlt=kiCalc;
         kiCalc=function(name,qm,dicke,reserve){
-            try{
-                const dyn=kiMaterialBerechnungAusListe(name,qm,dicke,reserve);
-                return dyn || _kiCalcAlt(name,qm,dicke,reserve);
-            }catch(e){
-                console.warn('Dynamische KI-Materialberechnung:',e);
-                return _kiCalcAlt(name,qm,dicke,reserve);
-            }
+            const dyn=kiMaterialBerechnungAusListe(name,qm,dicke,reserve);
+            return dyn || _kiCalcAlt(name,qm,dicke,reserve);
         };
         const _kiProduktErkennenAlt=kiProduktErkennen;
         kiProduktErkennen=function(text){
-            try{
-                const dyn=kiProduktAusMaterialliste(text,materiallisteFuerKI());
-                return dyn ? dyn.produkt : _kiProduktErkennenAlt(text);
-            }catch(e){
-                console.warn('Dynamische KI-Produkterkennung:',e);
-                return _kiProduktErkennenAlt(text);
-            }
+            const dyn=kiProduktAusMaterialliste(text,materiallisteFuerKI());
+            return dyn ? dyn.produkt : _kiProduktErkennenAlt(text);
         };
         const _kiAlleProdukteAlt=kiAlleProdukte;
         kiAlleProdukte=function(text){
-            try{
-                const liste=materiallisteFuerKI();
-                const norm=kiMaterialTextNorm(text);
-                const dyn=liste.filter(m=>(window.kiProduktSuchbegriffe?window.kiProduktSuchbegriffe(m):[]).some(b=>b && norm.includes(b))).map(m=>m.produkt);
-                const old=_kiAlleProdukteAlt(text);
-                return [...new Set([...dyn,...old])];
-            }catch(e){
-                console.warn('Dynamische KI-Produktliste:',e);
-                return _kiAlleProdukteAlt(text);
-            }
+            const liste=materiallisteFuerKI(); const t=String(text||'').toLowerCase();
+            const dyn=liste.filter(m=>[m.produkt,m.suchbegriffe||''].join(' ').split(/[,;|]+/).some(b=>b.trim() && t.includes(b.trim().toLowerCase()))).map(m=>m.produkt);
+            const old=_kiAlleProdukteAlt(text);
+            return [...new Set([...dyn,...old])];
         };
-        // Die KI-Hauptauswertung läuft in einem klassischen Script.
-        // Deshalb werden die dynamischen Funktionen ausdrücklich global bereitgestellt.
-        window.kiCalc = kiCalc;
-        window.kiAlleProdukte = kiAlleProdukte;
-        window.kiProduktErkennen = kiProduktErkennen;
-        window.kiMaterialBerechnungAusListe = kiMaterialBerechnungAusListe;
 
         window.wechselnTab = function(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -7567,20 +7211,228 @@ window.problemMeldenSchliessen=function(){const m=document.getElementById('probl
 <div class="flex justify-end gap-2"><button type="button" onclick="problemMeldenSchliessen()" class="px-4 py-2 rounded-xl bg-slate-100">Abbrechen</button><button type="button" onclick="problemMeldenSpeichern()" class="px-4 py-2 rounded-xl bg-red-600 text-white font-bold">⚠️ Problem melden</button></div>
 </div></div>
 <style>
-/* Eingebaute Portal-Übersetzung – kein Google Translate, kein externer Übersetzer. */
-.goog-te-banner-frame,.goog-te-balloon-frame,.goog-tooltip,.goog-te-gadget{display:none!important}
-body{top:0!important}
-.language-active{background:rgba(255,255,255,.18)!important;box-shadow:0 1px 4px rgba(0,0,0,.18)}
-#language-de-login,#language-fr-login{color:#0f172a}
+/* Sprachumschalter: Google-Translate-Leiste selbst bleibt unsichtbar. */
+.goog-te-banner-frame.skiptranslate, .goog-te-banner-frame { display:none !important; }
+body { top:0 !important; }
+.goog-te-gadget { font-size:0 !important; }
+#google_translate_element { position:fixed; width:1px; height:1px; overflow:hidden; left:-10000px; top:-10000px; opacity:0; pointer-events:none; }
+.language-active { background:rgba(255,255,255,.18) !important; box-shadow:0 1px 4px rgba(0,0,0,.18); }
+#language-de-login, #language-fr-login { color:#0f172a; }
 </style>
+<div id="google_translate_element" aria-hidden="true"></div>
 <script>
 /* ==========================================================
-   EINGEBAUTE PORTAL-SPRACHE
-   Deutsch / Français – direkt im Portal, ohne Google Translate.
-   Die Übersetzung arbeitet lokal mit einer festen Portal-Wortliste,
-   beobachtet auch dynamisch erzeugte Inhalte und lädt beim Wechsel
-   NICHT die Seite neu. Gespeicherte Daten bleiben unangetastet.
+   PERSÖNLICHE PORTAL-SPRACHE
+   Deutsch / Français – pro Mitarbeiter gespeichert.
+   Beim Sprachwechsel wird die komplette SPA neu geladen, damit
+   auch bereits vorhandene und dynamisch angezeigte Bereiche
+   zuverlässig von Google Translate übersetzt werden.
    ========================================================== */
+(function(){
+    window.portalLanguage = localStorage.getItem('brisbois_language') || 'de';
+
+    function profileLanguage(){
+        try {
+            const userName = window.__brisboisUserName || '';
+            const gd = window.__brisboisGlobalDaten || window.globalDaten;
+            const p = (gd && userName && gd.mitarbeiterProfil) ? gd.mitarbeiterProfil[userName] : null;
+            return (p && (p.sprache === 'fr' || p.sprache === 'de')) ? p.sprache : null;
+        } catch(e){ return null; }
+    }
+
+    function setTranslateCookie(lang){
+        const value = lang === 'fr' ? '/de/fr' : '/de/de';
+        document.cookie = 'googtrans=' + value + ';path=/';
+        document.cookie = 'googtrans=' + value + ';path=/;domain=' + location.hostname;
+    }
+
+    function updateLanguageButtons(lang){
+        document.querySelectorAll('#language-de-login,#language-de-app').forEach(function(b){ b.classList.toggle('language-active',lang==='de'); });
+        document.querySelectorAll('#language-fr-login,#language-fr-app').forEach(function(b){ b.classList.toggle('language-active',lang==='fr'); });
+    }
+
+    window.portalGoogleTranslateReady = false;
+    window.googleTranslateElementInit = function(){
+        try {
+            new google.translate.TranslateElement({
+                pageLanguage:'de',
+                includedLanguages:'de,fr',
+                autoDisplay:false,
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+            }, 'google_translate_element');
+            window.portalGoogleTranslateReady = true;
+        } catch(e){ console.warn('Sprachmodul konnte nicht gestartet werden:', e); }
+    };
+
+    window.portalApplyLanguage = function(lang){
+        lang = lang === 'fr' ? 'fr' : 'de';
+        window.portalLanguage = lang;
+        localStorage.setItem('brisbois_language', lang);
+        document.documentElement.lang = lang;
+        document.body.setAttribute('data-portal-language', lang);
+        updateLanguageButtons(lang);
+        setTranslateCookie(lang);
+
+        // Falls Google Translate bereits aktiv ist, zusätzlich direkt umschalten.
+        const select = document.querySelector('.goog-te-combo');
+        if(select && select.value !== lang){
+            try { select.value = lang; select.dispatchEvent(new Event('change')); } catch(e) {}
+        }
+    };
+
+    window.setPortalLanguage = async function(lang){
+        lang = lang === 'fr' ? 'fr' : 'de';
+        window.portalApplyLanguage(lang);
+        try{
+            const userName = window.__brisboisUserName || '';
+            const gd = window.__brisboisGlobalDaten || window.globalDaten;
+            if(userName && gd){
+                if(!gd.mitarbeiterProfil) gd.mitarbeiterProfil = {};
+                const old = gd.mitarbeiterProfil[userName] || {};
+                gd.mitarbeiterProfil[userName] = Object.assign({}, old, {sprache:lang});
+                if(typeof window.globalGlobalSpeichern === 'function') await window.globalGlobalSpeichern();
+            }
+        }catch(e){ console.warn('Sprache konnte nicht in der Cloud gespeichert werden:',e); }
+
+        // Kompletter Reload: dadurch wird wirklich die gesamte Seite übersetzt,
+        // nicht nur der Teil, der beim ersten Laden vorhanden war.
+        setTimeout(function(){ location.reload(); }, 150);
+    };
+
+    window.portalLanguageAfterLogin = function(){
+        const profileLang = profileLanguage();
+        const lang = profileLang || localStorage.getItem('brisbois_language') || 'de';
+        const cookieLang = document.cookie.indexOf('googtrans=/de/fr') >= 0 ? 'fr' : 'de';
+        window.portalLanguage = lang;
+        localStorage.setItem('brisbois_language', lang);
+        document.documentElement.lang = lang;
+        document.body.setAttribute('data-portal-language', lang);
+        updateLanguageButtons(lang);
+        if(cookieLang !== lang){
+            setTranslateCookie(lang);
+            // Nur einmal nach dem Login neu laden, damit die komplette Oberfläche
+            // in der gespeicherten Benutzersprache aufgebaut wird.
+            if(!sessionStorage.getItem('brisbois_language_reload')){
+                sessionStorage.setItem('brisbois_language_reload','1');
+                setTimeout(function(){ location.reload(); }, 150);
+            }
+        } else {
+            sessionStorage.removeItem('brisbois_language_reload');
+        }
+    };
+
+    setTimeout(function(){
+        const lang = localStorage.getItem('brisbois_language') || 'de';
+        window.portalApplyLanguage(lang);
+    }, 300);
+})();
+</script>
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+
+<script>
+(function(){
+  function attachMobilePlanControls(){
+    if (window.innerWidth > 640) return;
+    const plan = document.getElementById('vollbild-scroll-container');
+    if (!plan || plan.dataset.mobilePlanControlsBound === '1') return;
+    plan.dataset.mobilePlanControlsBound = '1';
+
+    plan.addEventListener('touchstart', mobilePinTouchStart, {passive:false});
+    plan.addEventListener('touchmove', mobilePinTouchMove, {passive:false});
+    plan.addEventListener('touchend', mobilePinTouchEnd, {passive:false});
+    plan.addEventListener('touchcancel', mobilePinTouchEnd, {passive:false});
+  }
+
+  document.addEventListener('DOMContentLoaded', attachMobilePlanControls);
+  setTimeout(attachMobilePlanControls, 300);
+  setTimeout(attachMobilePlanControls, 1200);
+})();
+</script>
+
+
+
+<!-- MODAL: NEUER LAGERARTIKEL -->
+<div id="lager-neu-artikel-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[75] flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 space-y-4">
+    <div class="flex justify-between items-center border-b pb-3">
+      <div><h3 class="text-lg font-black text-slate-900">＋ Artikel anlegen</h3><p class="text-xs text-slate-500 mt-1">Artikel, Bestand und Bild für das Lager hinterlegen.</p></div>
+      <button type="button" onclick="lagerNeuerArtikelSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="md:col-span-2"><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Artikelname</label><input id="lager-neu-name" type="text" placeholder="z.B. Delphin Messer" class="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></div>
+      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Kategorie</label><select id="lager-neu-kategorie" class="w-full px-3 py-2.5 border rounded-lg text-sm bg-white"><option>Werkzeug</option><option>Material</option><option>Verbrauchsmaterial</option><option>Maschine</option><option>Arbeitsschutz</option><option>Sonstiges</option></select></div>
+      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Einheit</label><select id="lager-neu-einheit" class="w-full px-3 py-2.5 border rounded-lg text-sm bg-white"><option>Stk</option><option>Eimer</option><option>Packung</option><option>Karton</option><option>Rolle</option><option>Liter</option><option>Meter</option><option>Set</option></select></div>
+      <div id="lager-neu-inventar-wrap" class="hidden md:col-span-2"><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Inventar-Nr. / Maschinennummer</label><input id="lager-neu-inventar" type="text" placeholder="z.B. M-001" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
+      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Aktueller Bestand</label><input id="lager-neu-bestand" type="number" min="0" step="0.01" value="0" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
+      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mindestbestand</label><input id="lager-neu-mindest" type="number" min="0" step="0.01" value="1" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
+      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bestellmenge</label><input id="lager-neu-bestell" type="number" min="0" step="0.01" value="1" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
+      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Lagerort</label><input id="lager-neu-ort" type="text" placeholder="z.B. Regal A1" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
+    </div>
+    <div class="flex gap-2 pt-2">
+      <button type="button" onclick="lagerNeuenArtikelSpeichern()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg">💾 Artikel speichern</button>
+      <button type="button" onclick="lagerNeuerArtikelSchliessen()" class="bg-slate-200 px-4 py-2.5 rounded-lg font-semibold">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: LAGERAUSGABE -->
+<div id="lager-ausgabe-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4">
+    <div class="flex justify-between items-center border-b pb-3">
+      <div><h3 class="text-lg font-black text-slate-900">👷 Werkzeug / Material ausgeben</h3><p id="lager-ausgabe-artikel" class="text-xs text-slate-500 mt-1"></p></div>
+      <button type="button" onclick="lagerAusgabeSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mitarbeiter auswählen</label>
+      <select id="lager-ausgabe-mitarbeiter" class="w-full px-3 py-2.5 border rounded-lg bg-white text-sm font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none"></select>
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Menge</label>
+      <input id="lager-ausgabe-menge" type="number" min="0.01" step="0.01" value="1" class="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+    </div>
+    <div class="flex gap-2 pt-2">
+      <button type="button" onclick="lagerAusgabeBestaetigen()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg">✓ Ausgabe speichern</button>
+      <button type="button" onclick="lagerAusgabeSchliessen()" class="bg-slate-200 px-4 py-2.5 rounded-lg font-semibold">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: NÄCHSTE BESTELLUNG -->
+<div id="lager-bestellung-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+    <div class="flex justify-between items-center border-b p-5">
+      <div><h3 class="text-lg font-black text-slate-900">🛒 Nächste Bestellung</h3><p id="lager-bestellung-anzahl" class="text-xs text-slate-500 mt-1"></p></div>
+      <button type="button" onclick="lagerBestellungSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+    </div>
+    <div id="lager-bestellung-liste" class="p-5 space-y-2 overflow-y-auto"></div>
+    <div id="lager-bestellung-leer" class="hidden p-8 text-center text-slate-400 text-sm">🟢 Aktuell muss nichts nachbestellt werden.</div>
+    <div class="border-t p-4 flex justify-end">
+      <button type="button" onclick="lagerBestellungSchliessen()" class="bg-slate-200 hover:bg-slate-300 px-5 py-2.5 rounded-lg font-semibold text-sm">Schließen</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: LAGERSUCHE ENTER -->
+<div id="lager-suchergebnis-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[80] flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+    <div class="flex justify-between items-center border-b p-5">
+      <h3 id="lager-suchergebnis-titel" class="text-lg font-black text-slate-900">🔎 Artikelsuche</h3>
+      <button type="button" onclick="lagerSucheErgebnisSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+    </div>
+    <div id="lager-suchergebnis-body" class="p-5 overflow-y-auto"></div>
+    <div class="border-t p-4 flex justify-end"><button type="button" onclick="lagerSucheErgebnisSchliessen()" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold">Schließen</button></div>
+  </div>
+</div>
+
+
+<script>
+/* BRISBOIS: sichere Zusatzübersetzungen.
+   Diese Ergänzung verändert KEINE Firebase-Daten und überschreibt KEINE globalen Daten.
+   Sie ergänzt nur dynamische/deutsche Texte, die Google Translate bei einer SPA teilweise
+   nicht erfasst. Der bestehende Daten-/Firebase-Code bleibt aus der letzten guten Version. */
 (function(){
   const FR={
     'Abbrechen':'Annuler','Schließen':'Fermer','Status':'Statut','Verleger':'Poseur','Kategorie':'Catégorie','Aktion':'Action','Datum':'Date',
@@ -7714,162 +7566,49 @@ body{top:0!important}
   const originals=new WeakMap();
   const translated=new WeakMap();
   window.portalLanguage=localStorage.getItem('brisbois_language')||'de';
-  function norm(v){return String(v||'').replace(/\s+/g,' ').trim()}
-  function updateLanguageButtons(lang){
-    document.querySelectorAll('#language-de-login,#language-de-app').forEach(b=>b.classList.toggle('language-active',lang==='de'));
-    document.querySelectorAll('#language-fr-login,#language-fr-app').forEach(b=>b.classList.toggle('language-active',lang==='fr'));
-  }
-  const frKeys=Object.keys(FR).sort((a,b)=>b.length-a.length);
-  const frReverse={};
-  frKeys.forEach(k=>{ if(FR[k] && FR[k]!==k && !frReverse[FR[k]]) frReverse[FR[k]]=k; });
-  const frValues=Object.keys(frReverse).sort((a,b)=>b.length-a.length);
 
-  function translateText(raw,lang){
-    let out=String(raw||'');
-    if(lang==='fr'){
-      frValues.forEach(fr=>{ if(out.includes(fr)) out=out.split(fr).join(frReverse[fr]); });
-      frKeys.forEach(de=>{ if(FR[de] && out.includes(de)) out=out.split(de).join(FR[de]); });
+  const originalTexts=new WeakMap();
+  const normLocal=v=>String(v||'').replace(/\s+/g,' ').trim();
+  function translateTextNode(node){
+    if(!node || node.nodeType!==3) return;
+    const parent=node.parentElement;
+    if(!parent || ['SCRIPT','STYLE','NOSCRIPT','TEXTAREA'].includes(parent.tagName)) return;
+    const raw=node.nodeValue; const key=normLocal(raw);
+    if(!key) return;
+    const lang=window.portalLanguage || localStorage.getItem('brisbois_language') || 'de';
+    if(lang!=='fr') return;
+    if(FR[key]){
+      if(!originalTexts.has(node)) originalTexts.set(node,raw);
+      node.nodeValue=raw.replace(key,FR[key]);
+      return;
     }
-    return out;
+    // Datums-/Wochentagsfragmente, die von dynamischen Funktionen erzeugt werden.
+    const days={'Montag':'Lundi','Dienstag':'Mardi','Mittwoch':'Mercredi','Donnerstag':'Jeudi','Freitag':'Vendredi','Samstag':'Samedi','Sonntag':'Dimanche'};
+    const months={'Januar':'janvier','Februar':'février','März':'mars','April':'avril','Mai':'mai','Juni':'juin','Juli':'juillet','August':'août','September':'septembre','Oktober':'octobre','November':'novembre','Dezember':'décembre'};
+    let s=raw; let changed=false;
+    for(const [de,frx] of Object.entries(days)){const re=new RegExp('\\b'+de+'\\b','g'); if(re.test(s)){s=s.replace(re,frx);changed=true;}}
+    for(const [de,frx] of Object.entries(months)){const re=new RegExp('\\b'+de+'\\b','g'); if(re.test(s)){s=s.replace(re,frx);changed=true;}}
+    if(changed){ if(!originalTexts.has(node)) originalTexts.set(node,raw); node.nodeValue=s; }
   }
-
-  function translateNode(n,lang){
-    if(n.nodeType===3){
-      const raw=n.nodeValue;
-      if(!raw || !norm(raw)) return;
-      if(lang==='fr'){
-        if(!originals.has(n) || translated.get(n)!==raw) originals.set(n,raw);
-        const out=translateText(originals.get(n),lang);
-        if(out!==raw){ translated.set(n,out); n.nodeValue=out; }
-      } else {
-        if(translated.get(n)===raw && originals.has(n)) n.nodeValue=originals.get(n);
-        else { originals.set(n,raw); translated.delete(n); }
-      }
-    } else if(n.nodeType===1){
-      ['placeholder','title','aria-label'].forEach(a=>{
-        if(n.hasAttribute(a)){
-          const attrKey='orig'+a.replace(/-/g,'');
-          const val=n.getAttribute(a);
-          if(!n.dataset[attrKey]) n.dataset[attrKey]=val;
-          n.setAttribute(a,lang==='fr'?translateText(n.dataset[attrKey],lang):n.dataset[attrKey]);
-        }
-      });
-      Array.from(n.childNodes).forEach(c=>translateNode(c,lang));
+  function translateTree(root){
+    if(!root) return;
+    if(root.nodeType===3) translateTextNode(root);
+    else if(root.nodeType===1) root.querySelectorAll('*').forEach(el=>Array.from(el.childNodes).forEach(translateTextNode));
+  }
+  function applyExtraFR(){ if((window.portalLanguage||localStorage.getItem('brisbois_language')||'de')==='fr') translateTree(document.body); }
+  const observer=new MutationObserver(ms=>{
+    if((window.portalLanguage||localStorage.getItem('brisbois_language')||'de')!=='fr') return;
+    for(const m of ms){
+      if(m.type==='characterData') translateTextNode(m.target);
+      else m.addedNodes.forEach(n=>translateTree(n));
     }
+  });
+  function start(){
+    if(document.body){ observer.observe(document.body,{subtree:true,childList:true,characterData:true}); applyExtraFR(); }
+    setInterval(applyExtraFR,1200);
   }
-  window.portalApplyLanguage=function(lang){
-    lang=lang==='fr'?'fr':'de'; window.portalLanguage=lang; localStorage.setItem('brisbois_language',lang);
-    document.documentElement.lang=lang; document.body.setAttribute('data-portal-language',lang); updateLanguageButtons(lang);
-    translateNode(document.body,lang);
-  };
-  function profileLanguage(){try{const u=window.__brisboisUserName||'',gd=window.__brisboisGlobalDaten||window.globalDaten,p=gd&&u&&gd.mitarbeiterProfil?gd.mitarbeiterProfil[u]:null;return p&&(p.sprache==='fr'||p.sprache==='de')?p.sprache:null}catch(e){return null}}
-  window.setPortalLanguage=async function(lang){
-    lang=lang==='fr'?'fr':'de'; window.portalApplyLanguage(lang);
-    try{const u=window.__brisboisUserName||'',gd=window.__brisboisGlobalDaten||window.globalDaten;if(u&&gd){gd.mitarbeiterProfil=gd.mitarbeiterProfil||{};const old=gd.mitarbeiterProfil[u]||{};gd.mitarbeiterProfil[u]=Object.assign({},old,{sprache:lang});if(typeof window.globalGlobalSpeichern==='function')await window.globalGlobalSpeichern();}}catch(e){console.warn('Sprache konnte nicht gespeichert werden:',e)}
-  };
-  window.portalLanguageAfterLogin=function(){window.portalApplyLanguage(profileLanguage()||localStorage.getItem('brisbois_language')||'de')};
-  const obs=new MutationObserver(ms=>{const lang=window.portalLanguage||'de';ms.forEach(m=>{if(lang==='fr'){if(m.type==='characterData')translateNode(m.target,'fr');else m.addedNodes.forEach(n=>translateNode(n,'fr'));}else if(lang==='de' && m.type==='characterData'){translateNode(m.target,'de');}})});
-  function init(){window.portalApplyLanguage(localStorage.getItem('brisbois_language')||'de');obs.observe(document.body,{childList:true,subtree:true,characterData:true})}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start,{once:true}); else start();
 })();
 </script>
-
-<script>
-(function(){
-  function attachMobilePlanControls(){
-    if (window.innerWidth > 640) return;
-    const plan = document.getElementById('vollbild-scroll-container');
-    if (!plan || plan.dataset.mobilePlanControlsBound === '1') return;
-    plan.dataset.mobilePlanControlsBound = '1';
-
-    plan.addEventListener('touchstart', mobilePinTouchStart, {passive:false});
-    plan.addEventListener('touchmove', mobilePinTouchMove, {passive:false});
-    plan.addEventListener('touchend', mobilePinTouchEnd, {passive:false});
-    plan.addEventListener('touchcancel', mobilePinTouchEnd, {passive:false});
-  }
-
-  document.addEventListener('DOMContentLoaded', attachMobilePlanControls);
-  setTimeout(attachMobilePlanControls, 300);
-  setTimeout(attachMobilePlanControls, 1200);
-})();
-</script>
-
-
-
-<!-- MODAL: NEUER LAGERARTIKEL -->
-<div id="lager-neu-artikel-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[75] flex items-center justify-center p-4 hidden">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 space-y-4">
-    <div class="flex justify-between items-center border-b pb-3">
-      <div><h3 class="text-lg font-black text-slate-900">＋ Artikel anlegen</h3><p class="text-xs text-slate-500 mt-1">Artikel, Bestand und Bild für das Lager hinterlegen.</p></div>
-      <button type="button" onclick="lagerNeuerArtikelSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-      <div class="md:col-span-2"><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Artikelname</label><input id="lager-neu-name" type="text" placeholder="z.B. Delphin Messer" class="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"></div>
-      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Kategorie</label><select id="lager-neu-kategorie" class="w-full px-3 py-2.5 border rounded-lg text-sm bg-white"><option>Werkzeug</option><option>Material</option><option>Verbrauchsmaterial</option><option>Maschine</option><option>Arbeitsschutz</option><option>Sonstiges</option></select></div>
-      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Einheit</label><select id="lager-neu-einheit" class="w-full px-3 py-2.5 border rounded-lg text-sm bg-white"><option>Stk</option><option>Eimer</option><option>Packung</option><option>Karton</option><option>Rolle</option><option>Liter</option><option>Meter</option><option>Set</option></select></div>
-      <div id="lager-neu-inventar-wrap" class="hidden md:col-span-2"><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Inventar-Nr. / Maschinennummer</label><input id="lager-neu-inventar" type="text" placeholder="z.B. M-001" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
-      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Aktueller Bestand</label><input id="lager-neu-bestand" type="number" min="0" step="0.01" value="0" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
-      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mindestbestand</label><input id="lager-neu-mindest" type="number" min="0" step="0.01" value="1" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
-      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bestellmenge</label><input id="lager-neu-bestell" type="number" min="0" step="0.01" value="1" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
-      <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Lagerort</label><input id="lager-neu-ort" type="text" placeholder="z.B. Regal A1" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
-    </div>
-    <div class="flex gap-2 pt-2">
-      <button type="button" onclick="lagerNeuenArtikelSpeichern()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg">💾 Artikel speichern</button>
-      <button type="button" onclick="lagerNeuerArtikelSchliessen()" class="bg-slate-200 px-4 py-2.5 rounded-lg font-semibold">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: LAGERAUSGABE -->
-<div id="lager-ausgabe-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 hidden">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4">
-    <div class="flex justify-between items-center border-b pb-3">
-      <div><h3 class="text-lg font-black text-slate-900">👷 Werkzeug / Material ausgeben</h3><p id="lager-ausgabe-artikel" class="text-xs text-slate-500 mt-1"></p></div>
-      <button type="button" onclick="lagerAusgabeSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
-    </div>
-    <div>
-      <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mitarbeiter auswählen</label>
-      <select id="lager-ausgabe-mitarbeiter" class="w-full px-3 py-2.5 border rounded-lg bg-white text-sm font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none"></select>
-    </div>
-    <div>
-      <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Menge</label>
-      <input id="lager-ausgabe-menge" type="number" min="0.01" step="0.01" value="1" class="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
-    </div>
-    <div class="flex gap-2 pt-2">
-      <button type="button" onclick="lagerAusgabeBestaetigen()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg">✓ Ausgabe speichern</button>
-      <button type="button" onclick="lagerAusgabeSchliessen()" class="bg-slate-200 px-4 py-2.5 rounded-lg font-semibold">Abbrechen</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- MODAL: NÄCHSTE BESTELLUNG -->
-<div id="lager-bestellung-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 hidden">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
-    <div class="flex justify-between items-center border-b p-5">
-      <div><h3 class="text-lg font-black text-slate-900">🛒 Nächste Bestellung</h3><p id="lager-bestellung-anzahl" class="text-xs text-slate-500 mt-1"></p></div>
-      <button type="button" onclick="lagerBestellungSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
-    </div>
-    <div id="lager-bestellung-liste" class="p-5 space-y-2 overflow-y-auto"></div>
-    <div id="lager-bestellung-leer" class="hidden p-8 text-center text-slate-400 text-sm">🟢 Aktuell muss nichts nachbestellt werden.</div>
-    <div class="border-t p-4 flex justify-end">
-      <button type="button" onclick="lagerBestellungSchliessen()" class="bg-slate-200 hover:bg-slate-300 px-5 py-2.5 rounded-lg font-semibold text-sm">Schließen</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- MODAL: LAGERSUCHE ENTER -->
-<div id="lager-suchergebnis-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[80] flex items-center justify-center p-4 hidden">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
-    <div class="flex justify-between items-center border-b p-5">
-      <h3 id="lager-suchergebnis-titel" class="text-lg font-black text-slate-900">🔎 Artikelsuche</h3>
-      <button type="button" onclick="lagerSucheErgebnisSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
-    </div>
-    <div id="lager-suchergebnis-body" class="p-5 overflow-y-auto"></div>
-    <div class="border-t p-4 flex justify-end"><button type="button" onclick="lagerSucheErgebnisSchliessen()" class="bg-slate-200 px-4 py-2 rounded-lg font-semibold">Schließen</button></div>
-  </div>
-</div>
-
 </body>
 </html>
