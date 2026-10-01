@@ -5305,7 +5305,22 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 let fotoUrl = "";
                 const foto = fotoInput.files && fotoInput.files[0];
                 if (foto) {
-                    fotoUrl = await uploadBaustellenDatei(foto, "mangel-fotos", aktuellesProjekt);
+                    // Pin-Fotos werden direkt als komprimiertes Bild im Pin gespeichert.
+                    // Dadurch hängt das Speichern auf iPhone/PC nicht von Firebase Storage ab.
+                    if (!String(foto.type || '').startsWith('image/')) {
+                        throw new Error('Bitte ein JPG- oder PNG-Foto auswählen.');
+                    }
+                    const maxFotoMB = 12;
+                    if (foto.size > maxFotoMB * 1024 * 1024) {
+                        throw new Error(`Das Foto darf maximal ${maxFotoMB} MB groß sein.`);
+                    }
+                    const fotoDatei = await planBildKomprimieren(foto, 1400, 0.72);
+                    const fotoReader = new FileReader();
+                    fotoUrl = await new Promise((resolve, reject) => {
+                        fotoReader.onerror = () => reject(new Error('Das Mangel-Foto konnte nicht gelesen werden.'));
+                        fotoReader.onload = () => resolve(String(fotoReader.result || ''));
+                        fotoReader.readAsDataURL(fotoDatei);
+                    });
                 }
 
                 const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
