@@ -6698,11 +6698,19 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             m.laengeProStueck=parseFloat(document.getElementById('mat-l-'+i)?.value)||'';
             m.stueckProGebinde=parseFloat(document.getElementById('mat-sp-'+i)?.value)||'';
             m.suchbegriffe=document.getElementById('mat-s-'+i)?.value.trim()||'';
-            if(!m.produkt || !m.verbrauchVon){
-                if(m.einheit==='lfm → Stück → Packung' && m.produkt && m.laengeProStueck>0 && m.stueckProGebinde>0) { /* Sonderfall Fußleisten/Profil: Verbrauch wird über Länge berechnet. */ }
-                else return alert('Bitte mindestens Produkt und Verbrauch eintragen. Bei „lfm → Stück → Packung“ bitte Länge pro Stück und Stück pro Packung eintragen.');
+            const einheitNorm=String(m.einheit||'').toLowerCase();
+            const istLfmPack=einheitNorm.includes('lfm') && einheitNorm.includes('stück') && einheitNorm.includes('packung');
+            if(istLfmPack){
+                // Fußleisten/Profile: Verbrauchsfeld bleibt leer. Entscheidend sind Länge/Stück und Stück/Packung.
+                if(!m.produkt || !(m.laengeProStueck>0) || !(m.stueckProGebinde>0)){
+                    return alert('Für Fußleisten/Profile bitte Produkt, Länge pro Stück und Stück pro Packung eintragen.');
+                }
+                // Kein künstlicher kg/m²-Verbrauch nötig; KI erkennt diese Sonder-Einheit direkt.
+                m.verbrauchVon='';
+                m.verbrauchBis='';
+            } else if(!m.produkt || !(m.verbrauchVon>0)){
+                return alert('Bitte mindestens Produkt und Verbrauch eintragen.');
             }
-            if(m.einheit==='lfm → Stück → Packung' && (!(m.laengeProStueck>0) || !(m.stueckProGebinde>0))){ return alert('Für lfm → Stück → Packung bitte Länge pro Stück und Stück pro Packung eintragen.'); }
             if(m.verbrauchBis==='' || m.verbrauchBis<m.verbrauchVon) m.verbrauchBis=m.verbrauchVon;
             try{ await globalGlobalSpeichern(); materiallisteAnzeigen(); alert('Material gespeichert. Die KI verwendet diesen Eintrag ab sofort bei neuen Aufträgen.'); }catch(e){ console.error(e); alert('Material konnte nicht gespeichert werden: '+(e.message||e)); }
         };
@@ -6730,7 +6738,15 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try{
                 materiallisteNormalisieren();
                 return Array.isArray(globalDaten.materialliste)
-                    ? globalDaten.materialliste.filter(m=>m.aktiv!==false && m.produkt && Number(m.verbrauchVon)>0)
+                    ? globalDaten.materialliste.filter(m=>{
+                        if(m.aktiv===false || !m.produkt) return false;
+                        const einheit=String(m.einheit||'').toLowerCase();
+                        const istLfmPack=einheit.includes('lfm') && einheit.includes('stück') && einheit.includes('packung');
+                        // Bei Fußleisten/Profilen gibt es keinen kg/m²-Verbrauch.
+                        // Länge je Stück + Stück je Packung sind die notwendigen Werte.
+                        if(istLfmPack) return Number(m.laengeProStueck)>0 && Number(m.stueckProGebinde)>0;
+                        return Number(m.verbrauchVon)>0;
+                      })
                     : [];
             }catch(e){
                 console.warn('Materialliste für KI konnte nicht gelesen werden:',e);
@@ -6789,7 +6805,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const m=materiallisteFuerKI().find(x=>String(x.produkt).toLowerCase()===String(name).toLowerCase());
             if(!m || !qm) return null;
             // Sonderlogik für Profile/Fußleisten: Auftrag nennt laufende Meter; daraus werden Stück und Packungen.
-            if(m.einheit==='lfm → Stück → Packung'){
+            const einheitNorm=String(m.einheit||'').toLowerCase();
+            const istLfmPack=einheitNorm.includes('lfm') && einheitNorm.includes('stück') && einheitNorm.includes('packung');
+            if(istLfmPack){
                 const laenge=Number(m.laengeProStueck)||0;
                 const stkPack=Number(m.stueckProGebinde)||0;
                 if(!(laenge>0) || !(stkPack>0)) return {produkt:m.produkt,status:'länge-oder-packung-fehlt'};
