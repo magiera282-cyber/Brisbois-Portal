@@ -7567,133 +7567,92 @@ window.problemMeldenSchliessen=function(){const m=document.getElementById('probl
 <div class="flex justify-end gap-2"><button type="button" onclick="problemMeldenSchliessen()" class="px-4 py-2 rounded-xl bg-slate-100">Abbrechen</button><button type="button" onclick="problemMeldenSpeichern()" class="px-4 py-2 rounded-xl bg-red-600 text-white font-bold">⚠️ Problem melden</button></div>
 </div></div>
 <style>
-/* Sprachumschalter: Google-Translate-Leiste selbst bleibt unsichtbar. */
-.goog-te-banner-frame.skiptranslate, .goog-te-banner-frame { display:none !important; }
-body { top:0 !important; }
-.goog-te-gadget { font-size:0 !important; }
-#google_translate_element { position:fixed; width:1px; height:1px; overflow:hidden; left:-10000px; top:-10000px; opacity:0; pointer-events:none; }
-.language-active { background:rgba(255,255,255,.18) !important; box-shadow:0 1px 4px rgba(0,0,0,.18); }
-#language-de-login, #language-fr-login { color:#0f172a; }
+/* Eingebaute Portal-Übersetzung – kein Google Translate, kein externer Übersetzer. */
+.goog-te-banner-frame,.goog-te-balloon-frame,.goog-tooltip,.goog-te-gadget{display:none!important}
+body{top:0!important}
+.language-active{background:rgba(255,255,255,.18)!important;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+#language-de-login,#language-fr-login{color:#0f172a}
 </style>
-<div id="google_translate_element" aria-hidden="true"></div>
 <script>
 /* ==========================================================
-   PERSÖNLICHE PORTAL-SPRACHE
-   Deutsch / Français – pro Mitarbeiter gespeichert.
-   Beim Sprachwechsel wird die komplette SPA neu geladen, damit
-   auch bereits vorhandene und dynamisch angezeigte Bereiche
-   zuverlässig von Google Translate übersetzt werden.
+   EINGEBAUTE PORTAL-SPRACHE
+   Deutsch / Français – direkt im Portal, ohne Google Translate.
+   Die Übersetzung arbeitet lokal mit einer festen Portal-Wortliste,
+   beobachtet auch dynamisch erzeugte Inhalte und lädt beim Wechsel
+   NICHT die Seite neu. Gespeicherte Daten bleiben unangetastet.
    ========================================================== */
 (function(){
-    window.portalLanguage = localStorage.getItem('brisbois_language') || 'de';
-
-    function profileLanguage(){
-        try {
-            const userName = window.__brisboisUserName || '';
-            const gd = window.__brisboisGlobalDaten || window.globalDaten;
-            const p = (gd && userName && gd.mitarbeiterProfil) ? gd.mitarbeiterProfil[userName] : null;
-            return (p && (p.sprache === 'fr' || p.sprache === 'de')) ? p.sprache : null;
-        } catch(e){ return null; }
-    }
-
-    function setTranslateCookie(lang){
-        const value = lang === 'fr' ? '/de/fr' : '/de/de';
-        document.cookie = 'googtrans=' + value + ';path=/';
-        document.cookie = 'googtrans=' + value + ';path=/;domain=' + location.hostname;
-    }
-
-    function updateLanguageButtons(lang){
-        document.querySelectorAll('#language-de-login,#language-de-app').forEach(function(b){ b.classList.toggle('language-active',lang==='de'); });
-        document.querySelectorAll('#language-fr-login,#language-fr-app').forEach(function(b){ b.classList.toggle('language-active',lang==='fr'); });
-    }
-
-    window.portalGoogleTranslateReady = false;
-    window.googleTranslateElementInit = function(){
-        try {
-            new google.translate.TranslateElement({
-                pageLanguage:'de',
-                includedLanguages:'de,fr',
-                autoDisplay:false,
-                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
-            }, 'google_translate_element');
-            window.portalGoogleTranslateReady = true;
-        } catch(e){ console.warn('Sprachmodul konnte nicht gestartet werden:', e); }
-    };
-
-    window.portalApplyLanguage = function(lang){
-        lang = lang === 'fr' ? 'fr' : 'de';
-        window.portalLanguage = lang;
-        localStorage.setItem('brisbois_language', lang);
-        document.documentElement.lang = lang;
-        document.body.setAttribute('data-portal-language', lang);
-        updateLanguageButtons(lang);
-        setTranslateCookie(lang);
-
-        // Falls Google Translate bereits aktiv ist, zusätzlich direkt umschalten.
-        const select = document.querySelector('.goog-te-combo');
-        if(select && select.value !== lang){
-            try { select.value = lang; select.dispatchEvent(new Event('change')); } catch(e) {}
+  const FR={
+    'Abbrechen':'Annuler','Schließen':'Fermer','Status':'Statut','Verleger':'Poseur','Kategorie':'Catégorie','Aktion':'Action','Datum':'Date',
+    '🟢 Aktiv / In Arbeit':'🟢 Actif / En cours','⏳ Nächste Baustelle (Anstehend)':'⏳ Prochain chantier (À venir)','🏁 Fertiggestellt':'🏁 Terminé',
+    'Lagerort':'Emplacement','Datei':'Fichier','✕ Schließen':'✕ Fermer','Baustellen-Adresse':'Adresse du chantier','📍 Karte':'📍 Carte',
+    '🤖 KI-Auftrag':'🤖 Ordre IA','📊 Chef-Dashboard':'📊 Tableau de bord du chef','🔔 Benachrichtigungen':'🔔 Notifications','💶 Abrechnungen':'💶 Décomptes',
+    '📦 Materialliste':'📦 Liste des matériaux','🏭 Lager & Werkzeug':'🏭 Stock & outils','⛽ Belege & Kasse':'⛽ Reçus & caisse','📅 Meine Wochenplanung':'📅 Mon planning hebdomadaire','⚠️ Problem melden':'⚠️ Signaler un problème',
+    '＋ Artikel anlegen':'＋ Ajouter un article','🛒 Nächste Bestellung':'🛒 Prochaine commande','Artikel':'Article','Werkzeug':'Outil','Material':'Matériau','Verbrauchsmaterial':'Consommable','Maschine':'Machine','Arbeitsschutz':'Équipement de protection','Sonstiges':'Autre',
+    'Mindestbestand':'Stock minimum','Bestellmenge':'Quantité à commander','Einheit':'Unité','Rolle':'Rôle','Zweck':'Utilisation','Mitarbeiter':'Employé','Bezeichnung':'Désignation','💾 Speichern':'💾 Enregistrer','Von':'Du','Bis':'Au',
+    'Portal-Login (Komplettes Team)':'Connexion au portail (toute l’équipe)','🇩🇪 Deutsch':'🇩🇪 Deutsch','🇫🇷 Français':'🇫🇷 Français','1-KLICK SCHNELL-LOGIN':'CONNEXION RAPIDE EN 1 CLIC',
+    'oder Mitarbeiter wählen':'ou choisir un employé','Mitarbeiter / Chef auswählen':'Choisir un employé / chef','Wird dynamisch befüllt':'Rempli automatiquement','Passwort':'Mot de passe','Start-Passwort:':'Mot de passe initial :','🔓 Anmelden':'🔓 Se connecter',
+    'Grundriss-Plan Großansicht':'Plan en grand format','📌 Mangel- oder Notiz-Pin setzen':'📌 Placer un pin de défaut ou de note','Pin-Art':'Type de pin','🔴 Mangel':'🔴 Défaut','🔵 Frage':'🔵 Question','🟡 Eigener':'🟡 Personnel',
+    'Beschreibung / Mangel':'Description / défaut','📷 Foto zum Mangel hinzufügen (Funktioniert mit jedem iPhone)':'📷 Ajouter une photo du défaut (fonctionne avec tout iPhone)','💾 Pin setzen & Benachrichtigen':'💾 Placer le pin & notifier',
+    '📌 Pin Details':'📌 Détails du pin','📷 Angehängtes Foto:':'📷 Photo jointe :','👁️ Lesebestätigung (Wer hat es gesehen?):':'👁️ Confirmation de lecture (qui l’a vu ?)','🗑️ Pin löschen':'🗑️ Supprimer le pin',
+    '🔔 Benachrichtigung Details':'🔔 Détails de la notification','🚀 Zum Projekt / zur Baustelle':'🚀 Aller au projet / chantier','🗑️ Aus Benachrichtigungsliste löschen':'🗑️ Supprimer des notifications','↩️ Antworten':'↩️ Répondre',
+    '🧱 Uzin-Produkt für Packliste auswählen':'🧱 Choisir un produit Uzin pour la liste','Wähle ein Produkt aus oder füge neue Artikel zum Katalog hinzu:':'Choisissez un produit ou ajoutez de nouveaux articles au catalogue :','➕ Artikel zum Uzin-Katalog hinzufügen:':'➕ Ajouter un article au catalogue Uzin :','💾 Zum Katalog hinzufügen':'💾 Ajouter au catalogue',
+    '📁 Neues Projekt & Materialien anlegen':'📁 Créer un nouveau projet & matériaux','Projektbezeichnung / Name':'Nom / désignation du projet','Adresse eingeben oder über die Karte das Gebäude auswählen und markieren.':'Saisir l’adresse ou sélectionner et marquer le bâtiment sur la carte.','Anweisung / Arbeitsdetails für das Team':'Instruction / détails de travail pour l’équipe','📦 Benötigte Materialien / Packliste':'📦 Matériaux nécessaires / liste','+ Weiteres Material':'+ Autre matériau','💾 Baustelle & Materialien speichern':'💾 Enregistrer le chantier & les matériaux',
+    '📍 Baustelle auf Karte auswählen':'📍 Sélectionner le chantier sur la carte','Adresse suchen, Karte verschieben oder direkt auf das Gebäude tippen.':'Rechercher l’adresse, déplacer la carte ou toucher directement le bâtiment.','🔎 Suchen':'🔎 Rechercher','Noch keine Position ausgewählt.':'Aucune position sélectionnée.','✓ Position übernehmen':'✓ Utiliser cette position',
+    '✏️ Baustelle / Projekt bearbeiten':'✏️ Modifier le chantier / projet','Projektbezeichnung':'Désignation du projet','💾 Änderungen speichern':'💾 Enregistrer les modifications',
+    '💬 Neue Nachricht verfassen':'💬 Rédiger un nouveau message','Empfänger wählen':'Choisir le destinataire','🌐 An alle (Team & Chefs)':'🌐 À tous (équipe & chefs)','Deine Nachricht / Anweisung':'Votre message / instruction','Absenden':'Envoyer',
+    '🧑‍💼 Auftrag schreiben':'🧑‍💼 Décrire la commande','Belag automatisch erkennen':'Reconnaître automatiquement le revêtement','Linoleum':'Linoléum','Vinyl / PVC / LVT':'Vinyle / PVC / LVT','Teppich':'Moquette','Parkett':'Parquet','Kautschuk':'Caoutchouc','Designbelag':'Revêtement design','Hersteller automatisch':'Reconnaître automatiquement le fabricant','🤖 KI-Auftrag auswerten':'🤖 Analyser la commande IA','10 % Reserve berechnen':'Calculer 10 % de réserve','✅ KI-Auftrag erkannt – bitte kurz prüfen':'✅ Commande IA reconnue – veuillez vérifier','Textanalyse':'Analyse du texte','Projekt / Baustelle':'Projet / chantier','Baustellenadresse':'Adresse du chantier','Arbeitsauftrag / Anweisung':'Ordre de travail / instruction','Erkanntes Material':'Matériaux reconnus','🚀 Baustelle anlegen':'🚀 Créer le chantier','Zurücksetzen':'Réinitialiser',
+    'Abrechnung':'Décompte','Dokumentvorschau':'Aperçu du document','⬇️ Herunterladen':'⬇️ Télécharger','Abmelden':'Se déconnecter',
+    '🏠 Startseite':'🏠 Accueil','📁 Projekt & Baustelle':'📁 Projet & chantier','⚙️ Mein Profil':'⚙️ Mon profil','📞 Telefonliste':'📞 Liste téléphonique','👥 Mitarbeiter & Zuweisung':'👥 Employés & affectations','🗺️ Live-Karte':'🗺️ Carte en direct','⏱️ Zeiterfassung & Urlaub':'⏱️ Temps de travail & congés',
+    '✨ Willkommen zurück im Portal':'✨ Bon retour sur le portail','Guten Tag!':'Bonjour !','Aktuelle Uhrzeit':'Heure actuelle','Heutiges Datum':'Date du jour','🤒 Krankmeldung einreichen':'🤒 Envoyer un arrêt maladie','Deine heutigen und geplanten Einsätze':'Vos interventions du jour et planifiées','Diese Woche':'Cette semaine','Aktuelle Baustelle':'Chantier actuel','Keine Zuweisung':'Aucune affectation','Keine Baustelle zugeordnet':'Aucun chantier affecté','Urlaubskonto':'Compte de congés','Geprüft':'Vérifié','Resturlaub 2026':'Congés restants 2026','🤒 Krankheitstage:':'🤒 Jours de maladie :','Angemeldet als':'Connecté en tant que','⚙️ Mein Profil & Passwort ändern':'⚙️ Mon profil & modifier le mot de passe',
+    'Aktive & Nächste Projekte':'Projets actifs & prochains','✏️ Bearbeiten':'✏️ Modifier','🗑️ Löschen':'🗑️ Supprimer','Adresse:':'Adresse :','Anweisung vom Chef:':'Instruction du chef :','👷 Zugeteiltes Baustellen-Team':'👷 Équipe affectée au chantier','Live-Status':'Statut en direct','➕ Zuordnen':'➕ Affecter',
+    '📐 Baustellen-Pläne & Mangel-Pins':'📐 Plans du chantier & pins de défaut','📌 Pin setzen (Aus)':'📌 Placer un pin (désactivé)','➕ Plan hinzufügen':'➕ Ajouter un plan','🔍 Antippen für Großansicht & Pins':'🔍 Toucher pour agrandir & placer des pins','📌 Pins / gemeldete Punkte':'📌 Pins / points signalés','📦 Projekt-Packliste & Materialverbrauch':'📦 Liste du projet & consommation','Soll → verbraucht → Rest. Verbrauch direkt auf der Baustelle dokumentieren.':'Prévu → consommé → reste. Documenter la consommation directement sur le chantier.','➕ Uzin-Material hinzufügen':'➕ Ajouter un matériau Uzin','Hersteller / Produkt':'Fabricant / produit','Soll-Menge':'Quantité prévue','Verbraucht':'Consommé','Rest':'Reste',
+    '☑️ Baustellen-Aufgaben':'☑️ Tâches du chantier','📝 Tagesbericht':'📝 Rapport journalier','💾 Bericht speichern':'💾 Enregistrer le rapport','✍️ Digitale Abnahme':'✍️ Réception numérique','Offen':'Ouvert','✅ Abnahme speichern':'✅ Enregistrer la réception','📂 Baustellenordner':'📂 Dossier du chantier','Alles zur Baustelle an einem Ort':'Tout sur le chantier au même endroit',
+    'Aktuelle Übersicht über Baustellen, Einsätze und gemeldete Probleme.':'Aperçu actuel des chantiers, interventions et problèmes signalés.','🔄 Aktualisieren':'🔄 Actualiser','📅 Heute im Einsatz':'📅 En intervention aujourd’hui','⚠️ Baustellen-Probleme':'⚠️ Problèmes de chantier','🤒 Krankmeldungen':'🤒 Arrêts maladie','Bestand OK':'Stock OK','Nachbestellen':'Commander','Ausgaben heute':'Sorties aujourd’hui','Alle Kategorien':'Toutes les catégories','Bestand':'Stock','Noch keine Lagerartikel angelegt.':'Aucun article de stock créé.','🏗️ Maschinen unterwegs':'🏗️ Machines en déplacement','🧾 Letzte Werkzeugausgaben':'🧾 Dernières sorties d’outils','＋ Material hinzufügen':'＋ Ajouter un matériau','↺ Vorhandene KI-Produkte übernehmen':'↺ Importer les produits IA existants',
+    'Mangel oder Notiz':'Défaut ou note','Was ist passiert? Was muss der Chef wissen?':'Que s’est-il passé ? Que doit savoir le chef ?','⚠️ Problem melden':'⚠️ Signaler un problème'
+  };
+  const originals=new WeakMap();
+  window.portalLanguage=localStorage.getItem('brisbois_language')||'de';
+  function norm(v){return String(v||'').replace(/\s+/g,' ').trim()}
+  function updateLanguageButtons(lang){
+    document.querySelectorAll('#language-de-login,#language-de-app').forEach(b=>b.classList.toggle('language-active',lang==='de'));
+    document.querySelectorAll('#language-fr-login,#language-fr-app').forEach(b=>b.classList.toggle('language-active',lang==='fr'));
+  }
+  function translateNode(n,lang){
+    if(n.nodeType===3){
+      const raw=n.nodeValue, key=norm(raw);
+      if(!key)return;
+      if(!originals.has(n)) originals.set(n,raw);
+      if(lang==='fr' && FR[key]) n.nodeValue=raw.replace(key,FR[key]);
+      else if(lang==='de' && originals.has(n)) n.nodeValue=originals.get(n);
+    } else if(n.nodeType===1){
+      ['placeholder','title','aria-label'].forEach(a=>{
+        if(n.hasAttribute(a)){
+          const val=n.getAttribute(a),key=norm(val);
+          if(!n.dataset['orig'+a.replace(/-/g,'')]) n.dataset['orig'+a.replace(/-/g,'')]=val;
+          if(lang==='fr'&&FR[key]) n.setAttribute(a,FR[key]);
+          else if(lang==='de') n.setAttribute(a,n.dataset['orig'+a.replace(/-/g,'')]);
         }
-    };
-
-    window.setPortalLanguage = async function(lang){
-        lang = lang === 'fr' ? 'fr' : 'de';
-        window.portalApplyLanguage(lang);
-        try{
-            const userName = window.__brisboisUserName || '';
-            const gd = window.__brisboisGlobalDaten || window.globalDaten;
-            if(userName && gd){
-                if(!gd.mitarbeiterProfil) gd.mitarbeiterProfil = {};
-                const old = gd.mitarbeiterProfil[userName] || {};
-                gd.mitarbeiterProfil[userName] = Object.assign({}, old, {sprache:lang});
-                if(typeof window.globalGlobalSpeichern === 'function') await window.globalGlobalSpeichern();
-            }
-        }catch(e){ console.warn('Sprache konnte nicht in der Cloud gespeichert werden:',e); }
-
-        // WICHTIG: Beim Wechsel innerhalb des bereits eingeloggten Portals
-        // darf kein kompletter Seiten-Reload erfolgen. Ein Reload kann auf
-        // iPhone/Safari bzw. GitHub Pages den laufenden Login-Zustand kurzzeitig
-        // verlieren. Google Translate wird deshalb direkt über das vorhandene
-        // Auswahlfeld umgeschaltet.
-        const app = document.getElementById('app-container');
-        const appIstOffen = app && !app.classList.contains('hidden');
-        if(!appIstOffen){
-            // Auf der Login-Seite darf weiterhin einmal neu aufgebaut werden,
-            // damit auch die komplette Login-Oberfläche übersetzt wird.
-            setTimeout(function(){ location.reload(); }, 150);
-        }
-    };
-
-    window.portalLanguageAfterLogin = function(){
-        const profileLang = profileLanguage();
-        const lang = profileLang || localStorage.getItem('brisbois_language') || 'de';
-        const cookieLang = document.cookie.indexOf('googtrans=/de/fr') >= 0 ? 'fr' : 'de';
-        window.portalLanguage = lang;
-        localStorage.setItem('brisbois_language', lang);
-        document.documentElement.lang = lang;
-        document.body.setAttribute('data-portal-language', lang);
-        updateLanguageButtons(lang);
-        if(cookieLang !== lang){
-            setTranslateCookie(lang);
-            // Nur einmal nach dem Login neu laden, damit die komplette Oberfläche
-            // in der gespeicherten Benutzersprache aufgebaut wird.
-            if(!sessionStorage.getItem('brisbois_language_reload')){
-                sessionStorage.setItem('brisbois_language_reload','1');
-                setTimeout(function(){ location.reload(); }, 150);
-            }
-        } else {
-            sessionStorage.removeItem('brisbois_language_reload');
-        }
-    };
-
-    setTimeout(function(){
-        const lang = localStorage.getItem('brisbois_language') || 'de';
-        window.portalApplyLanguage(lang);
-    }, 300);
+      });
+      Array.from(n.childNodes).forEach(c=>translateNode(c,lang));
+    }
+  }
+  window.portalApplyLanguage=function(lang){
+    lang=lang==='fr'?'fr':'de'; window.portalLanguage=lang; localStorage.setItem('brisbois_language',lang);
+    document.documentElement.lang=lang; document.body.setAttribute('data-portal-language',lang); updateLanguageButtons(lang);
+    translateNode(document.body,lang);
+  };
+  function profileLanguage(){try{const u=window.__brisboisUserName||'',gd=window.__brisboisGlobalDaten||window.globalDaten,p=gd&&u&&gd.mitarbeiterProfil?gd.mitarbeiterProfil[u]:null;return p&&(p.sprache==='fr'||p.sprache==='de')?p.sprache:null}catch(e){return null}}
+  window.setPortalLanguage=async function(lang){
+    lang=lang==='fr'?'fr':'de'; window.portalApplyLanguage(lang);
+    try{const u=window.__brisboisUserName||'',gd=window.__brisboisGlobalDaten||window.globalDaten;if(u&&gd){gd.mitarbeiterProfil=gd.mitarbeiterProfil||{};const old=gd.mitarbeiterProfil[u]||{};gd.mitarbeiterProfil[u]=Object.assign({},old,{sprache:lang});if(typeof window.globalGlobalSpeichern==='function')await window.globalGlobalSpeichern();}}catch(e){console.warn('Sprache konnte nicht gespeichert werden:',e)}
+  };
+  window.portalLanguageAfterLogin=function(){window.portalApplyLanguage(profileLanguage()||localStorage.getItem('brisbois_language')||'de')};
+  const obs=new MutationObserver(ms=>{const lang=window.portalLanguage||'de';if(lang==='fr')ms.forEach(m=>m.addedNodes.forEach(n=>translateNode(n,'fr')))});
+  function init(){window.portalApplyLanguage(localStorage.getItem('brisbois_language')||'de');obs.observe(document.body,{childList:true,subtree:true})}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
-<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
-
 
 <script>
 (function(){
