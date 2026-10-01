@@ -181,7 +181,7 @@ function kiMaterialZeilen(daten,globalInfo,reserve){
  if(globalInfo.footleisten){
    const text=globalInfo.footleisten;
    const dyn=(window.materiallisteFuerKI ? window.materiallisteFuerKI() : []).filter(m=>/fu(?:ß|ss)leisten?|sockelleiste|leiste|profil/i.test(String(m.produkt)+' '+String(m.suchbegriffe)));
-   const chosen=dyn.find(m=>kiProduktSuchbegriffe(m).some(b=>kiMaterialTextNorm(text).includes(b))) || dyn[0];
+   const chosen=dyn.find(m=>(window.kiProduktSuchbegriffe?window.kiProduktSuchbegriffe(m):[]).some(b=>(window.kiMaterialTextNorm?window.kiMaterialTextNorm(text):String(text||'').toLowerCase()).includes(b))) || dyn[0];
    const lm=(text.match(/(\d+(?:[.,]\d+)?)\s*(?:lfm|m)\b/i)||[])[1];
    if(chosen && lm){
       const calc=(window.kiMaterialBerechnungAusListe ? window.kiMaterialBerechnungAusListe : (()=>null))(chosen.produkt,parseFloat(lm.replace(',','.')),null,reserve);
@@ -6801,6 +6801,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             });
             return best;
         }
+        // Diese Hilfsfunktionen werden von der klassischen KI-Auswertung außerhalb
+        // dieses module-Scripts verwendet und müssen deshalb ebenfalls global sein.
+        window.kiMaterialTextNorm = kiMaterialTextNorm;
+        window.kiProduktSuchbegriffe = kiProduktSuchbegriffe;
+        window.kiProduktAusMaterialliste = kiProduktAusMaterialliste;
+
         function kiMaterialBerechnungAusListe(name,qm,dicke,reserve){
             const m=materiallisteFuerKI().find(x=>String(x.produkt).toLowerCase()===String(name).toLowerCase());
             if(!m || !qm) return null;
@@ -6850,7 +6856,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try{
                 const liste=materiallisteFuerKI();
                 const norm=kiMaterialTextNorm(text);
-                const dyn=liste.filter(m=>kiProduktSuchbegriffe(m).some(b=>b && norm.includes(b))).map(m=>m.produkt);
+                const dyn=liste.filter(m=>(window.kiProduktSuchbegriffe?window.kiProduktSuchbegriffe(m):[]).some(b=>b && norm.includes(b))).map(m=>m.produkt);
                 const old=_kiAlleProdukteAlt(text);
                 return [...new Set([...dyn,...old])];
             }catch(e){
