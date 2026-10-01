@@ -677,6 +677,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
             <div class="flex items-center gap-2">
                 <button type="button" onclick="vollbildZoomIn()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Vergrößern">+</button>
                 <button type="button" onclick="vollbildPinModusUmschalten()" id="vollbild-pin-btn" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Pin setzen">📌</button>
+                <button type="button" onclick="vollbildPinsUmschalten()" id="vollbild-pins-btn" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Pins ausblenden">👁️</button>
                 <button type="button" onclick="vollbildZoomReset()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition" title="Zurücksetzen">⌂</button>
                 <button type="button" onclick="vollbildZoomOut()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Verkleinern">-</button>
                 <button type="button" onclick="vollbildSchliessen()" class="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg text-sm transition ml-2">✕ Schließen</button>
@@ -2115,6 +2116,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         let mapMarkerLayer = [];
 
         let vollbildZoomFaktor = 1;
+        let vollbildPinsAnzeigen = true;
         let isVollbildPanning = false;
         let startX, startY, scrollLeft, scrollTop;
 
@@ -4968,6 +4970,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             document.getElementById('vollbild-titel').innerText = `📐 Großansicht: ${aktuellesProjekt} (Plan ${(p.aktiverPlanIndex || 0) + 1})`;
             vollbildZoomFaktor = 1;
+            vollbildPinsAnzeigen = true;
+            const pinsBtnBeimOeffnen = document.getElementById('vollbild-pins-btn');
+            if (pinsBtnBeimOeffnen) { pinsBtnBeimOeffnen.innerText = '👁️'; pinsBtnBeimOeffnen.title = 'Pins ausblenden'; }
             mobilePlanOffsetX = 0;
             mobilePlanOffsetY = 0;
             aktualisiereVollbildTransform();
@@ -5030,6 +5035,18 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             mobilePlanOffsetX = 0;
             mobilePlanOffsetY = 0;
             aktualisiereVollbildTransform();
+        }
+
+        window.vollbildPinsUmschalten = function() {
+            vollbildPinsAnzeigen = !vollbildPinsAnzeigen;
+            const container = document.getElementById('vollbild-pin-container');
+            const btn = document.getElementById('vollbild-pins-btn');
+            if (container) container.style.display = vollbildPinsAnzeigen ? 'block' : 'none';
+            if (btn) {
+                btn.innerText = vollbildPinsAnzeigen ? '👁️' : '🚫';
+                btn.title = vollbildPinsAnzeigen ? 'Pins ausblenden' : 'Pins einblenden';
+                btn.setAttribute('aria-label', btn.title);
+            }
         }
 
         function aktualisiereVollbildTransform() {
@@ -5561,6 +5578,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const container = document.getElementById('vollbild-pin-container');
             if (!container || !aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             container.innerHTML = '';
+            container.style.display = vollbildPinsAnzeigen ? 'block' : 'none';
 
             const p = globalDaten.projekte[aktuellesProjekt];
             const pins = (p && p.pins) ? p.pins : [];
