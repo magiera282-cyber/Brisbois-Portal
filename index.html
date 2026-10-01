@@ -7781,5 +7781,128 @@ body{top:0!important}
   </div>
 </div>
 
+
+<script>
+/* ==========================================================
+   NACHRICHTEN-ÜBERSETZUNG – NUR SPRACHFUNKTION
+   Übersetzt den eigentlichen Nachrichtentext je nach Sprache
+   des aktuell eingeloggten Mitarbeiters. Bestehende Nachrichtendaten
+   und alle übrigen Portal-Funktionen bleiben unverändert.
+   ========================================================== */
+(function(){
+  const CACHE = new Map();
+  const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+
+  function portalLang(){ return (window.portalLanguage === 'fr' || localStorage.getItem('brisbois_language') === 'fr') ? 'fr' : 'de'; }
+
+  async function translateMessage(text, from, to){
+    text=String(text||'').trim();
+    if(!text || from===to) return text;
+    const key=from+'|'+to+'|'+text;
+    if(CACHE.has(key)) return CACHE.get(key);
+    try{
+      const url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+encodeURIComponent(from+'|'+to);
+      const res=await fetch(url,{method:'GET'});
+      if(!res.ok) throw new Error('translation http '+res.status);
+      const data=await res.json();
+      const out=String(data?.responseData?.translatedText||'').trim();
+      if(out){ CACHE.set(key,out); return out; }
+    }catch(e){ console.warn('Nachrichtenübersetzung nicht verfügbar:',e); }
+    return text;
+  }
+
+  function messageSourceLang(item){ return item && (item.sourceLang==='fr' || item.sourceLang==='de') ? item.sourceLang : 'de'; }
+
+  async function ensureMessageTranslation(item, target){
+    if(!item || !item.text) return String(item?.text||'');
+    const source=messageSourceLang(item);
+    if(source===target) return String(item.text);
+    item.translations=item.translations||{};
+    if(item.translations[target]) return item.translations[target];
+    const out=await translateMessage(item.text,source,target);
+    if(out && out!==item.text){
+      item.translations[target]=out;
+      /* Nur das neue Übersetzungsfeld wird gespeichert; bestehende Daten bleiben unverändert. */
+      try{ if(typeof window.globalGlobalSpeichern==='function') window.globalGlobalSpeichern(); }catch(e){}
+    }
+    return out;
+  }
+
+  async function translateVisibleMessages(){
+    const lang=portalLang();
+    const nodes=[...document.querySelectorAll('[data-message-index]')];
+    await Promise.all(nodes.map(async node=>{
+      const idx=Number(node.getAttribute('data-message-index'));
+      const item=(window.globalDaten?.benachrichtigungen||[])[idx];
+      if(!item) return;
+      const textEl=node.querySelector('[data-message-text]');
+      if(!textEl) return;
+      const translated=await ensureMessageTranslation(item,lang);
+      textEl.textContent=translated;
+    }));
+  }
+
+  /* Die bestehende Anzeige bleibt vollständig erhalten. Danach werden nur die
+     eigentlichen Nachrichtentexte übersetzt. */
+  const originalShow = window.benachrichtigungenAnzeigen;
+  if(typeof originalShow==='function'){
+    window.benachrichtigungenAnzeigen=function(){
+      originalShow();
+      const cards=[...document.querySelectorAll('#benachrichtigungen-liste > div')];
+      const visibleItems=[];
+      cards.forEach(card=>{
+        const onclick=card.getAttribute('onclick')||'';
+        const m=onclick.match(/benachrichtigungAnklicken\((\d+)\)/);
+        if(!m) return;
+        const idx=Number(m[1]);
+        const p=card.querySelector('p.text-sm');
+        if(p){ p.setAttribute('data-message-text','1'); card.setAttribute('data-message-index',String(idx)); }
+      });
+      translateVisibleMessages();
+    };
+  }
+
+  const originalClick=window.benachrichtigungAnklicken;
+  if(typeof originalClick==='function'){
+    window.benachrichtigungAnklicken=async function(index){
+      await originalClick(index);
+      const item=(window.globalDaten?.benachrichtigungen||[])[index];
+      const textEl=document.getElementById('modal-benachrichtigung-text');
+      if(item && textEl){ textEl.innerText=await ensureMessageTranslation(item,portalLang()); }
+    };
+  }
+
+  const originalSend=window.nachrichtAbsenden;
+  if(typeof originalSend==='function'){
+    window.nachrichtAbsenden=async function(){
+      const textEl=document.getElementById('nachricht-text-input');
+      const originalText=textEl ? textEl.value : '';
+      const oldLen=(window.globalDaten?.benachrichtigungen||[]).length;
+      await originalSend();
+      const list=window.globalDaten?.benachrichtigungen||[];
+      if(list.length>oldLen && list[0]){
+        list[0].sourceLang=portalLang();
+        /* Übersetzungen werden beim Empfänger/Anzeigen erzeugt, damit jede Person
+           ihre eigene Sprache erhält. Der Originaltext bleibt unverändert. */
+        list[0].translations=list[0].translations||{};
+        try{ if(typeof window.globalGlobalSpeichern==='function') window.globalGlobalSpeichern(); }catch(e){}
+      }
+    };
+  }
+
+  window.addEventListener('portal-language-changed',function(){
+    try{ translateVisibleMessages(); }catch(e){}
+  });
+
+  const originalSetLanguage=window.setPortalLanguage;
+  if(typeof originalSetLanguage==='function'){
+    window.setPortalLanguage=async function(lang){
+      const result=await originalSetLanguage(lang);
+      setTimeout(()=>{ try{ translateVisibleMessages(); }catch(e){} },100);
+      return result;
+    };
+  }
+})();
+</script>
 </body>
 </html>
