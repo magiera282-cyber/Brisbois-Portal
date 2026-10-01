@@ -112,7 +112,7 @@ function kiGlobalInfo(text){
  const lastRoom=beforeAll.match(/(?:^|[\s;,.!?])([0-9]+)\s*[:.)\-]?\s*(?:raum|zimmer|bereich)\b/gi);
  const segment=lastRoom&&lastRoom.length?beforeAll.slice(beforeAll.lastIndexOf(lastRoom[lastRoom.length-1])):beforeAll;
  const products=idx>=0?kiAlleProdukte(segment).filter(p=>{
-   const m=materiallisteFuerKI().find(x=>String(x.produkt||'').toLowerCase()===String(p||'').toLowerCase());
+   const m=(window.materiallisteFuerKI ? window.materiallisteFuerKI() : []).find(x=>String(x.produkt||'').toLowerCase()===String(p||'').toLowerCase());
    return /MK|KE |WK |WAKOL D/.test(p) || !!m;
  }):[];
  const foot=/fu(?:ß|ss)leisten?\b[^.\n]*/i.exec(t);
@@ -157,7 +157,7 @@ function kiProfessionelleAnweisung(daten,globalInfo){
 function kiMaterialZeilen(daten,globalInfo,reserve){
  const map=new Map();
  const addCalc=(name,qm,dicke)=>{const calcFn=(typeof window.kiCalc==='function'?window.kiCalc:kiCalc);const c=calcFn(name,qm,dicke,reserve);if(!c)return;const old=map.get(name);if(!old)map.set(name,c);else{old.minKg+=c.minKg;old.maxKg+=c.maxKg;old.gebindeMin=old.packung?Math.ceil(old.minKg/old.packung):old.gebindeMin;old.gebindeMax=old.packung?Math.ceil(old.maxKg/old.packung):old.gebindeMax;}};
- const materialEintrag=(name)=>materiallisteFuerKI().find(m=>String(m.produkt||'').toLowerCase()===String(name||'').toLowerCase());
+ const materialEintrag=(name)=>(window.materiallisteFuerKI ? window.materiallisteFuerKI() : []).find(m=>String(m.produkt||'').toLowerCase()===String(name||'').toLowerCase());
  const istDynamischesMaterial=(name)=>{const m=materialEintrag(name);return !!m && !!m.produkt;};
  const istKleber=(name)=>{const m=materialEintrag(name);return !!m && /kleber|klebstoff|adhes|colle|verkleb/i.test(String(m.kategorie||'')+' '+String(m.produkt||''));};
  daten.forEach(r=>{
@@ -180,11 +180,11 @@ function kiMaterialZeilen(daten,globalInfo,reserve){
  }
  if(globalInfo.footleisten){
    const text=globalInfo.footleisten;
-   const dyn=materiallisteFuerKI().filter(m=>/fu(?:ß|ss)leisten?|sockelleiste|leiste|profil/i.test(String(m.produkt)+' '+String(m.suchbegriffe)));
+   const dyn=(window.materiallisteFuerKI ? window.materiallisteFuerKI() : []).filter(m=>/fu(?:ß|ss)leisten?|sockelleiste|leiste|profil/i.test(String(m.produkt)+' '+String(m.suchbegriffe)));
    const chosen=dyn.find(m=>kiProduktSuchbegriffe(m).some(b=>kiMaterialTextNorm(text).includes(b))) || dyn[0];
    const lm=(text.match(/(\d+(?:[.,]\d+)?)\s*(?:lfm|m)\b/i)||[])[1];
    if(chosen && lm){
-      const calc=kiMaterialBerechnungAusListe(chosen.produkt,parseFloat(lm.replace(',','.')),null,reserve);
+      const calc=(window.kiMaterialBerechnungAusListe ? window.kiMaterialBerechnungAusListe : (()=>null))(chosen.produkt,parseFloat(lm.replace(',','.')),null,reserve);
       if(calc)map.set('__FUSSLEISTE_'+chosen.produkt,calc);
    } else if(chosen){ map.set('__FUSSLEISTE_'+chosen.produkt,{produkt:chosen.produkt,status:'lfm-fehlt'}); }
  }
@@ -229,6 +229,7 @@ function kiKurzbeschreibungAuswerten(){
 // Explizit global machen, damit der Button im HTML-Attribut onclick auf allen
 // Browsern/WebViews zuverlässig dieselbe Funktion aufruft.
 window.kiKurzbeschreibungAuswerten=kiKurzbeschreibungAuswerten;
+window.__kiMateriallisteBereit=true;
 </script>
 
 <style>
@@ -1032,7 +1033,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         </div>
 
                         <div class="flex flex-wrap gap-3 mt-4">
-                            <button type="button" onclick="try{kiKurzbeschreibungAuswerten()}catch(e){console.error(e);alert('Die KI-Auswertung konnte nicht gestartet werden. Bitte erneut versuchen.')}"
+                            <button type="button" onclick="try{if(typeof window.kiKurzbeschreibungAuswerten!=='function')throw new Error('KI-Auswertung ist noch nicht geladen'); window.kiKurzbeschreibungAuswerten()}catch(e){console.error('KI-Auswertung:',e);alert('Die KI-Auswertung konnte nicht gestartet werden. '+(e&&e.message?e.message:'Bitte erneut versuchen.'))}"
                                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 rounded-xl">
                                 🤖 KI-Auftrag auswerten
                             </button>
