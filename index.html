@@ -111,13 +111,16 @@ function kiGlobalInfo(text){
  const beforeAll=idx>=0?t.slice(0,idx):'';
  const lastRoom=beforeAll.match(/(?:^|[\s;,.!?])([0-9]+)\s*[:.)\-]?\s*(?:raum|zimmer|bereich)\b/gi);
  const segment=lastRoom&&lastRoom.length?beforeAll.slice(beforeAll.lastIndexOf(lastRoom[lastRoom.length-1])):beforeAll;
- const products=idx>=0?kiAlleProdukte(segment).filter(p=>/MK|KE |WK |WAKOL D/.test(p)):[];
+ const products=idx>=0?kiAlleProdukte(segment).filter(p=>{
+   const m=(window.materiallisteFuerKI ? window.materiallisteFuerKI() : []).find(x=>String(x.produkt||'').toLowerCase()===String(p||'').toLowerCase());
+   return /MK|KE |WK |WAKOL D/.test(p) || !!m;
+ }):[];
  const foot=/fu(?:ß|ss)leisten?\b[^.\n]*/i.exec(t);
  return {all,products,footleisten:foot?foot[0].trim():''};
 }
 function kiRaumDaten(room,reserve){
  const t=room.text,qm=kiFlaecheErkennen(t),belag=kiBelagErkennen(t);
- const products=kiAlleProdukte(t),schwimmend=/schwimmend|floating/i.test(t);
+ const products=(typeof window.kiAlleProdukte==='function'?window.kiAlleProdukte(t):kiAlleProdukte(t)),schwimmend=/schwimmend|floating/i.test(t);
  const voll=/voll(?:flächig)?\s*(?:verklebt|verklebung)|vollflächig\s*(?:verklebt|verklebung)|voll\s*verkleben/i.test(t);
  const unterlage=/unterlage|trittschall|dämmunterlage|däm[m-]?unterlage/i.test(t);
  const um=(t.match(/(?:unterlage|trittschall|dämmunterlage|däm[m-]?unterlage)\s*(?:von\s*)?(\d+(?:[.,]\d+)?)\s*mm/i)||t.match(/(\d+(?:[.,]\d+)?)\s*mm\s*(?:unterlage|trittschall|dämmunterlage|däm[m-]?unterlage)/i)||[])[1];
@@ -153,12 +156,24 @@ function kiProfessionelleAnweisung(daten,globalInfo){
 }
 function kiMaterialZeilen(daten,globalInfo,reserve){
  const map=new Map();
- const addCalc=(name,qm,dicke)=>{const c=kiCalc(name,qm,dicke,reserve);if(!c)return;const old=map.get(name);if(!old)map.set(name,c);else{old.minKg+=c.minKg;old.maxKg+=c.maxKg;old.gebindeMin=Math.ceil(old.minKg/old.packung);old.gebindeMax=Math.ceil(old.maxKg/old.packung);}};
+ const addCalc=(name,qm,dicke)=>{const calcFn=(typeof window.kiCalc==='function'?window.kiCalc:kiCalc);const c=calcFn(name,qm,dicke,reserve);if(!c)return;const old=map.get(name);if(!old)map.set(name,c);else{old.minKg+=c.minKg;old.maxKg+=c.maxKg;old.gebindeMin=old.packung?Math.ceil(old.minKg/old.packung):old.gebindeMin;old.gebindeMax=old.packung?Math.ceil(old.maxKg/old.packung):old.gebindeMax;}};
+ const materialEintrag=(name)=>(window.materiallisteFuerKI ? window.materiallisteFuerKI() : []).find(m=>String(m.produkt||'').toLowerCase()===String(name||'').toLowerCase());
+ const istDynamischesMaterial=(name)=>{const m=materialEintrag(name);return !!m && !!m.produkt;};
+ const istKleber=(name)=>{const m=materialEintrag(name);return !!m && /kleber|klebstoff|adhes|colle|verkleb/i.test(String(m.kategorie||'')+' '+String(m.produkt||''));};
  daten.forEach(r=>{
    r.products.forEach(p=>{
+     // Fußleisten/Profile werden bei einer globalen lfm-Angabe nur einmal
+     // über globalInfo.footleisten berechnet. Die dynamische Produkterkennung
+     // kann sie zusätzlich als Raumprodukt erkennen; das darf keine zweite
+     // Berechnung erzeugen.
+     if(globalInfo.footleisten && /fu(?:ß|ss)leisten?|sockelleiste|leiste|profil/i.test(String(p))) return;
      if(/NC|WAKOL Z 615/.test(p))addCalc(p,r.qm,r.schichtdicke);
      else if(/PE /.test(p)||/MK|KE |WK |WAKOL D/.test(p)){
        // Kleber im Raum wird nur hier gerechnet; globale Kleber werden unten auf alle Räume gerechnet.
+       if(!(globalInfo.all&&globalInfo.products.includes(p)))addCalc(p,r.qm,null);
+     } else if(istDynamischesMaterial(p)){
+       // Neu in der Materialliste angelegte Produkte (z.B. UZIN LE 44)
+       // werden ebenfalls mit den dort hinterlegten Verbrauchsdaten berechnet.
        if(!(globalInfo.all&&globalInfo.products.includes(p)))addCalc(p,r.qm,null);
      }
    });
@@ -169,13 +184,19 @@ function kiMaterialZeilen(daten,globalInfo,reserve){
    globalInfo.products.forEach(p=>addCalc(p,total,null));
  }
  if(globalInfo.footleisten){
-   const m=globalInfo.footleisten.match(/(\d+(?:[.,]\d+)?)\s*(?:lfm|m)\b/i);
-   if(m)map.set('__FUSSLEISTE',{produkt:'Fußleisten Eiche lackiert Standardmaß',m2:parseFloat(m[1].replace(',','.'))*(reserve?1.10:1),unit:'lfm'});
-   else map.set('__FUSSLEISTE',{produkt:'Fußleisten Eiche lackiert Standardmaß',m2:null});
+   const text=globalInfo.footleisten;
+   const dyn=(window.materiallisteFuerKI ? window.materiallisteFuerKI() : []).filter(m=>/fu(?:ß|ss)leisten?|sockelleiste|leiste|profil/i.test(String(m.produkt)+' '+String(m.suchbegriffe)));
+   const chosen=dyn.find(m=>(window.kiProduktSuchbegriffe?window.kiProduktSuchbegriffe(m):[]).some(b=>(window.kiMaterialTextNorm?window.kiMaterialTextNorm(text):String(text||'').toLowerCase()).includes(b))) || dyn[0];
+   const lm=(text.match(/(\d+(?:[.,]\d+)?)\s*(?:lfm|m)\b/i)||[])[1];
+   if(chosen && lm){
+      const calc=(window.kiMaterialBerechnungAusListe ? window.kiMaterialBerechnungAusListe : (()=>null))(chosen.produkt,parseFloat(lm.replace(',','.')),null,reserve);
+      if(calc)map.set('__FUSSLEISTE_'+chosen.produkt,calc);
+   } else if(chosen){ map.set('__FUSSLEISTE_'+chosen.produkt,{produkt:chosen.produkt,status:'lfm-fehlt'}); }
  }
  const lines=[];
  for(const c of map.values()){
-   if(c.minKg!=null){const packs=c.gebindeMin===c.gebindeMax?String(c.gebindeMin):`${c.gebindeMin}–${c.gebindeMax}`;lines.push(`${c.produkt} | ${packs} × ${c.packung} kg`);}
+   if(c.stueck!=null){lines.push(`${c.produkt} | ${c.stueck} Stück = ${c.packungen} Packung(en) à ${c.stueckProGebinde} Stück (${c.lfm.toFixed(1)} lfm)`);}
+   else if(c.minKg!=null){const packs=c.gebindeMin===c.gebindeMax?String(c.gebindeMin):`${c.gebindeMin}–${c.gebindeMax}`;lines.push(`${c.produkt} | ${packs} × ${c.packung} kg`);}
    else if(c.m2!=null)lines.push(`${c.produkt} | ${c.m2.toFixed(1)} ${c.unit||'m²'}`);
    else lines.push(`${c.produkt} | Menge prüfen`);
  }
@@ -210,6 +231,10 @@ function kiKurzbeschreibungAuswerten(){
  window.letzterKiScan={kunde:'',auftragsnummer:'',termin:'',flaeche:String(total||''),belag:[...new Set(daten.map(r=>r.belag).filter(Boolean))].join(', '),arbeiten:[],ansprechpartner:'',telefon:'',email:'',sprache:'Deutsch',unsicher,roherText:text,originalDatei:null,raeume:daten,materialBerechnung:material};
  const bereich=document.getElementById('ki-ergebnis-bereich');if(bereich)bereich.classList.remove('hidden');
 }
+// Explizit global machen, damit der Button im HTML-Attribut onclick auf allen
+// Browsern/WebViews zuverlässig dieselbe Funktion aufruft.
+window.kiKurzbeschreibungAuswerten=kiKurzbeschreibungAuswerten;
+window.__kiMateriallisteBereit=true;
 </script>
 
 <style>
@@ -676,6 +701,8 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
             </div>
             <div class="flex items-center gap-2">
                 <button type="button" onclick="vollbildZoomIn()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Vergrößern">+</button>
+                <button type="button" onclick="vollbildPinModusUmschalten()" id="vollbild-pin-btn" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Pin setzen">📌</button>
+                <button type="button" onclick="vollbildPinsSichtbarkeitUmschalten()" id="vollbild-pins-btn" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Pins ausblenden" aria-label="Pins ausblenden">👁️</button>
                 <button type="button" onclick="vollbildZoomReset()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition" title="Zurücksetzen">⌂</button>
                 <button type="button" onclick="vollbildZoomOut()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Verkleinern">-</button>
                 <button type="button" onclick="vollbildSchliessen()" class="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg text-sm transition ml-2">✕ Schließen</button>
@@ -683,14 +710,14 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
         </div>
 
         <div id="vollbild-scroll-container" 
-             class="flex-1 overflow-auto relative cursor-grab active:cursor-grabbing flex items-center justify-center p-4 bg-slate-950"
+             class="flex-1 overflow-auto relative cursor-grab active:cursor-grabbing flex items-start justify-start p-4 bg-slate-950"
              onmousedown="startVollbildPan(event)"
              onmousemove="vollbildPanBewegen(event)"
              onmouseup="stopVollbildPan()"
              onmouseleave="stopVollbildPan()"
              onclick="vollbildGrundrissKlickVerarbeiten(event)">
             
-            <div id="vollbild-transform-wrapper" class="relative inline-block transition-transform duration-100 origin-center" style="transform: scale(1);">
+            <div id="vollbild-transform-wrapper" class="relative inline-block origin-top-left" style="transform: translate3d(0,0,0);">
                 <img id="vollbild-plan-bild" class="hidden block max-w-none select-none shadow-2xl rounded-lg" alt="Grundriss Vollbild">
                 <div id="vollbild-pdf-viewer" class="hidden relative inline-block select-none w-[900px] h-[700px] bg-white border shadow-2xl rounded-lg"></div>
                 <div id="vollbild-pin-container" class="absolute inset-0 pointer-events-none z-20"></div>
@@ -1011,7 +1038,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         </div>
 
                         <div class="flex flex-wrap gap-3 mt-4">
-                            <button type="button" onclick="kiKurzbeschreibungAuswerten()"
+                            <button type="button" onclick="try{if(typeof window.kiKurzbeschreibungAuswerten!=='function')throw new Error('KI-Auswertung ist noch nicht geladen'); window.kiKurzbeschreibungAuswerten()}catch(e){console.error('KI-Auswertung:',e);alert('Die KI-Auswertung konnte nicht gestartet werden. '+(e&&e.message?e.message:'Bitte erneut versuchen.'))}"
                                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 rounded-xl">
                                 🤖 KI-Auftrag auswerten
                             </button>
@@ -1488,13 +1515,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     </div>
                 </div>
                 <div class="mt-4 p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900">
-                    <b>So funktioniert es:</b> Produktname + Verbrauch eintragen. Bei Verbrauch pro m²/mm wird die vom Auftrag erkannte Spachteldicke automatisch berücksichtigt. Ein Gebindegewicht/-volumen kann zusätzlich hinterlegt werden, damit die KI auch Säcke, Eimer oder Kanister berechnen kann.
+                    <b>So funktioniert es:</b> Produktname + Verbrauch eintragen. Bei Verbrauch pro m²/mm wird die vom Auftrag erkannte Spachteldicke automatisch berücksichtigt. Ein Gebindegewicht/-volumen kann zusätzlich hinterlegt werden. Für Fußleisten/Profile wähle „lfm → Stück → Packung“ und trage z. B. Länge 2,70 m sowie 10 Stück pro Packung ein – die KI berechnet daraus automatisch Stück und Packungen.
                 </div>
                 <div class="mt-5 overflow-x-auto">
                     <table class="w-full text-sm min-w-[1050px]">
                         <thead>
                             <tr class="border-b text-left text-[11px] uppercase tracking-wide text-slate-500">
-                                <th class="p-2">Produkt</th><th class="p-2">Hersteller</th><th class="p-2">Kategorie</th><th class="p-2">Verbrauch von</th><th class="p-2">Verbrauch bis</th><th class="p-2">Einheit</th><th class="p-2">Gebinde</th><th class="p-2">Suchbegriffe</th><th class="p-2 text-right">Aktion</th>
+                                <th class="p-2">Produkt</th><th class="p-2">Hersteller</th><th class="p-2">Kategorie</th><th class="p-2">Verbrauch von</th><th class="p-2">Verbrauch bis</th><th class="p-2">Einheit</th><th class="p-2">Gebinde</th><th class="p-2">Länge/Stk.</th><th class="p-2">Stk./Packung</th><th class="p-2">Suchbegriffe</th><th class="p-2 text-right">Aktion</th>
                             </tr>
                         </thead>
                         <tbody id="materialliste-tbody"></tbody>
@@ -1921,6 +1948,23 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     alert("Das Gerät konnte noch nicht für Push registriert werden. Bitte prüfe die Firebase-Web-Push-Konfiguration.");
                     return false;
                 }
+                // Alte Push-Tokens desselben Mitarbeiters entfernen.
+                // Sonst kann ein iPhone nach einer erneuten Registrierung denselben
+                // Empfänger über mehrere alte Tokens doppelt benachrichtigen.
+                try {
+                    const eigeneTokens = await getDocs(collection(db, "pushTokens"));
+                    const loeschungen = [];
+                    eigeneTokens.forEach((snap) => {
+                        const data = snap.data() || {};
+                        if (data.employeeName === eingeloggterMitarbeiter && data.token && data.token !== token) {
+                            loeschungen.push(deleteDoc(snap.ref));
+                        }
+                    });
+                    if (loeschungen.length) await Promise.all(loeschungen);
+                } catch (cleanupError) {
+                    console.warn("Alte Push-Tokens konnten nicht bereinigt werden:", cleanupError);
+                }
+
                 const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter || "unbekannt") + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
                 await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, token, updatedAt: serverTimestamp() });
                 localStorage.setItem("brisbois_push_aktiv", "1");
@@ -1933,6 +1977,32 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 return false;
             }
         }
+        // Auch bereits aktivierte Geräte werden beim Login einmal bereinigt,
+        // damit alte Tokens auf dem iPhone nicht zu doppelten Pushs führen.
+        window.brisboisPushDuplikateBereinigen = async function() {
+            try {
+                if (!eingeloggterMitarbeiter || localStorage.getItem("brisbois_push_aktiv") !== "1") return;
+                if (!("Notification" in window) || Notification.permission !== "granted") return;
+                const reg = brisboisPushRegistration || await navigator.serviceWorker.register("./firebase-messaging-sw.js", { scope: "./" });
+                brisboisPushRegistration = reg;
+                const token = await getToken(messaging, { serviceWorkerRegistration: reg, vapidKey: "BAvLBPO-lmOeYe2cmTmGxfpirIHp-UjabyUeMTTGzyWRuKZd6A4hILJIDK6BZEOwE6Qm-z5Q-tcJwJ0AkKCDlrA" });
+                if (!token) return;
+                const eigeneTokens = await getDocs(collection(db, "pushTokens"));
+                const loeschungen = [];
+                eigeneTokens.forEach((snap) => {
+                    const data = snap.data() || {};
+                    if (data.employeeName === eingeloggterMitarbeiter && data.token && data.token !== token) {
+                        loeschungen.push(deleteDoc(snap.ref));
+                    }
+                });
+                if (loeschungen.length) await Promise.all(loeschungen);
+                const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter) + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
+                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, token, updatedAt: serverTimestamp() });
+            } catch (e) {
+                console.warn("Push-Duplikate konnten nicht bereinigt werden:", e);
+            }
+        };
+
         window.brisboisPushAktivieren = brisboisPushAktivieren;
 
         onMessage(messaging, (payload) => {
@@ -2697,6 +2767,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 try {
                     if (localStorage.getItem("brisbois_push_aktiv") !== "1" && typeof window.brisboisPushAktivieren === "function") {
                         window.brisboisPushAktivieren();
+                    } else if (typeof window.brisboisPushDuplikateBereinigen === "function") {
+                        window.brisboisPushDuplikateBereinigen();
                     }
                 } catch(e) { console.warn("Push-Aktivierung nach Login übersprungen:", e); }
             }, 700);
@@ -4967,6 +5039,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             document.getElementById('vollbild-titel').innerText = `📐 Großansicht: ${aktuellesProjekt} (Plan ${(p.aktiverPlanIndex || 0) + 1})`;
             vollbildZoomFaktor = 1;
+            vollbildPinsSichtbar = true;
+            const pinsBtnBeimOeffnen = document.getElementById('vollbild-pins-btn');
+            if (pinsBtnBeimOeffnen) { pinsBtnBeimOeffnen.innerText = '👁️'; pinsBtnBeimOeffnen.title = 'Pins ausblenden'; pinsBtnBeimOeffnen.setAttribute('aria-label','Pins ausblenden'); }
             mobilePlanOffsetX = 0;
             mobilePlanOffsetY = 0;
             aktualisiereVollbildTransform();
@@ -4987,6 +5062,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             document.getElementById('plan-vollbild-modal').classList.remove('hidden');
 
+            const vollPinBtn = document.getElementById('vollbild-pin-btn');
+            if (vollPinBtn) {
+                vollPinBtn.className = pinModusAktiv
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse"
+                    : "bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition";
+                vollPinBtn.innerText = pinModusAktiv ? "📌✓" : "📌";
+            }
+
             if (window.innerWidth <= 640) {
                 const mobilePlan = document.getElementById('vollbild-scroll-container');
                 if (mobilePlan && mobilePlan.dataset.mobilePlanGestures !== '1') {
@@ -5006,8 +5089,22 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             planVorschauAnzeigen();
         }
 
+        window.vollbildPinsSichtbarkeitUmschalten = function() {
+            vollbildPinsSichtbar = !vollbildPinsSichtbar;
+            const container = document.getElementById('vollbild-pin-container');
+            const btn = document.getElementById('vollbild-pins-btn');
+            if (container) {
+                container.style.display = vollbildPinsSichtbar ? 'block' : 'none';
+            }
+            if (btn) {
+                btn.innerText = vollbildPinsSichtbar ? '👁️' : '🚫';
+                btn.title = vollbildPinsSichtbar ? 'Pins ausblenden' : 'Pins einblenden';
+                btn.setAttribute('aria-label', btn.title);
+            }
+        };
+
         window.vollbildZoomIn = function() {
-            vollbildZoomFaktor = Math.min(vollbildZoomFaktor + 0.3, 4);
+            vollbildZoomFaktor = Math.min(vollbildZoomFaktor + 0.3, 10);
             aktualisiereVollbildTransform();
         }
 
@@ -5023,12 +5120,61 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             aktualisiereVollbildTransform();
         }
 
-        function aktualisiereVollbildTransform() {
+        let vollbildPinsSichtbar = true;
+
+            function aktualisiereVollbildTransform() {
             const wrapper = document.getElementById('vollbild-transform-wrapper');
-            if(wrapper) {
-                wrapper.style.transition = 'none';
-                wrapper.style.transform =
-                    `translate3d(${mobilePlanOffsetX}px, ${mobilePlanOffsetY}px, 0) scale(${vollbildZoomFaktor})`;
+            if (!wrapper) return;
+
+            wrapper.style.transition = 'none';
+            wrapper.style.transform = `translate3d(${mobilePlanOffsetX}px, ${mobilePlanOffsetY}px, 0)`;
+
+            const bild = document.getElementById('vollbild-plan-bild');
+            const pdf = document.getElementById('vollbild-pdf-viewer');
+            const pins = document.getElementById('vollbild-pin-container');
+            const aktiv = (bild && !bild.classList.contains('hidden')) ? bild :
+                          ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
+            if (!aktiv) return;
+
+            const zoom = Math.max(0.7, Math.min(10, Number(vollbildZoomFaktor) || 1));
+
+            // Ganz wichtig für Pins: Plan und Pin-Container müssen dieselbe
+            // echte Layout-Größe haben. Nur dann bleibt ein gespeicherter
+            // Prozentwert auch nach dem Speichern exakt auf derselben Stelle.
+            let baseW = 0, baseH = 0;
+            if (aktiv === bild && bild.naturalWidth && bild.naturalHeight) {
+                baseW = bild.naturalWidth;
+                baseH = bild.naturalHeight;
+                const maxW = Math.max(1, window.innerWidth * 0.92);
+                const maxH = Math.max(1, (window.innerHeight - 150) * 0.92);
+                const fit = Math.min(1, maxW / baseW, maxH / baseH);
+                baseW *= fit;
+                baseH *= fit;
+            } else {
+                baseW = 900;
+                baseH = 700;
+            }
+
+            const targetW = Math.max(1, Math.round(baseW * zoom));
+            const targetH = Math.max(1, Math.round(baseH * zoom));
+
+            wrapper.style.width = `${targetW}px`;
+            wrapper.style.height = `${targetH}px`;
+
+            if (aktiv === bild) {
+                bild.style.transform = 'none';
+                bild.style.width = `${targetW}px`;
+                bild.style.height = `${targetH}px`;
+            } else {
+                pdf.style.transform = 'none';
+                pdf.style.width = `${targetW}px`;
+                pdf.style.height = `${targetH}px`;
+            }
+
+            if (pins) {
+                pins.style.transform = 'none';
+                pins.style.width = `${targetW}px`;
+                pins.style.height = `${targetH}px`;
             }
         }
 
@@ -5063,6 +5209,25 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             projektSpeichern(aktuellesProjekt);
         }
 
+        window.vollbildPinModusUmschalten = function() {
+            pinModusAktiv = !pinModusAktiv;
+            const btn = document.getElementById('vollbild-pin-btn');
+            if (btn) {
+                btn.className = pinModusAktiv
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse"
+                    : "bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition";
+                btn.title = pinModusAktiv ? "Pin setzen ist aktiv" : "Pin setzen";
+                btn.innerText = pinModusAktiv ? "📌✓" : "📌";
+            }
+            const outside = document.getElementById('pin-modus-btn');
+            if (outside) {
+                outside.className = pinModusAktiv
+                    ? "text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm animate-pulse"
+                    : "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
+                outside.innerText = pinModusAktiv ? "📌 Pin setzen (Aktiv)" : "📌 Pin setzen (Aus)";
+            }
+        };
+
         window.pinModusUmschalten = function() {
             pinModusAktiv = !pinModusAktiv;
             const btn = document.getElementById('pin-modus-btn');
@@ -5070,6 +5235,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 btn.className = "text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm animate-pulse";
                 btn.innerText = "📌 Pin setzen (Aktiv im Vollbild)";
                 vollbildOeffnen();
+                setTimeout(() => {
+                    const vb = document.getElementById('vollbild-pin-btn');
+                    if (vb) {
+                        vb.className = "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse";
+                        vb.innerText = "📌✓";
+                    }
+                }, 0);
             } else {
                 btn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
                 btn.innerText = "📌 Pin setzen (Aus)";
@@ -5122,13 +5294,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         function mobilePinPosition(event) {
             const wrapper = document.getElementById('vollbild-transform-wrapper');
-            if (!wrapper || !event.touches || !event.touches[0]) return null;
+            const bild = document.getElementById('vollbild-plan-bild');
+            const pdf = document.getElementById('vollbild-pdf-viewer');
+            const plan = (bild && !bild.classList.contains('hidden')) ? bild :
+                         ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
+            if (!wrapper || !plan || !event.touches || !event.touches[0]) return null;
 
-            const rect = wrapper.getBoundingClientRect();
+            // Immer gegen die tatsächlich sichtbare, skalierte Planfläche rechnen.
+            // Dadurch bleibt der Pin auch bei starkem Zoom und beim Verschieben
+            // exakt an der Stelle, an der der Finger auf den Plan gesetzt wurde.
+            const rect = plan.getBoundingClientRect();
             const t = event.touches[0];
-
-            // rect enthält bereits Scale + Translation. Die relative Position
-            // des Fingers innerhalb des sichtbaren Plans bleibt dadurch korrekt.
             const x = t.clientX - rect.left;
             const y = t.clientY - rect.top;
             if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
@@ -5199,7 +5375,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 const abstand = mobileTouchAbstand(event.touches[0], event.touches[1]);
                 if (mobilePinchStartAbstand > 0) {
                     const faktor = abstand / mobilePinchStartAbstand;
-                    vollbildZoomFaktor = Math.max(0.7, Math.min(4, mobilePinchStartZoom * faktor));
+                    vollbildZoomFaktor = Math.max(0.7, Math.min(10, mobilePinchStartZoom * faktor));
                     aktualisiereVollbildTransform();
                 }
                 event.preventDefault();
@@ -5242,8 +5418,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (!p || !p.plaene || p.plaene.length === 0) return;
 
             const wrapper = document.getElementById('vollbild-transform-wrapper');
-            const rect = wrapper.getBoundingClientRect();
-            
+            const bild = document.getElementById('vollbild-plan-bild');
+            const pdf = document.getElementById('vollbild-pdf-viewer');
+            const plan = (bild && !bild.classList.contains('hidden')) ? bild :
+                         ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
+            if (!wrapper || !plan) return;
+
+            // Desktop ebenfalls direkt auf der sichtbaren Planfläche messen.
+            // So sind Scrollposition, Zoom und die tatsächliche Planfläche
+            // automatisch berücksichtigt.
+            const rect = plan.getBoundingClientRect();
             const klickX = event.clientX - rect.left;
             const klickY = event.clientY - rect.top;
 
@@ -5279,7 +5463,22 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 let fotoUrl = "";
                 const foto = fotoInput.files && fotoInput.files[0];
                 if (foto) {
-                    fotoUrl = await uploadBaustellenDatei(foto, "mangel-fotos", aktuellesProjekt);
+                    // Pin-Fotos werden direkt als komprimiertes Bild im Pin gespeichert.
+                    // Dadurch hängt das Speichern auf iPhone/PC nicht von Firebase Storage ab.
+                    if (!String(foto.type || '').startsWith('image/')) {
+                        throw new Error('Bitte ein JPG- oder PNG-Foto auswählen.');
+                    }
+                    const maxFotoMB = 12;
+                    if (foto.size > maxFotoMB * 1024 * 1024) {
+                        throw new Error(`Das Foto darf maximal ${maxFotoMB} MB groß sein.`);
+                    }
+                    const fotoDatei = await planBildKomprimieren(foto, 1400, 0.72);
+                    const fotoReader = new FileReader();
+                    fotoUrl = await new Promise((resolve, reject) => {
+                        fotoReader.onerror = () => reject(new Error('Das Mangel-Foto konnte nicht gelesen werden.'));
+                        fotoReader.onload = () => resolve(String(fotoReader.result || ''));
+                        fotoReader.readAsDataURL(fotoDatei);
+                    });
                 }
 
                 const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -5314,17 +5513,28 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     planIndex: planIdx
                 });
 
+                // Der Pin wird zuerst sicher im Baustellen-Dokument gespeichert.
+                // Die globale Benachrichtigung darf den Speichervorgang nicht mehr
+                // blockieren (sonst bleibt auf dem iPhone dauerhaft „Wird gespeichert...“).
                 await projektSpeichern(aktuellesProjekt);
-                await window.globalGlobalSpeichern();
+                try {
+                    await Promise.race([
+                        window.globalGlobalSpeichern(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Portal-Synchronisation dauert zu lange')), 8000))
+                    ]);
+                } catch (syncError) {
+                    console.warn('Pin gespeichert, globale Benachrichtigung wird später synchronisiert:', syncError);
+                }
                 document.getElementById('pin-modal').classList.add('hidden');
                 vollbildPinsAnzeigen();
                 benachrichtigungenAnzeigen();
 
-                pinModusAktiv = false;
-                const modusBtn = document.getElementById('pin-modus-btn');
-                if (modusBtn) {
-                    modusBtn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
-                    modusBtn.innerText = "📌 Pin setzen (Aus)";
+                // Pin-Modus bleibt nach dem Speichern aktiv, damit direkt der
+                // nächste Pin gesetzt werden kann, ohne die Großansicht zu schließen.
+                const vollPinBtn = document.getElementById('vollbild-pin-btn');
+                if (vollPinBtn && pinModusAktiv) {
+                    vollPinBtn.className = "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse";
+                    vollPinBtn.innerText = "📌✓";
                 }
             } catch (error) {
                 console.error("Fehler beim Speichern des Mangel-Pins:", error);
@@ -5438,9 +5648,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         }
 
         function vollbildPinsAnzeigen() {
+            const pinContainer = document.getElementById('vollbild-pin-container');
+            if (pinContainer) pinContainer.style.display = vollbildPinsSichtbar ? 'block' : 'none';
             const container = document.getElementById('vollbild-pin-container');
             if (!container || !aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             container.innerHTML = '';
+            container.style.display = vollbildPinsAnzeigen ? 'block' : 'none';
 
             const p = globalDaten.projekte[aktuellesProjekt];
             const pins = (p && p.pins) ? p.pins : [];
@@ -5950,6 +6163,44 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             return await getDownloadURL(ziel);
         }
 
+        async function pdfPlanAlsBildKomprimieren(datei, maxSeite = 1800, qualitaet = 0.78) {
+            if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
+            if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist noch nicht geladen. Bitte die Seite einmal neu laden.');
+
+            const daten = await datei.arrayBuffer();
+            const pdf = await window.pdfjsLib.getDocument({data: daten}).promise;
+            if (!pdf.numPages) throw new Error('Die PDF enthält keine Seiten.');
+
+            // Für Grundriss-Pläne wird die erste PDF-Seite als hochauflösendes
+            // JPG gespeichert. Dadurch ist kein Firebase-Storage-Zugriff nötig.
+            const seite = await pdf.getPage(1);
+            const basis = seite.getViewport({scale: 1});
+            const faktor = Math.min(1.8, maxSeite / Math.max(basis.width, basis.height));
+            const viewport = seite.getViewport({scale: faktor});
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(viewport.width));
+            canvas.height = Math.max(1, Math.round(viewport.height));
+            const ctx = canvas.getContext('2d', {alpha: false});
+            if (!ctx) throw new Error('Der PDF-Plan konnte nicht dargestellt werden.');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            await seite.render({canvasContext: ctx, viewport}).promise;
+
+            const blob = await new Promise((resolve, reject) => {
+                canvas.toBlob(b => b ? resolve(b) : reject(new Error('Der PDF-Plan konnte nicht komprimiert werden.')), 'image/jpeg', qualitaet);
+            });
+            const reader = new FileReader();
+            const dataUrl = await new Promise((resolve, reject) => {
+                reader.onerror = () => reject(new Error('Der umgewandelte PDF-Plan konnte nicht gelesen werden.'));
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.readAsDataURL(blob);
+            });
+            if (!dataUrl || dataUrl.length > 800000) {
+                throw new Error('Der PDF-Plan ist trotz Komprimierung noch zu groß. Bitte eine kleinere PDF auswählen.');
+            }
+            return dataUrl;
+        }
+
         async function verarbeiteGrundriss(datei) {
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
                 alert("Bitte zuerst eine Baustelle öffnen.");
@@ -5963,20 +6214,18 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     return;
                 }
 
-                /*
-                 * WICHTIG: Der Portal-Login ist ein eigener Schnell-Login und kein
-                 * Firebase-Auth-Login. Deshalb kann Firebase Storage je nach
-                 * Storage-Regeln den Upload mit permission-denied ablehnen.
-                 * Bilder werden deshalb direkt als komprimierte Datei im Projekt
-                 * gespeichert. So funktioniert der Grundriss auch ohne Storage-
-                 * Berechtigung. PDFs verwenden weiterhin Firebase Storage.
-                 */
-                const uploadDatei = istPdf ? datei : await planBildKomprimieren(datei);
                 let url = '';
+                let speicherart = 'firestore-bild';
+                let dateityp = 'image/jpeg';
 
-                if (!istPdf) {
-                    // Das Bild bewusst klein halten, damit das Firestore-Dokument
-                    // unter dem Größenlimit bleibt und trotzdem gut lesbar ist.
+                if (istPdf) {
+                    // PDF-Pläne werden direkt im Browser gerendert und als
+                    // komprimiertes Planbild im bestehenden Plan-Dokument gespeichert.
+                    // Damit funktioniert der PDF-Upload auch ohne Firebase Storage.
+                    url = await pdfPlanAlsBildKomprimieren(datei);
+                    speicherart = 'firestore-pdf-render';
+                } else {
+                    const uploadDatei = await planBildKomprimieren(datei);
                     const reader = new FileReader();
                     url = await new Promise((resolve, reject) => {
                         reader.onerror = () => reject(new Error('Das Bild konnte nicht gelesen werden.'));
@@ -5986,26 +6235,20 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     if (!url || url.length > 800000) {
                         throw new Error('Das Bild ist trotz Komprimierung noch zu groß. Bitte ein kleineres Bild auswählen.');
                     }
-                } else {
-                    // PDFs werden weiterhin als Datei in Firebase Storage abgelegt.
-                    url = await uploadBaustellenDatei(uploadDatei, "plaene", aktuellesProjekt);
+                    dateityp = uploadDatei.type || 'image/jpeg';
                 }
 
                 await speichereGrundrissPlan(url, {
                     dateiname: datei.name,
-                    dateityp: uploadDatei.type || (istPdf ? "application/pdf" : "image/jpeg"),
-                    groesse: uploadDatei.size,
-                    speicherart: istPdf ? 'firebase-storage' : 'firestore-bild'
+                    dateityp,
+                    groesse: datei.size,
+                    speicherart
                 });
                 alert(`✅ Plan „${datei.name}“ wurde erfolgreich hochgeladen.`);
             } catch (error) {
                 console.error("Fehler beim Hochladen des Plans:", error);
                 const msg = String(error?.message || error || 'Unbekannter Fehler');
-                alert(
-                    "❌ Der Plan konnte nicht hochgeladen werden.\n\n" +
-                    msg +
-                    (istPdf ? "\n\nBei PDF-Plänen muss Firebase Storage freigeschaltet sein." : "")
-                );
+                alert("❌ Der Plan konnte nicht hochgeladen werden.\n\n" + msg);
             } finally {
                 // Derselbe Plan kann direkt danach erneut ausgewählt werden.
                 const inputs = document.querySelectorAll('input[type="file"]');
@@ -6409,6 +6652,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 verbrauchBis:m.verbrauchBis!=null?Number(m.verbrauchBis):(m.max!=null?Number(m.max):(m.faktor!=null?Number(m.faktor):'')),
                 einheit:String(m.einheit||'kg/m²').trim(),
                 gebinde:m.gebinde!=null?Number(m.gebinde):(m.packung!=null?Number(m.packung):''),
+                laengeProStueck:m.laengeProStueck!=null?Number(m.laengeProStueck):(m.laenge!=null?Number(m.laenge):''),
+                stueckProGebinde:m.stueckProGebinde!=null?Number(m.stueckProGebinde):(m.stueckPackung!=null?Number(m.stueckPackung):''),
                 suchbegriffe:String(m.suchbegriffe||'').trim(),
                 aktiv:m.aktiv!==false
             }));
@@ -6429,9 +6674,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <td class="p-2"><input id="mat-k-${i}" value="${materiallisteEscape(m.kategorie)}" class="w-32 px-2 py-2 border rounded-lg text-xs"></td>
                     <td class="p-2"><input id="mat-v1-${i}" type="number" step="0.001" min="0" value="${m.verbrauchVon!==''?m.verbrauchVon:''}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
                     <td class="p-2"><input id="mat-v2-${i}" type="number" step="0.001" min="0" value="${m.verbrauchBis!==''?m.verbrauchBis:''}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
-                    <td class="p-2"><select id="mat-e-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['kg/m²','kg/m²/mm','l/m²','l/m²/mm','Stk/m²','kg/lfm','l/lfm','Stk'].map(x=>`<option ${m.einheit===x?'selected':''}>${x}</option>`).join('')}</select></td>
-                    <td class="p-2"><input id="mat-g-${i}" type="number" step="0.01" min="0" value="${m.gebinde!==''?m.gebinde:''}" placeholder="z.B. 25" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
-                    <td class="p-2"><input id="mat-s-${i}" value="${materiallisteEscape(m.suchbegriffe)}" placeholder="z.B. NC160, Ausgleichsmasse" class="w-48 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><select id="mat-e-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['kg/m²','kg/m²/mm','l/m²','l/m²/mm','Stk/m²','kg/lfm','l/lfm','Stk','lfm → Stück → Packung'].map(x=>`<option ${m.einheit===x?'selected':''}>${x}</option>`).join('')}</select></td>
+                    <td class="p-2"><input id="mat-g-${i}" type="number" step="0.01" min="0" value="${m.gebinde!==''?m.gebinde:''}" placeholder="z.B. 25 kg" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-l-${i}" type="number" step="0.01" min="0" value="${m.laengeProStueck!==''?m.laengeProStueck:''}" placeholder="2,70 m" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-sp-${i}" type="number" step="1" min="0" value="${m.stueckProGebinde!==''?m.stueckProGebinde:''}" placeholder="10" class="w-20 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-s-${i}" value="${materiallisteEscape(m.suchbegriffe)}" placeholder="z.B. LE44, Kleber, Fußleiste" class="w-48 px-2 py-2 border rounded-lg text-xs"></td>
                     <td class="p-2 text-right whitespace-nowrap"><button type="button" onclick="materiallisteZeileSpeichern(${i})" class="bg-emerald-600 text-white px-2.5 py-2 rounded-lg text-xs font-bold">💾</button> <button type="button" onclick="materiallisteZeileLoeschen(${i})" class="bg-red-100 text-red-700 px-2.5 py-2 rounded-lg text-xs font-bold">✕</button></td>
                 </tr>`;
             });
@@ -6439,7 +6686,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.materiallisteNeueZeile=function(){
             if(!materiallisteBerechtigt()) return alert('Nur Chef, Techniker und Sekretariat dürfen die Materialliste verwalten.');
             materiallisteNormalisieren();
-            globalDaten.materialliste.push({id:'MAT_'+Date.now(),produkt:'',hersteller:'UZIN',kategorie:'Material',verbrauchVon:'',verbrauchBis:'',einheit:'kg/m²',gebinde:'',suchbegriffe:'',aktiv:true});
+            globalDaten.materialliste.push({id:'MAT_'+Date.now(),produkt:'',hersteller:'',kategorie:'Material',verbrauchVon:'',verbrauchBis:'',einheit:'kg/m²',gebinde:'',laengeProStueck:'',stueckProGebinde:'',suchbegriffe:'',aktiv:true});
             materiallisteAnzeigen();
             setTimeout(()=>document.getElementById('mat-p-'+(globalDaten.materialliste.length-1))?.focus(),50);
         };
@@ -6453,8 +6700,22 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             m.verbrauchBis=parseFloat(document.getElementById('mat-v2-'+i)?.value)||m.verbrauchVon;
             m.einheit=document.getElementById('mat-e-'+i)?.value||'kg/m²';
             m.gebinde=parseFloat(document.getElementById('mat-g-'+i)?.value)||'';
+            m.laengeProStueck=parseFloat(document.getElementById('mat-l-'+i)?.value)||'';
+            m.stueckProGebinde=parseFloat(document.getElementById('mat-sp-'+i)?.value)||'';
             m.suchbegriffe=document.getElementById('mat-s-'+i)?.value.trim()||'';
-            if(!m.produkt || !m.verbrauchVon){ return alert('Bitte mindestens Produkt und Verbrauch eintragen.'); }
+            const einheitNorm=String(m.einheit||'').toLowerCase();
+            const istLfmPack=einheitNorm.includes('lfm') && einheitNorm.includes('stück') && einheitNorm.includes('packung');
+            if(istLfmPack){
+                // Fußleisten/Profile: Verbrauchsfeld bleibt leer. Entscheidend sind Länge/Stück und Stück/Packung.
+                if(!m.produkt || !(m.laengeProStueck>0) || !(m.stueckProGebinde>0)){
+                    return alert('Für Fußleisten/Profile bitte Produkt, Länge pro Stück und Stück pro Packung eintragen.');
+                }
+                // Kein künstlicher kg/m²-Verbrauch nötig; KI erkennt diese Sonder-Einheit direkt.
+                m.verbrauchVon='';
+                m.verbrauchBis='';
+            } else if(!m.produkt || !(m.verbrauchVon>0)){
+                return alert('Bitte mindestens Produkt und Verbrauch eintragen.');
+            }
             if(m.verbrauchBis==='' || m.verbrauchBis<m.verbrauchVon) m.verbrauchBis=m.verbrauchVon;
             try{ await globalGlobalSpeichern(); materiallisteAnzeigen(); alert('Material gespeichert. Die KI verwendet diesen Eintrag ab sofort bei neuen Aufträgen.'); }catch(e){ console.error(e); alert('Material konnte nicht gespeichert werden: '+(e.message||e)); }
         };
@@ -6476,23 +6737,96 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try{await globalGlobalSpeichern();materiallisteAnzeigen();alert('Die bereits im Portal vorhandenen KI-Produkte wurden in die Materialliste übernommen.');}catch(e){alert('Die Standardwerte konnten nicht gespeichert werden.');}
         };
         function materiallisteFuerKI(){
-            materiallisteNormalisieren();
-            return globalDaten.materialliste.filter(m=>m.aktiv!==false && m.produkt && Number(m.verbrauchVon)>0);
+            // Die KI darf niemals abbrechen, nur weil die Materialliste beim
+            // ersten Laden noch nicht initialisiert ist.
+            if(typeof globalDaten==='undefined' || !globalDaten) return [];
+            try{
+                materiallisteNormalisieren();
+                return Array.isArray(globalDaten.materialliste)
+                    ? globalDaten.materialliste.filter(m=>{
+                        if(m.aktiv===false || !m.produkt) return false;
+                        const einheit=String(m.einheit||'').toLowerCase();
+                        const istLfmPack=einheit.includes('lfm') && einheit.includes('stück') && einheit.includes('packung');
+                        // Bei Fußleisten/Profilen gibt es keinen kg/m²-Verbrauch.
+                        // Länge je Stück + Stück je Packung sind die notwendigen Werte.
+                        if(istLfmPack) return Number(m.laengeProStueck)>0 && Number(m.stueckProGebinde)>0;
+                        return Number(m.verbrauchVon)>0;
+                      })
+                    : [];
+            }catch(e){
+                console.warn('Materialliste für KI konnte nicht gelesen werden:',e);
+                return [];
+            }
+        }
+        // Wichtig: Die KI-Auswertung läuft in einem normalen Script, während
+        // die Materialliste in diesem module-Script definiert ist. Ohne diese
+        // globale Freigabe konnte der KI-Button beim Aufruf mit
+        // "materiallisteFuerKI is not defined" abbrechen.
+        window.materiallisteFuerKI = materiallisteFuerKI;
+
+        function kiMaterialTextNorm(v){
+            return String(v||'')
+                .toLowerCase()
+                .replace(/[–—_]/g,'-')
+                .replace(/[^a-z0-9äöüß]+/gi,' ')
+                .replace(/\s+/g,' ')
+                .trim();
+        }
+        function kiProduktSuchbegriffe(m){
+            const raw=[m?.produkt||'',m?.suchbegriffe||''].join(',').split(/[,;|]+/);
+            const out=[];
+            raw.forEach(x=>{
+                const n=kiMaterialTextNorm(x);
+                if(!n)return;
+                out.push(n);
+                // Herstellerpräfix entfernen: „UZIN LE 44“ wird auch als „LE 44“ erkannt.
+                out.push(n.replace(/^(?:uzin|wakol|mapei|ardex|bostik)\s+/i,''));
+                // Allgemeine Materialbezeichnungen am Ende entfernen: „LE 44 Kleber“ -> „LE 44“.
+                out.push(n.replace(/\s+(?:kleber|klebstoff|adhesiv|adhäsiv|colle|adhésif)$/i,''));
+                out.push(n.replace(/^(?:uzin|wakol|mapei|ardex|bostik)\s+/i,'').replace(/\s+(?:kleber|klebstoff|adhesiv|adhäsiv|colle|adhésif)$/i,''));
+            });
+            return [...new Set(out.filter(x=>x.length>=3))];
         }
         function kiProduktAusMaterialliste(text, liste){
-            const t=String(text||'').toLowerCase();
+            const t=kiMaterialTextNorm(text);
             let best=null,bestScore=0;
             liste.forEach(m=>{
-                const begriffe=[m.produkt,m.suchbegriffe||''].join(',').split(/[,;|]+/).map(x=>x.trim().toLowerCase()).filter(Boolean);
+                const begriffe=kiProduktSuchbegriffe(m);
                 let score=0;
-                begriffe.forEach(b=>{ if(b && t.includes(b)) score=Math.max(score,b.length); });
+                begriffe.forEach(b=>{
+                    if(!b)return;
+                    if(t.includes(b)) score=Math.max(score,b.length+100);
+                    else {
+                        const teile=b.split(' ').filter(x=>x.length>=2);
+                        const treffer=teile.filter(x=>t.includes(x)).length;
+                        if(teile.length>=2 && treffer===teile.length) score=Math.max(score,teile.join('').length+50);
+                    }
+                });
                 if(score>bestScore){bestScore=score;best=m;}
             });
             return best;
         }
+        // Diese Hilfsfunktionen werden von der klassischen KI-Auswertung außerhalb
+        // dieses module-Scripts verwendet und müssen deshalb ebenfalls global sein.
+        window.kiMaterialTextNorm = kiMaterialTextNorm;
+        window.kiProduktSuchbegriffe = kiProduktSuchbegriffe;
+        window.kiProduktAusMaterialliste = kiProduktAusMaterialliste;
+
         function kiMaterialBerechnungAusListe(name,qm,dicke,reserve){
             const m=materiallisteFuerKI().find(x=>String(x.produkt).toLowerCase()===String(name).toLowerCase());
             if(!m || !qm) return null;
+            // Sonderlogik für Profile/Fußleisten: Auftrag nennt laufende Meter; daraus werden Stück und Packungen.
+            const einheitNorm=String(m.einheit||'').toLowerCase();
+            const istLfmPack=einheitNorm.includes('lfm') && einheitNorm.includes('stück') && einheitNorm.includes('packung');
+            if(istLfmPack){
+                const laenge=Number(m.laengeProStueck)||0;
+                const stkPack=Number(m.stueckProGebinde)||0;
+                if(!(laenge>0) || !(stkPack>0)) return {produkt:m.produkt,status:'länge-oder-packung-fehlt'};
+                const lfm=qm*(reserve?1.10:1);
+                const stueck=Math.ceil(lfm/laenge);
+                const packungen=Math.ceil(stueck/stkPack);
+                return {produkt:m.produkt,lfm,stueck,packungen,laengeProStueck:laenge,stueckProGebinde:stkPack,einheit:m.einheit,hersteller:m.hersteller,kategorie:m.kategorie};
+            }
             const v1=Number(m.verbrauchVon), v2=Number(m.verbrauchBis)||v1;
             let factor1=v1, factor2=v2;
             if(/\/mm$/i.test(m.einheit)){ if(!dicke)return {produkt:m.produkt,status:'dicke-fehlt'}; factor1*=dicke; factor2*=dicke; }
@@ -6504,21 +6838,43 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // KI nutzt zuerst die vom Team gepflegte Materialliste; die alten eingebauten Werte bleiben als Fallback erhalten.
         const _kiCalcAlt=kiCalc;
         kiCalc=function(name,qm,dicke,reserve){
-            const dyn=kiMaterialBerechnungAusListe(name,qm,dicke,reserve);
-            return dyn || _kiCalcAlt(name,qm,dicke,reserve);
+            try{
+                const dyn=kiMaterialBerechnungAusListe(name,qm,dicke,reserve);
+                return dyn || _kiCalcAlt(name,qm,dicke,reserve);
+            }catch(e){
+                console.warn('Dynamische KI-Materialberechnung:',e);
+                return _kiCalcAlt(name,qm,dicke,reserve);
+            }
         };
         const _kiProduktErkennenAlt=kiProduktErkennen;
         kiProduktErkennen=function(text){
-            const dyn=kiProduktAusMaterialliste(text,materiallisteFuerKI());
-            return dyn ? dyn.produkt : _kiProduktErkennenAlt(text);
+            try{
+                const dyn=kiProduktAusMaterialliste(text,materiallisteFuerKI());
+                return dyn ? dyn.produkt : _kiProduktErkennenAlt(text);
+            }catch(e){
+                console.warn('Dynamische KI-Produkterkennung:',e);
+                return _kiProduktErkennenAlt(text);
+            }
         };
         const _kiAlleProdukteAlt=kiAlleProdukte;
         kiAlleProdukte=function(text){
-            const liste=materiallisteFuerKI(); const t=String(text||'').toLowerCase();
-            const dyn=liste.filter(m=>[m.produkt,m.suchbegriffe||''].join(' ').split(/[,;|]+/).some(b=>b.trim() && t.includes(b.trim().toLowerCase()))).map(m=>m.produkt);
-            const old=_kiAlleProdukteAlt(text);
-            return [...new Set([...dyn,...old])];
+            try{
+                const liste=materiallisteFuerKI();
+                const norm=kiMaterialTextNorm(text);
+                const dyn=liste.filter(m=>(window.kiProduktSuchbegriffe?window.kiProduktSuchbegriffe(m):[]).some(b=>b && norm.includes(b))).map(m=>m.produkt);
+                const old=_kiAlleProdukteAlt(text);
+                return [...new Set([...dyn,...old])];
+            }catch(e){
+                console.warn('Dynamische KI-Produktliste:',e);
+                return _kiAlleProdukteAlt(text);
+            }
         };
+        // Die KI-Hauptauswertung läuft in einem klassischen Script.
+        // Deshalb werden die dynamischen Funktionen ausdrücklich global bereitgestellt.
+        window.kiCalc = kiCalc;
+        window.kiAlleProdukte = kiAlleProdukte;
+        window.kiProduktErkennen = kiProduktErkennen;
+        window.kiMaterialBerechnungAusListe = kiMaterialBerechnungAusListe;
 
         window.wechselnTab = function(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -7211,106 +7567,212 @@ window.problemMeldenSchliessen=function(){const m=document.getElementById('probl
 <div class="flex justify-end gap-2"><button type="button" onclick="problemMeldenSchliessen()" class="px-4 py-2 rounded-xl bg-slate-100">Abbrechen</button><button type="button" onclick="problemMeldenSpeichern()" class="px-4 py-2 rounded-xl bg-red-600 text-white font-bold">⚠️ Problem melden</button></div>
 </div></div>
 <style>
-/* Sprachumschalter: Google-Translate-Leiste selbst bleibt unsichtbar. */
-.goog-te-banner-frame.skiptranslate, .goog-te-banner-frame { display:none !important; }
-body { top:0 !important; }
-.goog-te-gadget { font-size:0 !important; }
-#google_translate_element { position:fixed; width:1px; height:1px; overflow:hidden; left:-10000px; top:-10000px; opacity:0; pointer-events:none; }
-.language-active { background:rgba(255,255,255,.18) !important; box-shadow:0 1px 4px rgba(0,0,0,.18); }
-#language-de-login, #language-fr-login { color:#0f172a; }
+/* Eingebaute Portal-Übersetzung – kein Google Translate, kein externer Übersetzer. */
+.goog-te-banner-frame,.goog-te-balloon-frame,.goog-tooltip,.goog-te-gadget{display:none!important}
+body{top:0!important}
+.language-active{background:rgba(255,255,255,.18)!important;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+#language-de-login,#language-fr-login{color:#0f172a}
 </style>
-<div id="google_translate_element" aria-hidden="true"></div>
 <script>
 /* ==========================================================
-   PERSÖNLICHE PORTAL-SPRACHE
-   Deutsch / Français – pro Mitarbeiter gespeichert.
-   Beim Sprachwechsel wird die komplette SPA neu geladen, damit
-   auch bereits vorhandene und dynamisch angezeigte Bereiche
-   zuverlässig von Google Translate übersetzt werden.
+   EINGEBAUTE PORTAL-SPRACHE
+   Deutsch / Français – direkt im Portal, ohne Google Translate.
+   Die Übersetzung arbeitet lokal mit einer festen Portal-Wortliste,
+   beobachtet auch dynamisch erzeugte Inhalte und lädt beim Wechsel
+   NICHT die Seite neu. Gespeicherte Daten bleiben unangetastet.
    ========================================================== */
 (function(){
-    window.portalLanguage = localStorage.getItem('brisbois_language') || 'de';
+  const FR={
+    'Abbrechen':'Annuler','Schließen':'Fermer','Status':'Statut','Verleger':'Poseur','Kategorie':'Catégorie','Aktion':'Action','Datum':'Date',
+    '🟢 Aktiv / In Arbeit':'🟢 Actif / En cours','⏳ Nächste Baustelle (Anstehend)':'⏳ Prochain chantier (À venir)','🏁 Fertiggestellt':'🏁 Terminé',
+    'Lagerort':'Emplacement','Datei':'Fichier','✕ Schließen':'✕ Fermer','Baustellen-Adresse':'Adresse du chantier','📍 Karte':'📍 Carte',
+    '🤖 KI-Auftrag':'🤖 Ordre IA','📊 Chef-Dashboard':'📊 Tableau de bord du chef','🔔 Benachrichtigungen':'🔔 Notifications','💶 Abrechnungen':'💶 Décomptes',
+    '📦 Materialliste':'📦 Liste des matériaux','🏭 Lager & Werkzeug':'🏭 Stock & outils','⛽ Belege & Kasse':'⛽ Reçus & caisse','📅 Meine Wochenplanung':'📅 Mon planning hebdomadaire','⚠️ Problem melden':'⚠️ Signaler un problème',
+    '＋ Artikel anlegen':'＋ Ajouter un article','🛒 Nächste Bestellung':'🛒 Prochaine commande','Artikel':'Article','Werkzeug':'Outil','Material':'Matériau','Verbrauchsmaterial':'Consommable','Maschine':'Machine','Arbeitsschutz':'Équipement de protection','Sonstiges':'Autre',
+    'Mindestbestand':'Stock minimum','Bestellmenge':'Quantité à commander','Einheit':'Unité','Rolle':'Rôle','Zweck':'Utilisation','Mitarbeiter':'Employé','Bezeichnung':'Désignation','💾 Speichern':'💾 Enregistrer','Von':'Du','Bis':'Au',
+    'Portal-Login (Komplettes Team)':'Connexion au portail (toute l’équipe)','🇩🇪 Deutsch':'🇩🇪 Deutsch','🇫🇷 Français':'🇫🇷 Français','1-KLICK SCHNELL-LOGIN':'CONNEXION RAPIDE EN 1 CLIC',
+    'oder Mitarbeiter wählen':'ou choisir un employé','Mitarbeiter / Chef auswählen':'Choisir un employé / chef','Wird dynamisch befüllt':'Rempli automatiquement','Passwort':'Mot de passe','Start-Passwort:':'Mot de passe initial :','🔓 Anmelden':'🔓 Se connecter',
+    'Grundriss-Plan Großansicht':'Plan en grand format','📌 Mangel- oder Notiz-Pin setzen':'📌 Placer un pin de défaut ou de note','Pin-Art':'Type de pin','🔴 Mangel':'🔴 Défaut','🔵 Frage':'🔵 Question','🟡 Eigener':'🟡 Personnel',
+    'Beschreibung / Mangel':'Description / défaut','📷 Foto zum Mangel hinzufügen (Funktioniert mit jedem iPhone)':'📷 Ajouter une photo du défaut (fonctionne avec tout iPhone)','💾 Pin setzen & Benachrichtigen':'💾 Placer le pin & notifier',
+    '📌 Pin Details':'📌 Détails du pin','📷 Angehängtes Foto:':'📷 Photo jointe :','👁️ Lesebestätigung (Wer hat es gesehen?):':'👁️ Confirmation de lecture (qui l’a vu ?)','🗑️ Pin löschen':'🗑️ Supprimer le pin',
+    '🔔 Benachrichtigung Details':'🔔 Détails de la notification','🚀 Zum Projekt / zur Baustelle':'🚀 Aller au projet / chantier','🗑️ Aus Benachrichtigungsliste löschen':'🗑️ Supprimer des notifications','↩️ Antworten':'↩️ Répondre',
+    '🧱 Uzin-Produkt für Packliste auswählen':'🧱 Choisir un produit Uzin pour la liste','Wähle ein Produkt aus oder füge neue Artikel zum Katalog hinzu:':'Choisissez un produit ou ajoutez de nouveaux articles au catalogue :','➕ Artikel zum Uzin-Katalog hinzufügen:':'➕ Ajouter un article au catalogue Uzin :','💾 Zum Katalog hinzufügen':'💾 Ajouter au catalogue',
+    '📁 Neues Projekt & Materialien anlegen':'📁 Créer un nouveau projet & matériaux','Projektbezeichnung / Name':'Nom / désignation du projet','Adresse eingeben oder über die Karte das Gebäude auswählen und markieren.':'Saisir l’adresse ou sélectionner et marquer le bâtiment sur la carte.','Anweisung / Arbeitsdetails für das Team':'Instruction / détails de travail pour l’équipe','📦 Benötigte Materialien / Packliste':'📦 Matériaux nécessaires / liste','+ Weiteres Material':'+ Autre matériau','💾 Baustelle & Materialien speichern':'💾 Enregistrer le chantier & les matériaux',
+    '📍 Baustelle auf Karte auswählen':'📍 Sélectionner le chantier sur la carte','Adresse suchen, Karte verschieben oder direkt auf das Gebäude tippen.':'Rechercher l’adresse, déplacer la carte ou toucher directement le bâtiment.','🔎 Suchen':'🔎 Rechercher','Noch keine Position ausgewählt.':'Aucune position sélectionnée.','✓ Position übernehmen':'✓ Utiliser cette position',
+    '✏️ Baustelle / Projekt bearbeiten':'✏️ Modifier le chantier / projet','Projektbezeichnung':'Désignation du projet','💾 Änderungen speichern':'💾 Enregistrer les modifications',
+    '💬 Neue Nachricht verfassen':'💬 Rédiger un nouveau message','Empfänger wählen':'Choisir le destinataire','🌐 An alle (Team & Chefs)':'🌐 À tous (équipe & chefs)','Deine Nachricht / Anweisung':'Votre message / instruction','Absenden':'Envoyer',
+    '🧑‍💼 Auftrag schreiben':'🧑‍💼 Décrire la commande','Belag automatisch erkennen':'Reconnaître automatiquement le revêtement','Linoleum':'Linoléum','Vinyl / PVC / LVT':'Vinyle / PVC / LVT','Teppich':'Moquette','Parkett':'Parquet','Kautschuk':'Caoutchouc','Designbelag':'Revêtement design','Hersteller automatisch':'Reconnaître automatiquement le fabricant','🤖 KI-Auftrag auswerten':'🤖 Analyser la commande IA','10 % Reserve berechnen':'Calculer 10 % de réserve','✅ KI-Auftrag erkannt – bitte kurz prüfen':'✅ Commande IA reconnue – veuillez vérifier','Textanalyse':'Analyse du texte','Projekt / Baustelle':'Projet / chantier','Baustellenadresse':'Adresse du chantier','Arbeitsauftrag / Anweisung':'Ordre de travail / instruction','Erkanntes Material':'Matériaux reconnus','🚀 Baustelle anlegen':'🚀 Créer le chantier','Zurücksetzen':'Réinitialiser',
+    'Abrechnung':'Décompte','Dokumentvorschau':'Aperçu du document','⬇️ Herunterladen':'⬇️ Télécharger','Abmelden':'Se déconnecter',
+    '🏠 Startseite':'🏠 Accueil','📁 Projekt & Baustelle':'📁 Projet & chantier','⚙️ Mein Profil':'⚙️ Mon profil','📞 Telefonliste':'📞 Liste téléphonique','👥 Mitarbeiter & Zuweisung':'👥 Employés & affectations','🗺️ Live-Karte':'🗺️ Carte en direct','⏱️ Zeiterfassung & Urlaub':'⏱️ Temps de travail & congés',
+    '✨ Willkommen zurück im Portal':'✨ Bon retour sur le portail','Guten Tag!':'Bonjour !','Aktuelle Uhrzeit':'Heure actuelle','Heutiges Datum':'Date du jour','🤒 Krankmeldung einreichen':'🤒 Envoyer un arrêt maladie','Deine heutigen und geplanten Einsätze':'Vos interventions du jour et planifiées','Diese Woche':'Cette semaine','Aktuelle Baustelle':'Chantier actuel','Keine Zuweisung':'Aucune affectation','Keine Baustelle zugeordnet':'Aucun chantier affecté','Urlaubskonto':'Compte de congés','Geprüft':'Vérifié','Resturlaub 2026':'Congés restants 2026','🤒 Krankheitstage:':'🤒 Jours de maladie :','Angemeldet als':'Connecté en tant que','⚙️ Mein Profil & Passwort ändern':'⚙️ Mon profil & modifier le mot de passe',
+    'Aktive & Nächste Projekte':'Projets actifs & prochains','✏️ Bearbeiten':'✏️ Modifier','🗑️ Löschen':'🗑️ Supprimer','Adresse:':'Adresse :','Anweisung vom Chef:':'Instruction du chef :','👷 Zugeteiltes Baustellen-Team':'👷 Équipe affectée au chantier','Live-Status':'Statut en direct','➕ Zuordnen':'➕ Affecter',
+    '📐 Baustellen-Pläne & Mangel-Pins':'📐 Plans du chantier & pins de défaut','📌 Pin setzen (Aus)':'📌 Placer un pin (désactivé)','➕ Plan hinzufügen':'➕ Ajouter un plan','🔍 Antippen für Großansicht & Pins':'🔍 Toucher pour agrandir & placer des pins','📌 Pins / gemeldete Punkte':'📌 Pins / points signalés','📦 Projekt-Packliste & Materialverbrauch':'📦 Liste du projet & consommation','Soll → verbraucht → Rest. Verbrauch direkt auf der Baustelle dokumentieren.':'Prévu → consommé → reste. Documenter la consommation directement sur le chantier.','➕ Uzin-Material hinzufügen':'➕ Ajouter un matériau Uzin','Hersteller / Produkt':'Fabricant / produit','Soll-Menge':'Quantité prévue','Verbraucht':'Consommé','Rest':'Reste',
+    '☑️ Baustellen-Aufgaben':'☑️ Tâches du chantier','📝 Tagesbericht':'📝 Rapport journalier','💾 Bericht speichern':'💾 Enregistrer le rapport','✍️ Digitale Abnahme':'✍️ Réception numérique','Offen':'Ouvert','✅ Abnahme speichern':'✅ Enregistrer la réception','📂 Baustellenordner':'📂 Dossier du chantier','Alles zur Baustelle an einem Ort':'Tout sur le chantier au même endroit',
+    'Aktuelle Übersicht über Baustellen, Einsätze und gemeldete Probleme.':'Aperçu actuel des chantiers, interventions et problèmes signalés.','🔄 Aktualisieren':'🔄 Actualiser','📅 Heute im Einsatz':'📅 En intervention aujourd’hui','⚠️ Baustellen-Probleme':'⚠️ Problèmes de chantier','🤒 Krankmeldungen':'🤒 Arrêts maladie','Bestand OK':'Stock OK','Nachbestellen':'Commander','Ausgaben heute':'Sorties aujourd’hui','Alle Kategorien':'Toutes les catégories','Bestand':'Stock','Noch keine Lagerartikel angelegt.':'Aucun article de stock créé.','🏗️ Maschinen unterwegs':'🏗️ Machines en déplacement','🧾 Letzte Werkzeugausgaben':'🧾 Dernières sorties d’outils','＋ Material hinzufügen':'＋ Ajouter un matériau','↺ Vorhandene KI-Produkte übernehmen':'↺ Importer les produits IA existants',
+    'Mangel oder Notiz':'Défaut ou note','Was ist passiert? Was muss der Chef wissen?':'Que s’est-il passé ? Que doit savoir le chef ?','⚠️ Problem melden':'⚠️ Signaler un problème',
+    'Baustelle':'Chantier','Baustelle auswählen...':'Sélectionner un chantier...','Baustellen-Zuweisungen':'Affectations des chantiers','Baustelle kurz beschreiben → Räume, Flächen, Arbeiten und Material automatisch erkennen → Baustelle anlegen':'Décrivez brièvement le chantier → reconnaître automatiquement les pièces, surfaces, travaux et matériaux → créer le chantier',
+    'Aktueller Bestand':'Stock actuel','Bestände, Wareneingänge, Werkzeugausgaben und automatische Nachbestellungen.':'Stocks, réceptions de marchandises, sorties d’outils et commandes automatiques.','Bestand':'Stock','Bestand OK':'Stock OK','Bestellmenge':'Quantité à commander','Ausgaben heute':'Sorties aujourd’hui','Nachbestellen':'Commander','Noch keine Lagerartikel angelegt.':'Aucun article de stock créé.','Aktuell muss nichts nachbestellt werden.':'Aucune commande nécessaire actuellement.','Lager & Werkzeug':'Stock & outils','Lagerort':'Emplacement','Menge':'Quantité','Meter':'Mètre','Eimer':'Seau','Karton':'Carton','Packung':'Paquet','Rolle':'Rouleau','Set':'Set','Stk':'Pce','Stk./Packung':'Pce/paquet',
+    'Chef-Dashboard':'Tableau de bord du chef','CHEF-DASHBOARD':'TABLEAU DE BORD DU CHEF','Chef-Zentrale: Urlaubs-Freigaben & Team-Stunden':'Centrale chef : validations des congés & heures de l’équipe','Erfasste Stunden im Team (September)':'Heures enregistrées de l’équipe (septembre)','Mitarbeiter-Zentrale':'Centrale des employés','Mitarbeiter & Zuweisung':'Employés & affectations','Neuen Mitarbeiter anlegen':'Ajouter un nouvel employé','Mitarbeiter auswählen':'Sélectionner un employé','Mitarbeiter / Chef auswählen':'Sélectionner un employé / chef',
+    'Zeiterfassung & Urlaub':'Temps de travail & congés','ZEITERFASSUNG & URLAUB':'TEMPS DE TRAVAIL & CONGÉS','Tägliche Zeiterfassung':'Suivi quotidien du temps de travail','Netto-Stunden':'Heures nettes','Netto-Stunden':'Heures nettes','Heutige Netto-Arbeitszeit':'Temps de travail net aujourd’hui','Startzeit':'Heure de début','Pause':'Pause','Feierabend':'Fin de journée','Überstunden starten':'Démarrer les heures supplémentaires','🏁 Feierabend':'🏁 Fin de journée','☕ Pause':'☕ Pause','▶ Starten':'▶ Démarrer','GESPEICHERTE ZEITEN HISTORIE':'HISTORIQUE DES TEMPS ENREGISTRÉS','Meine erfassten Arbeitszeiten (Historie)':'Mes temps de travail enregistrés (historique)',
+    'Urlaubskonto':'Compte de congés','Resturlaub 2026':'Congés restants 2026','Verbleibender Resturlaub (Tage)':'Congés restants (jours)','Meine Urlaubsanträge':'Mes demandes de congés','Neuen Urlaubsantrag':'Nouvelle demande de congé','Neuen Urlaubsantrag einreichen':'Soumettre une nouvelle demande de congé','Offene Urlaubsanträge':'Demandes de congés en attente','Urlaubskonto & Resturlaub':'Compte de congés & solde restant','Wähle den Zeitraum und sende deinen Antrag an das Büro.':'Choisissez la période et envoyez votre demande au bureau.','Zeitraum':'Période','Von':'Du','Bis':'Au','Antrag senden':'Envoyer la demande','Entscheidung':'Décision','Abwesenheit für diesen Tag':'Absence pour ce jour','Geprüft':'Vérifié',
+    'Krankmeldung / Attest':'Arrêt maladie / certificat','Krankmeldung':'Arrêt maladie','Krankmeldung speichern':'Enregistrer l’arrêt maladie','Foto oder PDF der Krankmeldung.':'Photo ou PDF de l’arrêt maladie.','Alle deine gespeicherten Krankmeldungen und Krankheitstage.':'Tous vos arrêts maladie et jours de maladie enregistrés.','Krankheitstage-Sammler':'Collecteur de jours de maladie','Krankheitstage:':'Jours de maladie :',
+    'Benachrichtigungen & Anweisungen':'Notifications & instructions','BENACHRICHTIGUNGEN & ANWEISUNGEN':'NOTIFICATIONS & INSTRUCTIONS','Anweisungen & Team-Nachrichten':'Instructions & messages de l’équipe','Klicke auf eine Nachricht, um sie als separates Fenster zu öffnen.':'Cliquez sur un message pour l’ouvrir dans une fenêtre séparée.','Alle als gelesen markieren':'Tout marquer comme lu','Alle löschen':'Tout supprimer','Push aktivieren':'Activer les notifications push','Nachricht verfassen...':'Rédiger un message...','Empfänger wählen':'Choisir le destinataire','Deine Nachricht / Anweisung':'Votre message / instruction','Antworten':'Répondre','Benachrichtigung Details':'Détails de la notification','Anweisung vom Chef:':'Instruction du chef :','Hochgeladen von':'Téléversé par',
+    'Belege & Kasse':'Reçus & caisse','BELEGE':'REÇUS','Belegdatei':'Fichier du reçu','Betrag':'Montant','Betrag (€)':'Montant (€)','Noch keine Belege vorhanden.':'Aucun reçu disponible.','Nur eigene Belege':'Uniquement mes reçus','Neuen Beleg hochladen':'Téléverser un nouveau reçu','Beleg speichern':'Enregistrer le reçu','Verleger sehen nur eigene Belege. Chef, Techniker und Sekretariat sehen alle Belege.':'Les poseurs ne voient que leurs propres reçus. Le chef, les techniciens et le secrétariat voient tous les reçus.','Eigene Abrechnungen':'Mes décomptes',
+    'Materialverwaltung':'Gestion des matériaux','MATERIALVERWALTUNG':'GESTION DES MATÉRIAUX','Produkt':'Produit','Produktname + Verbrauch eintragen. Bei Verbrauch pro m²/mm wird die vom Auftrag erkannte Spachteldicke automatisch berücksichtigt. Ein Gebindegewicht/-volumen kann zusätzlich hinterlegt werden. Für Fußleisten/Profile wähle „lfm → Stück → Packung“ und trage z. B. Länge 2,70 m sowie 10 Stück pro Packung ein – die KI berechnet daraus automatisch Stück und Packungen.':'Saisissez le nom du produit et sa consommation. Pour une consommation par m²/mm, l’épaisseur de l’enduit reconnue dans la commande est prise en compte automatiquement. Le poids/volume du conditionnement peut aussi être indiqué. Pour les plinthes/profils, choisissez « m linéaires → pièces → paquet » et indiquez par ex. une longueur de 2,70 m et 10 pièces par paquet – l’IA calcule automatiquement les pièces et les paquets.','Verbrauch von':'Consommation de','Verbrauch bis':'Consommation jusqu’à','Suchbegriffe':'Mots-clés','Gebinde':'Conditionnement','Hersteller':'Fabricant','Kategorie':'Catégorie','Noch keine Materialien hinterlegt. Klicke auf „Material hinzufügen“.':'Aucun matériau enregistré. Cliquez sur « Ajouter un matériau ».',
+    'Wochenplanung':'Planning hebdomadaire','Meine Wochenplanung':'Mon planning hebdomadaire','Baustellen direkt für jeden Wochentag planen. Pro Tag sind mehrere Baustellen möglich.':'Planifiez directement les chantiers pour chaque jour de la semaine. Plusieurs chantiers sont possibles par jour.','Deine geplanten Baustellen für diese Woche':'Vos chantiers planifiés pour cette semaine','Heute':'Aujourd’hui','Diese Woche':'Cette semaine','Heute im Einsatz':'En intervention aujourd’hui','Baustelle einteilen':'Affecter un chantier','Projekt-Zuweisung (Grundzuordnung)':'Affectation de projet (affectation de base)','Diese Zuordnung bestimmt, welche Baustellen in der Wochenplanung auswählbar sind.':'Cette affectation détermine quels chantiers peuvent être sélectionnés dans le planning hebdomadaire.',
+    'Live-Karte':'Carte en direct','LIVE-KARTE':'CARTE EN DIRECT','Live-Baustellen & zugeteilte Verleger':'Chantiers en direct & poseurs affectés','Adresse suchen, Karte verschieben oder direkt auf das Gebäude tippen.':'Recherchez l’adresse, déplacez la carte ou touchez directement le bâtiment.','Noch keine Position ausgewählt.':'Aucune position sélectionnée.','Position übernehmen':'Utiliser cette position','Karte':'Carte','Direktanruf':'Appel direct','Telefonliste':'Liste téléphonique','TELEFONLISTE':'LISTE TÉLÉPHONIQUE','Telefonnummer':'Numéro de téléphone','Telefonnummer / Handynummer':'Numéro de téléphone / portable','E-Mail-Adresse':'Adresse e-mail',
+    'Problem auswählen':'Sélectionner un problème','Bitte Problem auswählen und kurz beschreiben.':'Veuillez sélectionner un problème et le décrire brièvement.','Bitte wende dich an die Arbeitsvorbereitung.':'Veuillez contacter la préparation du travail.','Untergrund nicht geeignet':'Support inadapté','Material fehlt':'Matériel manquant','Fläche stimmt nicht':'La surface ne correspond pas','Kunde nicht vor Ort':'Client absent','Beschädigung vorhanden':'Dommage présent','Terminproblem':'Problème de rendez-vous','Sonstiges':'Autre',
+    'Tagesbericht':'Rapport journalier','Bericht speichern':'Enregistrer le rapport','Digitale Abnahme':'Réception numérique','Abnahme speichern':'Enregistrer la réception','Offen':'Ouvert','Baustellenordner':'Dossier du chantier','Alles zur Baustelle an einem Ort':'Tout sur le chantier au même endroit','Baustellen-Pläne & Mangel-Pins':'Plans du chantier & pins de défaut','Plan hinzufügen':'Ajouter un plan','Pins / gemeldete Punkte':'Pins / points signalés','Projekt-Packliste & Materialverbrauch':'Liste du projet & consommation des matériaux','Soll-Menge':'Quantité prévue','Verbraucht':'Consommé','Rest':'Reste',
+    'Grundriss-Plan (Bild oder PDF) antippen oder per Drag & Drop einfügen':'Touchez le plan (image ou PDF) ou insérez-le par glisser-déposer','Du kannst mehrere Pläne (z.B. EG, OG) hochladen':'Vous pouvez téléverser plusieurs plans (par ex. RDC, étage)','Vollbild-Modus':'Mode plein écran','Tipp: Nutze oben die Zoom-Buttons oder ziehe den Plan mit der Maus / dem Finger. Klicke auf eine Stelle, um Pins zu setzen oder anzusehen.':'Astuce : utilisez les boutons de zoom en haut ou déplacez le plan avec la souris / le doigt. Cliquez à un endroit pour placer ou consulter des pins.','Tipp: Tippe einfach auf den Plan, um ihn im':'Astuce : touchez simplement le plan pour l’ouvrir en',
+    'Abrechnungsvorschau':'Aperçu du décompte','ABRECHNUNG-VORSCHAU':'APERÇU DU DÉCOMPTE','Abrechnung speichern':'Enregistrer le décompte','Abrechnung hochladen':'Téléverser un décompte','Noch keine Abrechnungen vorhanden.':'Aucun décompte disponible.','Hersteller automatisch':'Reconnaître automatiquement le fabricant','Belag automatisch erkennen':'Reconnaître automatiquement le revêtement','Textanalyse':'Analyse du texte','Erkanntes Material':'Matériaux reconnus','Arbeitsauftrag / Anweisung':'Ordre de travail / instruction','Projekt / Baustelle':'Projet / chantier','Baustellenadresse':'Adresse du chantier','Zurücksetzen':'Réinitialiser','Baustelle anlegen':'Créer le chantier',
+    '⚡ 1-Klick Schnell-Test:':'⚡ Test rapide en 1 clic :','Bereit':'Prêt','Lade Wetter...':'Chargement de la météo...','für heute':'pour aujourd’hui','In 32 Tagen':'Dans 32 jours','Ideale Bedingungen für Baustellen- und Verlegearbeiten in Luxemburg.':'Conditions idéales pour les travaux de chantier et de pose au Luxembourg.','Hier ist deine persönliche Übersicht für den heutigen Arbeitstag in Luxemburg. Alles Wichtige auf einen Blick.':'Voici votre aperçu personnel de la journée de travail à Luxembourg. Tout l’essentiel en un coup d’œil.','Hier siehst du, welche Maschine gerade bei welchem Mitarbeiter ist.':'Ici vous voyez quelle machine est actuellement attribuée à quel employé.',
+    'Daten in der Cloud aktualisieren':'Actualiser les données dans le cloud','Klickbarer Container':'Conteneur cliquable','Firebase SDK & Cloud Logik':'SDK Firebase & logique cloud','Leaflet.js für die echte interaktive Karte':'Leaflet.js pour la vraie carte interactive','PDF.js für echte PDF-Texterkennung / Seiten-Rendering':'PDF.js pour la reconnaissance réelle du texte PDF / rendu des pages','Nur eigene Belege':'Uniquement mes reçus','Wird dynamisch befüllt':'Rempli automatiquement','Nicht angegeben':'Non indiqué','Grund / Hinweis':'Motif / remarque','Name / Verleger':'Nom / poseur','Dein Name':'Votre nom','Handynummer, E-Mail und Passwort ändern.':'Modifier le numéro de portable, l’e-mail et le mot de passe.','Neues Passwort (optional)':'Nouveau mot de passe (facultatif)','Meine Kontodaten & Passwort':'Mes données de compte & mot de passe',
 
-    function profileLanguage(){
-        try {
-            const userName = window.__brisboisUserName || '';
-            const gd = window.__brisboisGlobalDaten || window.globalDaten;
-            const p = (gd && userName && gd.mitarbeiterProfil) ? gd.mitarbeiterProfil[userName] : null;
-            return (p && (p.sprache === 'fr' || p.sprache === 'de')) ? p.sprache : null;
-        } catch(e){ return null; }
+    '👥 Neuen Mitarbeiter anlegen':'👥 Ajouter un employé',
+    '➕ Mitarbeiter anlegen (start123)':'➕ Ajouter un employé (start123)',
+    '👥 Mitarbeiter-Zentrale':'👥 Centrale des employés',
+    '📋 Projekt-Zuweisung (Grundzuordnung)':'📋 Affectation de projet (affectation de base)',
+    'JPG, PNG oder PDF · max. 750 KB':'JPG, PNG ou PDF · max. 750 Ko',
+    '📤 Beleg speichern':'📤 Enregistrer le reçu',
+    'Chef, Techniker und Sekretariat können Abrechnungen für einzelne Verleger hochladen. Verleger sehen nur ihre eigenen Abrechnungen.':'Les chefs, techniciens et le secrétariat peuvent télécharger les décomptes de chaque poseur. Les poseurs ne voient que leurs propres décomptes.',
+    '➕ Abrechnung hochladen':'➕ Télécharger un décompte',
+    'PDF, JPG oder PNG · max. 2 MB':'PDF, JPG ou PNG · max. 2 Mo',
+    '📤 Abrechnung speichern':'📤 Enregistrer le décompte',
+    'URLAUB-REST BEARBEITEN BEREICH':'MODIFICATION DU SOLDE DE CONGÉS',
+    'Trage hier ein, wie viel Urlaub Dir für dieses Jahr noch zusteht.':'Indiquez ici le nombre de jours de congé qu’il vous reste pour cette année.',
+    'MEINE URLAUBSANTRÄGE: Nur der aktuell eingeloggte Verleger sieht seine eigenen Anträge':'MES DEMANDES DE CONGÉ : seul le poseur actuellement connecté voit ses propres demandes',
+    'Hier siehst nur du deine eigenen Anträge und deren Entscheidung.':'Ici, vous voyez uniquement vos propres demandes et leur décision.',
+    'MODAL: WOCHENPLANUNG EINTRAG':'FENÊTRE : PLANIFICATION HEBDOMADAIRE',
+    '🤒 Krankmeldung':'🤒 Arrêt maladie',
+    'Zeitraum und Krankmeldung hinterlegen':'Indiquer la période et l’arrêt maladie',
+    '💾 Krankmeldung speichern':'💾 Enregistrer l’arrêt maladie',
+    '🏗️ Baustelle einteilen':'🏗️ Affecter un chantier',
+    '🏖️ Urlaub':'🏖️ Congé',
+    '⚠️ Problem auf Baustelle melden':'⚠️ Signaler un problème sur le chantier',
+    '📦 Material fehlt':'📦 Matériel manquant',
+    '👤 Kunde nicht vor Ort':'👤 Client absent',
+    'Artikel, Bestand und Bild für das Lager hinterlegen.':'Enregistrer l’article, le stock et l’image pour le magasin.',
+    '💾 Artikel speichern':'💾 Enregistrer l’article',
+    '👷 Werkzeug / Material ausgeben':'👷 Sortir un outil / matériau',
+    '✓ Ausgabe speichern':'✓ Enregistrer la sortie',
+    '🟢 Aktuell muss nichts nachbestellt werden.':'🟢 Aucun réapprovisionnement nécessaire actuellement.',
+    'MODAL: PLAN GROSSANSICHT / VOLLBILD (LICHTBOX)':'FENÊTRE : PLAN EN GRAND FORMAT / PLEIN ÉCRAN',
+    'MODAL: UZIN PRODUKT-AUSWAHL FÜR PACKLISTE':'FENÊTRE : SÉLECTION DU PRODUIT UZIN POUR LA LISTE',
+    'MODAL: BAUSTELLEN-ADRESSE AUF KARTE AUSWÄHLEN':'FENÊTRE : SÉLECTIONNER L’ADRESSE DU CHANTIER SUR LA CARTE',
+    '💡 Der Marker kann mit dem Finger/der Maus auf das genaue Gebäude gezogen werden.':'💡 Le marqueur peut être déplacé avec le doigt ou la souris jusqu’au bâtiment exact.',
+    'MODAL FÜR NACHRICHT SENDEN':'FENÊTRE D’ENVOI DE MESSAGE',
+    'MODAL FÜR KI-AUFTRAG – NUR TEXTEINGABE':'FENÊTRE DE COMMANDE IA – SAISIE DE TEXTE UNIQUEMENT',
+    'Schreibe einfach in deinen eigenen Worten. Mehrere Räume können direkt angegeben werden, z. B. „1: Raum 69 m² … 2: Raum 35 m² … in alle Räume …“':'Écrivez simplement avec vos propres mots. Plusieurs pièces peuvent être indiquées directement, par ex. « 1 : pièce 69 m² … 2 : pièce 35 m² … dans toutes les pièces … ».',
+    'Adresse eingeben oder 📍 Karte öffnen. Dort kannst du das genaue Gebäude markieren.':'Saisissez l’adresse ou ouvrez la 📍 carte. Vous pouvez y marquer le bâtiment exact.',
+    '⏱️ Zeiterfassung & Urlaub verwalten →':'⏱️ Gérer le temps de travail et les congés →',
+    'Adresse: 15 Avenue J.F. Kennedy, Luxemburg-Kirchberg':'Adresse : 15 Avenue J.F. Kennedy, Luxembourg-Kirchberg',
+    'DIREKT IM PROJEKT: ZUGETEILTE MITARBEITER & MEHRFACH-ZUWEISUNG':'DIRECTEMENT DANS LE PROJET : EMPLOYÉS AFFECTÉS & AFFECTATIONS MULTIPLES',
+    'zu öffnen, heranzuzoomen und Pins zu setzen.':'pour ouvrir, zoomer et placer des pins.',
+    'Klicke auf einen Eintrag, um direkt zum richtigen Plan und Pin zu springen.':'Cliquez sur une entrée pour accéder directement au bon plan et au bon pin.',
+    'LAGER & WERKZEUG':'STOCK & OUTILS',
+    'Hier werden alle verwendeten Produkte mit Verbrauch hinterlegt. Die KI-Auftragserstellung greift automatisch auf diese Liste zurück.':'Tous les produits utilisés et leur consommation sont enregistrés ici. La création de commande IA utilise automatiquement cette liste.',
+    '✔ Alle als gelesen markieren':'✔ Tout marquer comme lu',
+    '🗑️ Alle löschen':'🗑️ Tout supprimer',
+    '💬 Nachricht verfassen...':'💬 Rédiger un message...',
+    '💾 Daten in der Cloud aktualisieren':'💾 Mettre à jour les données dans le cloud',
+    'MITARBEITER-ZUWEISUNG':'AFFECTATION DES EMPLOYÉS',
+
+    'Guten Tag,':'Bonjour,',
+    'Montag':'Lundi',
+    'Dienstag':'Mardi',
+    'Mittwoch':'Mercredi',
+    'Donnerstag':'Jeudi',
+    'Freitag':'Vendredi',
+    'Samstag':'Samedi',
+    'Sonntag':'Dimanche',
+    'Mont':'Lun',
+    'Di':'Mar',
+    'Mi':'Mer',
+    'Do':'Jeu',
+    'Fr':'Ven',
+    'Sa':'Sam',
+    'So':'Dim',
+    'Januar':'janvier',
+    'Februar':'février',
+    'März':'mars',
+    'April':'avril',
+    'Mai':'mai',
+    'Juni':'juin',
+    'Juli':'juillet',
+    'August':'août',
+    'September':'septembre',
+    'Oktober':'octobre',
+    'November':'novembre',
+    'Dezember':'décembre',
+    'Techniker':'Technicien',
+    'Sekretariat':'Secrétariat',
+    '2. Chef':'2e chef',
+    'Tage':'jours',
+    'Tag':'jour',
+  };
+
+  const originals=new WeakMap();
+  const translated=new WeakMap();
+  window.portalLanguage=localStorage.getItem('brisbois_language')||'de';
+  function norm(v){return String(v||'').replace(/\s+/g,' ').trim()}
+  function updateLanguageButtons(lang){
+    document.querySelectorAll('#language-de-login,#language-de-app').forEach(b=>b.classList.toggle('language-active',lang==='de'));
+    document.querySelectorAll('#language-fr-login,#language-fr-app').forEach(b=>b.classList.toggle('language-active',lang==='fr'));
+  }
+  const frKeys=Object.keys(FR).sort((a,b)=>b.length-a.length);
+  const frReverse={};
+  frKeys.forEach(k=>{ if(FR[k] && FR[k]!==k && !frReverse[FR[k]]) frReverse[FR[k]]=k; });
+  const frValues=Object.keys(frReverse).sort((a,b)=>b.length-a.length);
+
+  function translateText(raw,lang){
+    let out=String(raw||'');
+    if(lang==='fr'){
+      frValues.forEach(fr=>{ if(out.includes(fr)) out=out.split(fr).join(frReverse[fr]); });
+      frKeys.forEach(de=>{ if(FR[de] && out.includes(de)) out=out.split(de).join(FR[de]); });
     }
+    return out;
+  }
 
-    function setTranslateCookie(lang){
-        const value = lang === 'fr' ? '/de/fr' : '/de/de';
-        document.cookie = 'googtrans=' + value + ';path=/';
-        document.cookie = 'googtrans=' + value + ';path=/;domain=' + location.hostname;
-    }
-
-    function updateLanguageButtons(lang){
-        document.querySelectorAll('#language-de-login,#language-de-app').forEach(function(b){ b.classList.toggle('language-active',lang==='de'); });
-        document.querySelectorAll('#language-fr-login,#language-fr-app').forEach(function(b){ b.classList.toggle('language-active',lang==='fr'); });
-    }
-
-    window.portalGoogleTranslateReady = false;
-    window.googleTranslateElementInit = function(){
-        try {
-            new google.translate.TranslateElement({
-                pageLanguage:'de',
-                includedLanguages:'de,fr',
-                autoDisplay:false,
-                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
-            }, 'google_translate_element');
-            window.portalGoogleTranslateReady = true;
-        } catch(e){ console.warn('Sprachmodul konnte nicht gestartet werden:', e); }
-    };
-
-    window.portalApplyLanguage = function(lang){
-        lang = lang === 'fr' ? 'fr' : 'de';
-        window.portalLanguage = lang;
-        localStorage.setItem('brisbois_language', lang);
-        document.documentElement.lang = lang;
-        document.body.setAttribute('data-portal-language', lang);
-        updateLanguageButtons(lang);
-        setTranslateCookie(lang);
-
-        // Falls Google Translate bereits aktiv ist, zusätzlich direkt umschalten.
-        const select = document.querySelector('.goog-te-combo');
-        if(select && select.value !== lang){
-            try { select.value = lang; select.dispatchEvent(new Event('change')); } catch(e) {}
+  function translateNode(n,lang){
+    if(n.nodeType===3){
+      const raw=n.nodeValue;
+      if(!raw || !norm(raw)) return;
+      if(lang==='fr'){
+        if(!originals.has(n) || translated.get(n)!==raw) originals.set(n,raw);
+        const out=translateText(originals.get(n),lang);
+        if(out!==raw){ translated.set(n,out); n.nodeValue=out; }
+      } else {
+        if(translated.get(n)===raw && originals.has(n)) n.nodeValue=originals.get(n);
+        else { originals.set(n,raw); translated.delete(n); }
+      }
+    } else if(n.nodeType===1){
+      ['placeholder','title','aria-label'].forEach(a=>{
+        if(n.hasAttribute(a)){
+          const attrKey='orig'+a.replace(/-/g,'');
+          const val=n.getAttribute(a);
+          if(!n.dataset[attrKey]) n.dataset[attrKey]=val;
+          n.setAttribute(a,lang==='fr'?translateText(n.dataset[attrKey],lang):n.dataset[attrKey]);
         }
-    };
-
-    window.setPortalLanguage = function(lang){
-        lang = lang === 'fr' ? 'fr' : 'de';
-        // NOTFALL-STABIL: Sprachwahl darf niemals Firebase-Daten speichern,
-        // globalDaten verändern oder einen Reload auslösen.
-        window.portalApplyLanguage(lang);
-        try { localStorage.setItem('brisbois_language', lang); } catch(e) {}
-    };
-
-    window.portalLanguageAfterLogin = function(){
-        const profileLang = profileLanguage();
-        const lang = profileLang || localStorage.getItem('brisbois_language') || 'de';
-        const cookieLang = document.cookie.indexOf('googtrans=/de/fr') >= 0 ? 'fr' : 'de';
-        window.portalLanguage = lang;
-        localStorage.setItem('brisbois_language', lang);
-        document.documentElement.lang = lang;
-        document.body.setAttribute('data-portal-language', lang);
-        updateLanguageButtons(lang);
-        if(cookieLang !== lang){
-            setTranslateCookie(lang);
-        }
-        try { sessionStorage.removeItem('brisbois_language_reload'); } catch(e) {}
-    };
-
-    setTimeout(function(){
-        const lang = localStorage.getItem('brisbois_language') || 'de';
-        window.portalApplyLanguage(lang);
-    }, 300);
+      });
+      Array.from(n.childNodes).forEach(c=>translateNode(c,lang));
+    }
+  }
+  window.portalApplyLanguage=function(lang){
+    lang=lang==='fr'?'fr':'de'; window.portalLanguage=lang; localStorage.setItem('brisbois_language',lang);
+    document.documentElement.lang=lang; document.body.setAttribute('data-portal-language',lang); updateLanguageButtons(lang);
+    translateNode(document.body,lang);
+  };
+  function profileLanguage(){try{const u=window.__brisboisUserName||'',gd=window.__brisboisGlobalDaten||window.globalDaten,p=gd&&u&&gd.mitarbeiterProfil?gd.mitarbeiterProfil[u]:null;return p&&(p.sprache==='fr'||p.sprache==='de')?p.sprache:null}catch(e){return null}}
+  window.setPortalLanguage=async function(lang){
+    lang=lang==='fr'?'fr':'de'; window.portalApplyLanguage(lang);
+    try{const u=window.__brisboisUserName||'',gd=window.__brisboisGlobalDaten||window.globalDaten;if(u&&gd){gd.mitarbeiterProfil=gd.mitarbeiterProfil||{};const old=gd.mitarbeiterProfil[u]||{};gd.mitarbeiterProfil[u]=Object.assign({},old,{sprache:lang});if(typeof window.globalGlobalSpeichern==='function')await window.globalGlobalSpeichern();}}catch(e){console.warn('Sprache konnte nicht gespeichert werden:',e)}
+  };
+  window.portalLanguageAfterLogin=function(){window.portalApplyLanguage(profileLanguage()||localStorage.getItem('brisbois_language')||'de')};
+  const obs=new MutationObserver(ms=>{const lang=window.portalLanguage||'de';ms.forEach(m=>{if(lang==='fr'){if(m.type==='characterData')translateNode(m.target,'fr');else m.addedNodes.forEach(n=>translateNode(n,'fr'));}else if(lang==='de' && m.type==='characterData'){translateNode(m.target,'de');}})});
+  function init(){window.portalApplyLanguage(localStorage.getItem('brisbois_language')||'de');obs.observe(document.body,{childList:true,subtree:true,characterData:true})}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
-<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
-
 
 <script>
 (function(){
