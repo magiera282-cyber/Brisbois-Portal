@@ -5051,11 +5051,19 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             wrapper.style.width = `${Math.max(1, Math.round(baseW * zoom))}px`;
             wrapper.style.height = `${Math.max(1, Math.round(baseH * zoom))}px`;
 
-            [bild, pdf, pins].forEach(el => {
+            // Bild/PDF wird skaliert. Der Pin-Container darf NICHT noch einmal
+            // skaliert werden: seine Breite/Höhe entspricht bereits der durch
+            // den Wrapper vergrößerten Planfläche. Andernfalls würde die Pin-
+            // Position bei Zoom doppelt skaliert und vom gesetzten Punkt wegwandern.
+            [bild, pdf].forEach(el => {
                 if (!el) return;
                 el.style.transformOrigin = 'top left';
                 el.style.transform = `scale(${zoom})`;
             });
+            if (pins) {
+                pins.style.transformOrigin = 'top left';
+                pins.style.transform = 'none';
+            }
         }
 
         window.startVollbildPan = function(e) {
