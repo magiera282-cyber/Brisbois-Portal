@@ -111,7 +111,10 @@ function kiGlobalInfo(text){
  const beforeAll=idx>=0?t.slice(0,idx):'';
  const lastRoom=beforeAll.match(/(?:^|[\s;,.!?])([0-9]+)\s*[:.)\-]?\s*(?:raum|zimmer|bereich)\b/gi);
  const segment=lastRoom&&lastRoom.length?beforeAll.slice(beforeAll.lastIndexOf(lastRoom[lastRoom.length-1])):beforeAll;
- const products=idx>=0?kiAlleProdukte(segment).filter(p=>/MK|KE |WK |WAKOL D/.test(p)):[];
+ const products=idx>=0?kiAlleProdukte(segment).filter(p=>{
+   const m=materiallisteFuerKI().find(x=>String(x.produkt||'').toLowerCase()===String(p||'').toLowerCase());
+   return /MK|KE |WK |WAKOL D/.test(p) || !!m;
+ }):[];
  const foot=/fu(?:ß|ss)leisten?\b[^.\n]*/i.exec(t);
  return {all,products,footleisten:foot?foot[0].trim():''};
 }
@@ -153,12 +156,19 @@ function kiProfessionelleAnweisung(daten,globalInfo){
 }
 function kiMaterialZeilen(daten,globalInfo,reserve){
  const map=new Map();
- const addCalc=(name,qm,dicke)=>{const c=kiCalc(name,qm,dicke,reserve);if(!c)return;const old=map.get(name);if(!old)map.set(name,c);else{old.minKg+=c.minKg;old.maxKg+=c.maxKg;old.gebindeMin=Math.ceil(old.minKg/old.packung);old.gebindeMax=Math.ceil(old.maxKg/old.packung);}};
+ const addCalc=(name,qm,dicke)=>{const c=kiCalc(name,qm,dicke,reserve);if(!c)return;const old=map.get(name);if(!old)map.set(name,c);else{old.minKg+=c.minKg;old.maxKg+=c.maxKg;old.gebindeMin=old.packung?Math.ceil(old.minKg/old.packung):old.gebindeMin;old.gebindeMax=old.packung?Math.ceil(old.maxKg/old.packung):old.gebindeMax;}};
+ const materialEintrag=(name)=>materiallisteFuerKI().find(m=>String(m.produkt||'').toLowerCase()===String(name||'').toLowerCase());
+ const istDynamischesMaterial=(name)=>{const m=materialEintrag(name);return !!m && !!m.produkt;};
+ const istKleber=(name)=>{const m=materialEintrag(name);return !!m && /kleber|klebstoff|adhes|colle|verkleb/i.test(String(m.kategorie||'')+' '+String(m.produkt||''));};
  daten.forEach(r=>{
    r.products.forEach(p=>{
      if(/NC|WAKOL Z 615/.test(p))addCalc(p,r.qm,r.schichtdicke);
      else if(/PE /.test(p)||/MK|KE |WK |WAKOL D/.test(p)){
        // Kleber im Raum wird nur hier gerechnet; globale Kleber werden unten auf alle Räume gerechnet.
+       if(!(globalInfo.all&&globalInfo.products.includes(p)))addCalc(p,r.qm,null);
+     } else if(istDynamischesMaterial(p)){
+       // Neu in der Materialliste angelegte Produkte (z.B. UZIN LE 44)
+       // werden ebenfalls mit den dort hinterlegten Verbrauchsdaten berechnet.
        if(!(globalInfo.all&&globalInfo.products.includes(p)))addCalc(p,r.qm,null);
      }
    });
