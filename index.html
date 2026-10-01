@@ -220,6 +220,9 @@ function kiKurzbeschreibungAuswerten(){
  window.letzterKiScan={kunde:'',auftragsnummer:'',termin:'',flaeche:String(total||''),belag:[...new Set(daten.map(r=>r.belag).filter(Boolean))].join(', '),arbeiten:[],ansprechpartner:'',telefon:'',email:'',sprache:'Deutsch',unsicher,roherText:text,originalDatei:null,raeume:daten,materialBerechnung:material};
  const bereich=document.getElementById('ki-ergebnis-bereich');if(bereich)bereich.classList.remove('hidden');
 }
+// Explizit global machen, damit der Button im HTML-Attribut onclick auf allen
+// Browsern/WebViews zuverlässig dieselbe Funktion aufruft.
+window.kiKurzbeschreibungAuswerten=kiKurzbeschreibungAuswerten;
 </script>
 
 <style>
@@ -6704,8 +6707,18 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try{await globalGlobalSpeichern();materiallisteAnzeigen();alert('Die bereits im Portal vorhandenen KI-Produkte wurden in die Materialliste übernommen.');}catch(e){alert('Die Standardwerte konnten nicht gespeichert werden.');}
         };
         function materiallisteFuerKI(){
-            materiallisteNormalisieren();
-            return globalDaten.materialliste.filter(m=>m.aktiv!==false && m.produkt && Number(m.verbrauchVon)>0);
+            // Die KI darf niemals abbrechen, nur weil die Materialliste beim
+            // ersten Laden noch nicht initialisiert ist.
+            if(typeof globalDaten==='undefined' || !globalDaten) return [];
+            try{
+                materiallisteNormalisieren();
+                return Array.isArray(globalDaten.materialliste)
+                    ? globalDaten.materialliste.filter(m=>m.aktiv!==false && m.produkt && Number(m.verbrauchVon)>0)
+                    : [];
+            }catch(e){
+                console.warn('Materialliste für KI konnte nicht gelesen werden:',e);
+                return [];
+            }
         }
         function kiMaterialTextNorm(v){
             return String(v||'')
@@ -6763,20 +6776,36 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // KI nutzt zuerst die vom Team gepflegte Materialliste; die alten eingebauten Werte bleiben als Fallback erhalten.
         const _kiCalcAlt=kiCalc;
         kiCalc=function(name,qm,dicke,reserve){
-            const dyn=kiMaterialBerechnungAusListe(name,qm,dicke,reserve);
-            return dyn || _kiCalcAlt(name,qm,dicke,reserve);
+            try{
+                const dyn=kiMaterialBerechnungAusListe(name,qm,dicke,reserve);
+                return dyn || _kiCalcAlt(name,qm,dicke,reserve);
+            }catch(e){
+                console.warn('Dynamische KI-Materialberechnung:',e);
+                return _kiCalcAlt(name,qm,dicke,reserve);
+            }
         };
         const _kiProduktErkennenAlt=kiProduktErkennen;
         kiProduktErkennen=function(text){
-            const dyn=kiProduktAusMaterialliste(text,materiallisteFuerKI());
-            return dyn ? dyn.produkt : _kiProduktErkennenAlt(text);
+            try{
+                const dyn=kiProduktAusMaterialliste(text,materiallisteFuerKI());
+                return dyn ? dyn.produkt : _kiProduktErkennenAlt(text);
+            }catch(e){
+                console.warn('Dynamische KI-Produkterkennung:',e);
+                return _kiProduktErkennenAlt(text);
+            }
         };
         const _kiAlleProdukteAlt=kiAlleProdukte;
         kiAlleProdukte=function(text){
-            const liste=materiallisteFuerKI();
-            const dyn=liste.filter(m=>kiProduktSuchbegriffe(m).some(b=>b && kiMaterialTextNorm(text).includes(b))).map(m=>m.produkt);
-            const old=_kiAlleProdukteAlt(text);
-            return [...new Set([...dyn,...old])];
+            try{
+                const liste=materiallisteFuerKI();
+                const norm=kiMaterialTextNorm(text);
+                const dyn=liste.filter(m=>kiProduktSuchbegriffe(m).some(b=>b && norm.includes(b))).map(m=>m.produkt);
+                const old=_kiAlleProdukteAlt(text);
+                return [...new Set([...dyn,...old])];
+            }catch(e){
+                console.warn('Dynamische KI-Produktliste:',e);
+                return _kiAlleProdukteAlt(text);
+            }
         };
 
         window.wechselnTab = function(tabName) {
