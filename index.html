@@ -179,13 +179,19 @@ function kiMaterialZeilen(daten,globalInfo,reserve){
    globalInfo.products.forEach(p=>addCalc(p,total,null));
  }
  if(globalInfo.footleisten){
-   const m=globalInfo.footleisten.match(/(\d+(?:[.,]\d+)?)\s*(?:lfm|m)\b/i);
-   if(m)map.set('__FUSSLEISTE',{produkt:'Fußleisten Eiche lackiert Standardmaß',m2:parseFloat(m[1].replace(',','.'))*(reserve?1.10:1),unit:'lfm'});
-   else map.set('__FUSSLEISTE',{produkt:'Fußleisten Eiche lackiert Standardmaß',m2:null});
+   const text=globalInfo.footleisten;
+   const dyn=materiallisteFuerKI().filter(m=>/fu(?:ß|ss)leisten?|sockelleiste|leiste|profil/i.test(String(m.produkt)+' '+String(m.suchbegriffe)));
+   const chosen=dyn.find(m=>kiProduktSuchbegriffe(m).some(b=>kiMaterialTextNorm(text).includes(b))) || dyn[0];
+   const lm=(text.match(/(\d+(?:[.,]\d+)?)\s*(?:lfm|m)\b/i)||[])[1];
+   if(chosen && lm){
+      const calc=kiMaterialBerechnungAusListe(chosen.produkt,parseFloat(lm.replace(',','.')),null,reserve);
+      if(calc)map.set('__FUSSLEISTE_'+chosen.produkt,calc);
+   } else if(chosen){ map.set('__FUSSLEISTE_'+chosen.produkt,{produkt:chosen.produkt,status:'lfm-fehlt'}); }
  }
  const lines=[];
  for(const c of map.values()){
-   if(c.minKg!=null){const packs=c.gebindeMin===c.gebindeMax?String(c.gebindeMin):`${c.gebindeMin}–${c.gebindeMax}`;lines.push(`${c.produkt} | ${packs} × ${c.packung} kg`);}
+   if(c.stueck!=null){lines.push(`${c.produkt} | ${c.stueck} Stück = ${c.packungen} Packung(en) à ${c.stueckProGebinde} Stück (${c.lfm.toFixed(1)} lfm)`);}
+   else if(c.minKg!=null){const packs=c.gebindeMin===c.gebindeMax?String(c.gebindeMin):`${c.gebindeMin}–${c.gebindeMax}`;lines.push(`${c.produkt} | ${packs} × ${c.packung} kg`);}
    else if(c.m2!=null)lines.push(`${c.produkt} | ${c.m2.toFixed(1)} ${c.unit||'m²'}`);
    else lines.push(`${c.produkt} | Menge prüfen`);
  }
@@ -1503,13 +1509,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     </div>
                 </div>
                 <div class="mt-4 p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900">
-                    <b>So funktioniert es:</b> Produktname + Verbrauch eintragen. Bei Verbrauch pro m²/mm wird die vom Auftrag erkannte Spachteldicke automatisch berücksichtigt. Ein Gebindegewicht/-volumen kann zusätzlich hinterlegt werden, damit die KI auch Säcke, Eimer oder Kanister berechnen kann.
+                    <b>So funktioniert es:</b> Produktname + Verbrauch eintragen. Bei Verbrauch pro m²/mm wird die vom Auftrag erkannte Spachteldicke automatisch berücksichtigt. Ein Gebindegewicht/-volumen kann zusätzlich hinterlegt werden. Für Fußleisten/Profile wähle „lfm → Stück → Packung“ und trage z. B. Länge 2,70 m sowie 10 Stück pro Packung ein – die KI berechnet daraus automatisch Stück und Packungen.
                 </div>
                 <div class="mt-5 overflow-x-auto">
                     <table class="w-full text-sm min-w-[1050px]">
                         <thead>
                             <tr class="border-b text-left text-[11px] uppercase tracking-wide text-slate-500">
-                                <th class="p-2">Produkt</th><th class="p-2">Hersteller</th><th class="p-2">Kategorie</th><th class="p-2">Verbrauch von</th><th class="p-2">Verbrauch bis</th><th class="p-2">Einheit</th><th class="p-2">Gebinde</th><th class="p-2">Suchbegriffe</th><th class="p-2 text-right">Aktion</th>
+                                <th class="p-2">Produkt</th><th class="p-2">Hersteller</th><th class="p-2">Kategorie</th><th class="p-2">Verbrauch von</th><th class="p-2">Verbrauch bis</th><th class="p-2">Einheit</th><th class="p-2">Gebinde</th><th class="p-2">Länge/Stk.</th><th class="p-2">Stk./Packung</th><th class="p-2">Suchbegriffe</th><th class="p-2 text-right">Aktion</th>
                             </tr>
                         </thead>
                         <tbody id="materialliste-tbody"></tbody>
@@ -6640,6 +6646,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 verbrauchBis:m.verbrauchBis!=null?Number(m.verbrauchBis):(m.max!=null?Number(m.max):(m.faktor!=null?Number(m.faktor):'')),
                 einheit:String(m.einheit||'kg/m²').trim(),
                 gebinde:m.gebinde!=null?Number(m.gebinde):(m.packung!=null?Number(m.packung):''),
+                laengeProStueck:m.laengeProStueck!=null?Number(m.laengeProStueck):(m.laenge!=null?Number(m.laenge):''),
+                stueckProGebinde:m.stueckProGebinde!=null?Number(m.stueckProGebinde):(m.stueckPackung!=null?Number(m.stueckPackung):''),
                 suchbegriffe:String(m.suchbegriffe||'').trim(),
                 aktiv:m.aktiv!==false
             }));
@@ -6660,9 +6668,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <td class="p-2"><input id="mat-k-${i}" value="${materiallisteEscape(m.kategorie)}" class="w-32 px-2 py-2 border rounded-lg text-xs"></td>
                     <td class="p-2"><input id="mat-v1-${i}" type="number" step="0.001" min="0" value="${m.verbrauchVon!==''?m.verbrauchVon:''}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
                     <td class="p-2"><input id="mat-v2-${i}" type="number" step="0.001" min="0" value="${m.verbrauchBis!==''?m.verbrauchBis:''}" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
-                    <td class="p-2"><select id="mat-e-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['kg/m²','kg/m²/mm','l/m²','l/m²/mm','Stk/m²','kg/lfm','l/lfm','Stk'].map(x=>`<option ${m.einheit===x?'selected':''}>${x}</option>`).join('')}</select></td>
-                    <td class="p-2"><input id="mat-g-${i}" type="number" step="0.01" min="0" value="${m.gebinde!==''?m.gebinde:''}" placeholder="z.B. 25" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
-                    <td class="p-2"><input id="mat-s-${i}" value="${materiallisteEscape(m.suchbegriffe)}" placeholder="z.B. NC160, Ausgleichsmasse" class="w-48 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><select id="mat-e-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['kg/m²','kg/m²/mm','l/m²','l/m²/mm','Stk/m²','kg/lfm','l/lfm','Stk','lfm → Stück → Packung'].map(x=>`<option ${m.einheit===x?'selected':''}>${x}</option>`).join('')}</select></td>
+                    <td class="p-2"><input id="mat-g-${i}" type="number" step="0.01" min="0" value="${m.gebinde!==''?m.gebinde:''}" placeholder="z.B. 25 kg" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-l-${i}" type="number" step="0.01" min="0" value="${m.laengeProStueck!==''?m.laengeProStueck:''}" placeholder="2,70 m" class="w-24 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-sp-${i}" type="number" step="1" min="0" value="${m.stueckProGebinde!==''?m.stueckProGebinde:''}" placeholder="10" class="w-20 px-2 py-2 border rounded-lg text-xs"></td>
+                    <td class="p-2"><input id="mat-s-${i}" value="${materiallisteEscape(m.suchbegriffe)}" placeholder="z.B. LE44, Kleber, Fußleiste" class="w-48 px-2 py-2 border rounded-lg text-xs"></td>
                     <td class="p-2 text-right whitespace-nowrap"><button type="button" onclick="materiallisteZeileSpeichern(${i})" class="bg-emerald-600 text-white px-2.5 py-2 rounded-lg text-xs font-bold">💾</button> <button type="button" onclick="materiallisteZeileLoeschen(${i})" class="bg-red-100 text-red-700 px-2.5 py-2 rounded-lg text-xs font-bold">✕</button></td>
                 </tr>`;
             });
@@ -6670,7 +6680,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.materiallisteNeueZeile=function(){
             if(!materiallisteBerechtigt()) return alert('Nur Chef, Techniker und Sekretariat dürfen die Materialliste verwalten.');
             materiallisteNormalisieren();
-            globalDaten.materialliste.push({id:'MAT_'+Date.now(),produkt:'',hersteller:'UZIN',kategorie:'Material',verbrauchVon:'',verbrauchBis:'',einheit:'kg/m²',gebinde:'',suchbegriffe:'',aktiv:true});
+            globalDaten.materialliste.push({id:'MAT_'+Date.now(),produkt:'',hersteller:'',kategorie:'Material',verbrauchVon:'',verbrauchBis:'',einheit:'kg/m²',gebinde:'',laengeProStueck:'',stueckProGebinde:'',suchbegriffe:'',aktiv:true});
             materiallisteAnzeigen();
             setTimeout(()=>document.getElementById('mat-p-'+(globalDaten.materialliste.length-1))?.focus(),50);
         };
@@ -6684,8 +6694,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             m.verbrauchBis=parseFloat(document.getElementById('mat-v2-'+i)?.value)||m.verbrauchVon;
             m.einheit=document.getElementById('mat-e-'+i)?.value||'kg/m²';
             m.gebinde=parseFloat(document.getElementById('mat-g-'+i)?.value)||'';
+            m.laengeProStueck=parseFloat(document.getElementById('mat-l-'+i)?.value)||'';
+            m.stueckProGebinde=parseFloat(document.getElementById('mat-sp-'+i)?.value)||'';
             m.suchbegriffe=document.getElementById('mat-s-'+i)?.value.trim()||'';
-            if(!m.produkt || !m.verbrauchVon){ return alert('Bitte mindestens Produkt und Verbrauch eintragen.'); }
+            if(!m.produkt || !m.verbrauchVon){
+                if(m.einheit==='lfm → Stück → Packung' && m.produkt && m.laengeProStueck>0 && m.stueckProGebinde>0) { /* Sonderfall Fußleisten/Profil: Verbrauch wird über Länge berechnet. */ }
+                else return alert('Bitte mindestens Produkt und Verbrauch eintragen. Bei „lfm → Stück → Packung“ bitte Länge pro Stück und Stück pro Packung eintragen.');
+            }
+            if(m.einheit==='lfm → Stück → Packung' && (!(m.laengeProStueck>0) || !(m.stueckProGebinde>0))){ return alert('Für lfm → Stück → Packung bitte Länge pro Stück und Stück pro Packung eintragen.'); }
             if(m.verbrauchBis==='' || m.verbrauchBis<m.verbrauchVon) m.verbrauchBis=m.verbrauchVon;
             try{ await globalGlobalSpeichern(); materiallisteAnzeigen(); alert('Material gespeichert. Die KI verwendet diesen Eintrag ab sofort bei neuen Aufträgen.'); }catch(e){ console.error(e); alert('Material konnte nicht gespeichert werden: '+(e.message||e)); }
         };
@@ -6771,6 +6787,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         function kiMaterialBerechnungAusListe(name,qm,dicke,reserve){
             const m=materiallisteFuerKI().find(x=>String(x.produkt).toLowerCase()===String(name).toLowerCase());
             if(!m || !qm) return null;
+            // Sonderlogik für Profile/Fußleisten: Auftrag nennt laufende Meter; daraus werden Stück und Packungen.
+            if(m.einheit==='lfm → Stück → Packung'){
+                const laenge=Number(m.laengeProStueck)||0;
+                const stkPack=Number(m.stueckProGebinde)||0;
+                if(!(laenge>0) || !(stkPack>0)) return {produkt:m.produkt,status:'länge-oder-packung-fehlt'};
+                const lfm=qm*(reserve?1.10:1);
+                const stueck=Math.ceil(lfm/laenge);
+                const packungen=Math.ceil(stueck/stkPack);
+                return {produkt:m.produkt,lfm,stueck,packungen,laengeProStueck:laenge,stueckProGebinde:stkPack,einheit:m.einheit,hersteller:m.hersteller,kategorie:m.kategorie};
+            }
             const v1=Number(m.verbrauchVon), v2=Number(m.verbrauchBis)||v1;
             let factor1=v1, factor2=v2;
             if(/\/mm$/i.test(m.einheit)){ if(!dicke)return {produkt:m.produkt,status:'dicke-fehlt'}; factor1*=dicke; factor2*=dicke; }
