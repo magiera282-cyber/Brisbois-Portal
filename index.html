@@ -120,7 +120,7 @@ function kiGlobalInfo(text){
 }
 function kiRaumDaten(room,reserve){
  const t=room.text,qm=kiFlaecheErkennen(t),belag=kiBelagErkennen(t);
- const products=kiAlleProdukte(t),schwimmend=/schwimmend|floating/i.test(t);
+ const products=(typeof window.kiAlleProdukte==='function'?window.kiAlleProdukte(t):kiAlleProdukte(t)),schwimmend=/schwimmend|floating/i.test(t);
  const voll=/voll(?:flächig)?\s*(?:verklebt|verklebung)|vollflächig\s*(?:verklebt|verklebung)|voll\s*verkleben/i.test(t);
  const unterlage=/unterlage|trittschall|dämmunterlage|däm[m-]?unterlage/i.test(t);
  const um=(t.match(/(?:unterlage|trittschall|dämmunterlage|däm[m-]?unterlage)\s*(?:von\s*)?(\d+(?:[.,]\d+)?)\s*mm/i)||t.match(/(\d+(?:[.,]\d+)?)\s*mm\s*(?:unterlage|trittschall|dämmunterlage|däm[m-]?unterlage)/i)||[])[1];
@@ -156,7 +156,7 @@ function kiProfessionelleAnweisung(daten,globalInfo){
 }
 function kiMaterialZeilen(daten,globalInfo,reserve){
  const map=new Map();
- const addCalc=(name,qm,dicke)=>{const c=kiCalc(name,qm,dicke,reserve);if(!c)return;const old=map.get(name);if(!old)map.set(name,c);else{old.minKg+=c.minKg;old.maxKg+=c.maxKg;old.gebindeMin=old.packung?Math.ceil(old.minKg/old.packung):old.gebindeMin;old.gebindeMax=old.packung?Math.ceil(old.maxKg/old.packung):old.gebindeMax;}};
+ const addCalc=(name,qm,dicke)=>{const calcFn=(typeof window.kiCalc==='function'?window.kiCalc:kiCalc);const c=calcFn(name,qm,dicke,reserve);if(!c)return;const old=map.get(name);if(!old)map.set(name,c);else{old.minKg+=c.minKg;old.maxKg+=c.maxKg;old.gebindeMin=old.packung?Math.ceil(old.minKg/old.packung):old.gebindeMin;old.gebindeMax=old.packung?Math.ceil(old.maxKg/old.packung):old.gebindeMax;}};
  const materialEintrag=(name)=>materiallisteFuerKI().find(m=>String(m.produkt||'').toLowerCase()===String(name||'').toLowerCase());
  const istDynamischesMaterial=(name)=>{const m=materialEintrag(name);return !!m && !!m.produkt;};
  const istKleber=(name)=>{const m=materialEintrag(name);return !!m && /kleber|klebstoff|adhes|colle|verkleb/i.test(String(m.kategorie||'')+' '+String(m.produkt||''));};
@@ -1032,7 +1032,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         </div>
 
                         <div class="flex flex-wrap gap-3 mt-4">
-                            <button type="button" onclick="kiKurzbeschreibungAuswerten()"
+                            <button type="button" onclick="try{kiKurzbeschreibungAuswerten()}catch(e){console.error(e);alert('Die KI-Auswertung konnte nicht gestartet werden. Bitte erneut versuchen.')}"
                                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 rounded-xl">
                                 🤖 KI-Auftrag auswerten
                             </button>
@@ -6839,6 +6839,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 return _kiAlleProdukteAlt(text);
             }
         };
+        // Die KI-Hauptauswertung läuft in einem klassischen Script.
+        // Deshalb werden die dynamischen Funktionen ausdrücklich global bereitgestellt.
+        window.kiCalc = kiCalc;
+        window.kiAlleProdukte = kiAlleProdukte;
+        window.kiProduktErkennen = kiProduktErkennen;
+        window.kiMaterialBerechnungAusListe = kiMaterialBerechnungAusListe;
 
         window.wechselnTab = function(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
