@@ -7650,9 +7650,18 @@ body { top:0 !important; }
             }
         }catch(e){ console.warn('Sprache konnte nicht in der Cloud gespeichert werden:',e); }
 
-        // Kompletter Reload: dadurch wird wirklich die gesamte Seite übersetzt,
-        // nicht nur der Teil, der beim ersten Laden vorhanden war.
-        setTimeout(function(){ location.reload(); }, 150);
+        // WICHTIG: Beim Wechsel innerhalb des bereits eingeloggten Portals
+        // darf kein kompletter Seiten-Reload erfolgen. Ein Reload kann auf
+        // iPhone/Safari bzw. GitHub Pages den laufenden Login-Zustand kurzzeitig
+        // verlieren. Google Translate wird deshalb direkt über das vorhandene
+        // Auswahlfeld umgeschaltet.
+        const app = document.getElementById('app-container');
+        const appIstOffen = app && !app.classList.contains('hidden');
+        if(!appIstOffen){
+            // Auf der Login-Seite darf weiterhin einmal neu aufgebaut werden,
+            // damit auch die komplette Login-Oberfläche übersetzt wird.
+            setTimeout(function(){ location.reload(); }, 150);
+        }
     };
 
     window.portalLanguageAfterLogin = function(){
