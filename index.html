@@ -5148,13 +5148,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         function mobilePinPosition(event) {
             const wrapper = document.getElementById('vollbild-transform-wrapper');
-            if (!wrapper || !event.touches || !event.touches[0]) return null;
+            const bild = document.getElementById('vollbild-plan-bild');
+            const pdf = document.getElementById('vollbild-pdf-viewer');
+            const plan = (bild && !bild.classList.contains('hidden')) ? bild :
+                         ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
+            if (!wrapper || !plan || !event.touches || !event.touches[0]) return null;
 
-            const rect = wrapper.getBoundingClientRect();
+            // Immer gegen die tatsächlich sichtbare, skalierte Planfläche rechnen.
+            // Dadurch bleibt der Pin auch bei starkem Zoom und beim Verschieben
+            // exakt an der Stelle, an der der Finger auf den Plan gesetzt wurde.
+            const rect = plan.getBoundingClientRect();
             const t = event.touches[0];
-
-            // rect enthält bereits Scale + Translation. Die relative Position
-            // des Fingers innerhalb des sichtbaren Plans bleibt dadurch korrekt.
             const x = t.clientX - rect.left;
             const y = t.clientY - rect.top;
             if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
@@ -5268,8 +5272,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             if (!p || !p.plaene || p.plaene.length === 0) return;
 
             const wrapper = document.getElementById('vollbild-transform-wrapper');
-            const rect = wrapper.getBoundingClientRect();
-            
+            const bild = document.getElementById('vollbild-plan-bild');
+            const pdf = document.getElementById('vollbild-pdf-viewer');
+            const plan = (bild && !bild.classList.contains('hidden')) ? bild :
+                         ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
+            if (!wrapper || !plan) return;
+
+            // Desktop ebenfalls direkt auf der sichtbaren Planfläche messen.
+            // So sind Scrollposition, Zoom und die tatsächliche Planfläche
+            // automatisch berücksichtigt.
+            const rect = plan.getBoundingClientRect();
             const klickX = event.clientX - rect.left;
             const klickY = event.clientY - rect.top;
 
