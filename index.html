@@ -7575,11 +7575,10 @@ body{top:0!important}
 </style>
 <script>
 /* ==========================================================
-   EINGEBAUTE PORTAL-SPRACHE
-   Deutsch / Français – direkt im Portal, ohne Google Translate.
-   Die Übersetzung arbeitet lokal mit einer festen Portal-Wortliste,
-   beobachtet auch dynamisch erzeugte Inhalte und lädt beim Wechsel
-   NICHT die Seite neu. Gespeicherte Daten bleiben unangetastet.
+   EINGEBAUTE PORTAL-SPRACHE – SICHER
+   Nur Darstellung/Übersetzung. KEIN Speichern, KEIN Reload,
+   KEINE Änderung an globalDaten, Firebase, Materialliste,
+   Lager, Werkzeug, Baustellen oder Mitarbeiter-Zuweisungen.
    ========================================================== */
 (function(){
   const FR={
@@ -7590,13 +7589,11 @@ body{top:0!important}
     '📦 Materialliste':'📦 Liste des matériaux','🏭 Lager & Werkzeug':'🏭 Stock & outils','⛽ Belege & Kasse':'⛽ Reçus & caisse','📅 Meine Wochenplanung':'📅 Mon planning hebdomadaire','⚠️ Problem melden':'⚠️ Signaler un problème',
     '＋ Artikel anlegen':'＋ Ajouter un article','🛒 Nächste Bestellung':'🛒 Prochaine commande','Artikel':'Article','Werkzeug':'Outil','Material':'Matériau','Verbrauchsmaterial':'Consommable','Maschine':'Machine','Arbeitsschutz':'Équipement de protection','Sonstiges':'Autre',
     'Mindestbestand':'Stock minimum','Bestellmenge':'Quantité à commander','Einheit':'Unité','Rolle':'Rôle','Zweck':'Utilisation','Mitarbeiter':'Employé','Bezeichnung':'Désignation','💾 Speichern':'💾 Enregistrer','Von':'Du','Bis':'Au',
-    'Portal-Login (Komplettes Team)':'Connexion au portail (toute l’équipe)','🇩🇪 Deutsch':'🇩🇪 Deutsch','🇫🇷 Français':'🇫🇷 Français','1-KLICK SCHNELL-LOGIN':'CONNEXION RAPIDE EN 1 CLIC',
-    'oder Mitarbeiter wählen':'ou choisir un employé','Mitarbeiter / Chef auswählen':'Choisir un employé / chef','Wird dynamisch befüllt':'Rempli automatiquement','Passwort':'Mot de passe','Start-Passwort:':'Mot de passe initial :','🔓 Anmelden':'🔓 Se connecter',
+    'Portal-Login (Komplettes Team)':'Connexion au portail (toute l’équipe)','oder Mitarbeiter wählen':'ou choisir un employé','Mitarbeiter / Chef auswählen':'Choisir un employé / chef','Wird dynamisch befüllt':'Rempli automatiquement','Passwort':'Mot de passe','Start-Passwort:':'Mot de passe initial :','🔓 Anmelden':'🔓 Se connecter',
     'Grundriss-Plan Großansicht':'Plan en grand format','📌 Mangel- oder Notiz-Pin setzen':'📌 Placer un pin de défaut ou de note','Pin-Art':'Type de pin','🔴 Mangel':'🔴 Défaut','🔵 Frage':'🔵 Question','🟡 Eigener':'🟡 Personnel',
     'Beschreibung / Mangel':'Description / défaut','📷 Foto zum Mangel hinzufügen (Funktioniert mit jedem iPhone)':'📷 Ajouter une photo du défaut (fonctionne avec tout iPhone)','💾 Pin setzen & Benachrichtigen':'💾 Placer le pin & notifier',
     '📌 Pin Details':'📌 Détails du pin','📷 Angehängtes Foto:':'📷 Photo jointe :','👁️ Lesebestätigung (Wer hat es gesehen?):':'👁️ Confirmation de lecture (qui l’a vu ?)','🗑️ Pin löschen':'🗑️ Supprimer le pin',
     '🔔 Benachrichtigung Details':'🔔 Détails de la notification','🚀 Zum Projekt / zur Baustelle':'🚀 Aller au projet / chantier','🗑️ Aus Benachrichtigungsliste löschen':'🗑️ Supprimer des notifications','↩️ Antworten':'↩️ Répondre',
-    '🧱 Uzin-Produkt für Packliste auswählen':'🧱 Choisir un produit Uzin pour la liste','Wähle ein Produkt aus oder füge neue Artikel zum Katalog hinzu:':'Choisissez un produit ou ajoutez de nouveaux articles au catalogue :','➕ Artikel zum Uzin-Katalog hinzufügen:':'➕ Ajouter un article au catalogue Uzin :','💾 Zum Katalog hinzufügen':'💾 Ajouter au catalogue',
     '📁 Neues Projekt & Materialien anlegen':'📁 Créer un nouveau projet & matériaux','Projektbezeichnung / Name':'Nom / désignation du projet','Adresse eingeben oder über die Karte das Gebäude auswählen und markieren.':'Saisir l’adresse ou sélectionner et marquer le bâtiment sur la carte.','Anweisung / Arbeitsdetails für das Team':'Instruction / détails de travail pour l’équipe','📦 Benötigte Materialien / Packliste':'📦 Matériaux nécessaires / liste','+ Weiteres Material':'+ Autre matériau','💾 Baustelle & Materialien speichern':'💾 Enregistrer le chantier & les matériaux',
     '📍 Baustelle auf Karte auswählen':'📍 Sélectionner le chantier sur la carte','Adresse suchen, Karte verschieben oder direkt auf das Gebäude tippen.':'Rechercher l’adresse, déplacer la carte ou toucher directement le bâtiment.','🔎 Suchen':'🔎 Rechercher','Noch keine Position ausgewählt.':'Aucune position sélectionnée.','✓ Position übernehmen':'✓ Utiliser cette position',
     '✏️ Baustelle / Projekt bearbeiten':'✏️ Modifier le chantier / projet','Projektbezeichnung':'Désignation du projet','💾 Änderungen speichern':'💾 Enregistrer les modifications',
@@ -7608,168 +7605,89 @@ body{top:0!important}
     'Aktive & Nächste Projekte':'Projets actifs & prochains','✏️ Bearbeiten':'✏️ Modifier','🗑️ Löschen':'🗑️ Supprimer','Adresse:':'Adresse :','Anweisung vom Chef:':'Instruction du chef :','👷 Zugeteiltes Baustellen-Team':'👷 Équipe affectée au chantier','Live-Status':'Statut en direct','➕ Zuordnen':'➕ Affecter',
     '📐 Baustellen-Pläne & Mangel-Pins':'📐 Plans du chantier & pins de défaut','📌 Pin setzen (Aus)':'📌 Placer un pin (désactivé)','➕ Plan hinzufügen':'➕ Ajouter un plan','🔍 Antippen für Großansicht & Pins':'🔍 Toucher pour agrandir & placer des pins','📌 Pins / gemeldete Punkte':'📌 Pins / points signalés','📦 Projekt-Packliste & Materialverbrauch':'📦 Liste du projet & consommation','Soll → verbraucht → Rest. Verbrauch direkt auf der Baustelle dokumentieren.':'Prévu → consommé → reste. Documenter la consommation directement sur le chantier.','➕ Uzin-Material hinzufügen':'➕ Ajouter un matériau Uzin','Hersteller / Produkt':'Fabricant / produit','Soll-Menge':'Quantité prévue','Verbraucht':'Consommé','Rest':'Reste',
     '☑️ Baustellen-Aufgaben':'☑️ Tâches du chantier','📝 Tagesbericht':'📝 Rapport journalier','💾 Bericht speichern':'💾 Enregistrer le rapport','✍️ Digitale Abnahme':'✍️ Réception numérique','Offen':'Ouvert','✅ Abnahme speichern':'✅ Enregistrer la réception','📂 Baustellenordner':'📂 Dossier du chantier','Alles zur Baustelle an einem Ort':'Tout sur le chantier au même endroit',
-    'Aktuelle Übersicht über Baustellen, Einsätze und gemeldete Probleme.':'Aperçu actuel des chantiers, interventions et problèmes signalés.','🔄 Aktualisieren':'🔄 Actualiser','📅 Heute im Einsatz':'📅 En intervention aujourd’hui','⚠️ Baustellen-Probleme':'⚠️ Problèmes de chantier','🤒 Krankmeldungen':'🤒 Arrêts maladie','Bestand OK':'Stock OK','Nachbestellen':'Commander','Ausgaben heute':'Sorties aujourd’hui','Alle Kategorien':'Toutes les catégories','Bestand':'Stock','Noch keine Lagerartikel angelegt.':'Aucun article de stock créé.','🏗️ Maschinen unterwegs':'🏗️ Machines en déplacement','🧾 Letzte Werkzeugausgaben':'🧾 Dernières sorties d’outils','＋ Material hinzufügen':'＋ Ajouter un matériau','↺ Vorhandene KI-Produkte übernehmen':'↺ Importer les produits IA existants',
+    'Aktuelle Übersicht über Baustellen, Einsätze und gemeldete Probleme.':'Aperçu actuel des chantiers, interventions et problèmes signalés.','🔄 Aktualisieren':'🔄 Actualiser','📅 Heute im Einsatz':'📅 En intervention aujourd’hui','⚠️ Baustellen-Probleme':'⚠️ Problèmes de chantier','🤒 Krankmeldungen':'🤒 Arrêts maladie','Bestand OK':'Stock OK','Nachbestellen':'Commander','Ausgaben heute':'Sorties aujourd’hui','Alle Kategorien':'Toutes les catégories','Bestand':'Stock','Noch keine Lagerartikel angelegt.':'Aucun article de stock créé.','Aktuell muss nichts nachbestellt werden.':'Aucune commande nécessaire actuellement.','🏗️ Maschinen unterwegs':'🏗️ Machines en déplacement','🧾 Letzte Werkzeugausgaben':'🧾 Dernières sorties d’outils','＋ Material hinzufügen':'＋ Ajouter un matériau','↺ Vorhandene KI-Produkte übernehmen':'↺ Importer les produits IA existants',
     'Mangel oder Notiz':'Défaut ou note','Was ist passiert? Was muss der Chef wissen?':'Que s’est-il passé ? Que doit savoir le chef ?','⚠️ Problem melden':'⚠️ Signaler un problème',
     'Baustelle':'Chantier','Baustelle auswählen...':'Sélectionner un chantier...','Baustellen-Zuweisungen':'Affectations des chantiers','Baustelle kurz beschreiben → Räume, Flächen, Arbeiten und Material automatisch erkennen → Baustelle anlegen':'Décrivez brièvement le chantier → reconnaître automatiquement les pièces, surfaces, travaux et matériaux → créer le chantier',
-    'Aktueller Bestand':'Stock actuel','Bestände, Wareneingänge, Werkzeugausgaben und automatische Nachbestellungen.':'Stocks, réceptions de marchandises, sorties d’outils et commandes automatiques.','Bestand':'Stock','Bestand OK':'Stock OK','Bestellmenge':'Quantité à commander','Ausgaben heute':'Sorties aujourd’hui','Nachbestellen':'Commander','Noch keine Lagerartikel angelegt.':'Aucun article de stock créé.','Aktuell muss nichts nachbestellt werden.':'Aucune commande nécessaire actuellement.','Lager & Werkzeug':'Stock & outils','Lagerort':'Emplacement','Menge':'Quantité','Meter':'Mètre','Eimer':'Seau','Karton':'Carton','Packung':'Paquet','Rolle':'Rouleau','Set':'Set','Stk':'Pce','Stk./Packung':'Pce/paquet',
-    'Chef-Dashboard':'Tableau de bord du chef','CHEF-DASHBOARD':'TABLEAU DE BORD DU CHEF','Chef-Zentrale: Urlaubs-Freigaben & Team-Stunden':'Centrale chef : validations des congés & heures de l’équipe','Erfasste Stunden im Team (September)':'Heures enregistrées de l’équipe (septembre)','Mitarbeiter-Zentrale':'Centrale des employés','Mitarbeiter & Zuweisung':'Employés & affectations','Neuen Mitarbeiter anlegen':'Ajouter un nouvel employé','Mitarbeiter auswählen':'Sélectionner un employé','Mitarbeiter / Chef auswählen':'Sélectionner un employé / chef',
-    'Zeiterfassung & Urlaub':'Temps de travail & congés','ZEITERFASSUNG & URLAUB':'TEMPS DE TRAVAIL & CONGÉS','Tägliche Zeiterfassung':'Suivi quotidien du temps de travail','Netto-Stunden':'Heures nettes','Netto-Stunden':'Heures nettes','Heutige Netto-Arbeitszeit':'Temps de travail net aujourd’hui','Startzeit':'Heure de début','Pause':'Pause','Feierabend':'Fin de journée','Überstunden starten':'Démarrer les heures supplémentaires','🏁 Feierabend':'🏁 Fin de journée','☕ Pause':'☕ Pause','▶ Starten':'▶ Démarrer','GESPEICHERTE ZEITEN HISTORIE':'HISTORIQUE DES TEMPS ENREGISTRÉS','Meine erfassten Arbeitszeiten (Historie)':'Mes temps de travail enregistrés (historique)',
-    'Urlaubskonto':'Compte de congés','Resturlaub 2026':'Congés restants 2026','Verbleibender Resturlaub (Tage)':'Congés restants (jours)','Meine Urlaubsanträge':'Mes demandes de congés','Neuen Urlaubsantrag':'Nouvelle demande de congé','Neuen Urlaubsantrag einreichen':'Soumettre une nouvelle demande de congé','Offene Urlaubsanträge':'Demandes de congés en attente','Urlaubskonto & Resturlaub':'Compte de congés & solde restant','Wähle den Zeitraum und sende deinen Antrag an das Büro.':'Choisissez la période et envoyez votre demande au bureau.','Zeitraum':'Période','Von':'Du','Bis':'Au','Antrag senden':'Envoyer la demande','Entscheidung':'Décision','Abwesenheit für diesen Tag':'Absence pour ce jour','Geprüft':'Vérifié',
-    'Krankmeldung / Attest':'Arrêt maladie / certificat','Krankmeldung':'Arrêt maladie','Krankmeldung speichern':'Enregistrer l’arrêt maladie','Foto oder PDF der Krankmeldung.':'Photo ou PDF de l’arrêt maladie.','Alle deine gespeicherten Krankmeldungen und Krankheitstage.':'Tous vos arrêts maladie et jours de maladie enregistrés.','Krankheitstage-Sammler':'Collecteur de jours de maladie','Krankheitstage:':'Jours de maladie :',
-    'Benachrichtigungen & Anweisungen':'Notifications & instructions','BENACHRICHTIGUNGEN & ANWEISUNGEN':'NOTIFICATIONS & INSTRUCTIONS','Anweisungen & Team-Nachrichten':'Instructions & messages de l’équipe','Klicke auf eine Nachricht, um sie als separates Fenster zu öffnen.':'Cliquez sur un message pour l’ouvrir dans une fenêtre séparée.','Alle als gelesen markieren':'Tout marquer comme lu','Alle löschen':'Tout supprimer','Push aktivieren':'Activer les notifications push','Nachricht verfassen...':'Rédiger un message...','Empfänger wählen':'Choisir le destinataire','Deine Nachricht / Anweisung':'Votre message / instruction','Antworten':'Répondre','Benachrichtigung Details':'Détails de la notification','Anweisung vom Chef:':'Instruction du chef :','Hochgeladen von':'Téléversé par',
-    'Belege & Kasse':'Reçus & caisse','BELEGE':'REÇUS','Belegdatei':'Fichier du reçu','Betrag':'Montant','Betrag (€)':'Montant (€)','Noch keine Belege vorhanden.':'Aucun reçu disponible.','Nur eigene Belege':'Uniquement mes reçus','Neuen Beleg hochladen':'Téléverser un nouveau reçu','Beleg speichern':'Enregistrer le reçu','Verleger sehen nur eigene Belege. Chef, Techniker und Sekretariat sehen alle Belege.':'Les poseurs ne voient que leurs propres reçus. Le chef, les techniciens et le secrétariat voient tous les reçus.','Eigene Abrechnungen':'Mes décomptes',
-    'Materialverwaltung':'Gestion des matériaux','MATERIALVERWALTUNG':'GESTION DES MATÉRIAUX','Produkt':'Produit','Produktname + Verbrauch eintragen. Bei Verbrauch pro m²/mm wird die vom Auftrag erkannte Spachteldicke automatisch berücksichtigt. Ein Gebindegewicht/-volumen kann zusätzlich hinterlegt werden. Für Fußleisten/Profile wähle „lfm → Stück → Packung“ und trage z. B. Länge 2,70 m sowie 10 Stück pro Packung ein – die KI berechnet daraus automatisch Stück und Packungen.':'Saisissez le nom du produit et sa consommation. Pour une consommation par m²/mm, l’épaisseur de l’enduit reconnue dans la commande est prise en compte automatiquement. Le poids/volume du conditionnement peut aussi être indiqué. Pour les plinthes/profils, choisissez « m linéaires → pièces → paquet » et indiquez par ex. une longueur de 2,70 m et 10 pièces par paquet – l’IA calcule automatiquement les pièces et les paquets.','Verbrauch von':'Consommation de','Verbrauch bis':'Consommation jusqu’à','Suchbegriffe':'Mots-clés','Gebinde':'Conditionnement','Hersteller':'Fabricant','Kategorie':'Catégorie','Noch keine Materialien hinterlegt. Klicke auf „Material hinzufügen“.':'Aucun matériau enregistré. Cliquez sur « Ajouter un matériau ».',
-    'Wochenplanung':'Planning hebdomadaire','Meine Wochenplanung':'Mon planning hebdomadaire','Baustellen direkt für jeden Wochentag planen. Pro Tag sind mehrere Baustellen möglich.':'Planifiez directement les chantiers pour chaque jour de la semaine. Plusieurs chantiers sont possibles par jour.','Deine geplanten Baustellen für diese Woche':'Vos chantiers planifiés pour cette semaine','Heute':'Aujourd’hui','Diese Woche':'Cette semaine','Heute im Einsatz':'En intervention aujourd’hui','Baustelle einteilen':'Affecter un chantier','Projekt-Zuweisung (Grundzuordnung)':'Affectation de projet (affectation de base)','Diese Zuordnung bestimmt, welche Baustellen in der Wochenplanung auswählbar sind.':'Cette affectation détermine quels chantiers peuvent être sélectionnés dans le planning hebdomadaire.',
-    'Live-Karte':'Carte en direct','LIVE-KARTE':'CARTE EN DIRECT','Live-Baustellen & zugeteilte Verleger':'Chantiers en direct & poseurs affectés','Adresse suchen, Karte verschieben oder direkt auf das Gebäude tippen.':'Recherchez l’adresse, déplacez la carte ou touchez directement le bâtiment.','Noch keine Position ausgewählt.':'Aucune position sélectionnée.','Position übernehmen':'Utiliser cette position','Karte':'Carte','Direktanruf':'Appel direct','Telefonliste':'Liste téléphonique','TELEFONLISTE':'LISTE TÉLÉPHONIQUE','Telefonnummer':'Numéro de téléphone','Telefonnummer / Handynummer':'Numéro de téléphone / portable','E-Mail-Adresse':'Adresse e-mail',
-    'Problem auswählen':'Sélectionner un problème','Bitte Problem auswählen und kurz beschreiben.':'Veuillez sélectionner un problème et le décrire brièvement.','Bitte wende dich an die Arbeitsvorbereitung.':'Veuillez contacter la préparation du travail.','Untergrund nicht geeignet':'Support inadapté','Material fehlt':'Matériel manquant','Fläche stimmt nicht':'La surface ne correspond pas','Kunde nicht vor Ort':'Client absent','Beschädigung vorhanden':'Dommage présent','Terminproblem':'Problème de rendez-vous','Sonstiges':'Autre',
-    'Tagesbericht':'Rapport journalier','Bericht speichern':'Enregistrer le rapport','Digitale Abnahme':'Réception numérique','Abnahme speichern':'Enregistrer la réception','Offen':'Ouvert','Baustellenordner':'Dossier du chantier','Alles zur Baustelle an einem Ort':'Tout sur le chantier au même endroit','Baustellen-Pläne & Mangel-Pins':'Plans du chantier & pins de défaut','Plan hinzufügen':'Ajouter un plan','Pins / gemeldete Punkte':'Pins / points signalés','Projekt-Packliste & Materialverbrauch':'Liste du projet & consommation des matériaux','Soll-Menge':'Quantité prévue','Verbraucht':'Consommé','Rest':'Reste',
-    'Grundriss-Plan (Bild oder PDF) antippen oder per Drag & Drop einfügen':'Touchez le plan (image ou PDF) ou insérez-le par glisser-déposer','Du kannst mehrere Pläne (z.B. EG, OG) hochladen':'Vous pouvez téléverser plusieurs plans (par ex. RDC, étage)','Vollbild-Modus':'Mode plein écran','Tipp: Nutze oben die Zoom-Buttons oder ziehe den Plan mit der Maus / dem Finger. Klicke auf eine Stelle, um Pins zu setzen oder anzusehen.':'Astuce : utilisez les boutons de zoom en haut ou déplacez le plan avec la souris / le doigt. Cliquez à un endroit pour placer ou consulter des pins.','Tipp: Tippe einfach auf den Plan, um ihn im':'Astuce : touchez simplement le plan pour l’ouvrir en',
-    'Abrechnungsvorschau':'Aperçu du décompte','ABRECHNUNG-VORSCHAU':'APERÇU DU DÉCOMPTE','Abrechnung speichern':'Enregistrer le décompte','Abrechnung hochladen':'Téléverser un décompte','Noch keine Abrechnungen vorhanden.':'Aucun décompte disponible.','Hersteller automatisch':'Reconnaître automatiquement le fabricant','Belag automatisch erkennen':'Reconnaître automatiquement le revêtement','Textanalyse':'Analyse du texte','Erkanntes Material':'Matériaux reconnus','Arbeitsauftrag / Anweisung':'Ordre de travail / instruction','Projekt / Baustelle':'Projet / chantier','Baustellenadresse':'Adresse du chantier','Zurücksetzen':'Réinitialiser','Baustelle anlegen':'Créer le chantier',
-    '⚡ 1-Klick Schnell-Test:':'⚡ Test rapide en 1 clic :','Bereit':'Prêt','Lade Wetter...':'Chargement de la météo...','für heute':'pour aujourd’hui','In 32 Tagen':'Dans 32 jours','Ideale Bedingungen für Baustellen- und Verlegearbeiten in Luxemburg.':'Conditions idéales pour les travaux de chantier et de pose au Luxembourg.','Hier ist deine persönliche Übersicht für den heutigen Arbeitstag in Luxemburg. Alles Wichtige auf einen Blick.':'Voici votre aperçu personnel de la journée de travail à Luxembourg. Tout l’essentiel en un coup d’œil.','Hier siehst du, welche Maschine gerade bei welchem Mitarbeiter ist.':'Ici vous voyez quelle machine est actuellement attribuée à quel employé.',
-    'Daten in der Cloud aktualisieren':'Actualiser les données dans le cloud','Klickbarer Container':'Conteneur cliquable','Firebase SDK & Cloud Logik':'SDK Firebase & logique cloud','Leaflet.js für die echte interaktive Karte':'Leaflet.js pour la vraie carte interactive','PDF.js für echte PDF-Texterkennung / Seiten-Rendering':'PDF.js pour la reconnaissance réelle du texte PDF / rendu des pages','Nur eigene Belege':'Uniquement mes reçus','Wird dynamisch befüllt':'Rempli automatiquement','Nicht angegeben':'Non indiqué','Grund / Hinweis':'Motif / remarque','Name / Verleger':'Nom / poseur','Dein Name':'Votre nom','Handynummer, E-Mail und Passwort ändern.':'Modifier le numéro de portable, l’e-mail et le mot de passe.','Neues Passwort (optional)':'Nouveau mot de passe (facultatif)','Meine Kontodaten & Passwort':'Mes données de compte & mot de passe',
-
-    '👥 Neuen Mitarbeiter anlegen':'👥 Ajouter un employé',
-    '➕ Mitarbeiter anlegen (start123)':'➕ Ajouter un employé (start123)',
-    '👥 Mitarbeiter-Zentrale':'👥 Centrale des employés',
-    '📋 Projekt-Zuweisung (Grundzuordnung)':'📋 Affectation de projet (affectation de base)',
-    'JPG, PNG oder PDF · max. 750 KB':'JPG, PNG ou PDF · max. 750 Ko',
-    '📤 Beleg speichern':'📤 Enregistrer le reçu',
-    'Chef, Techniker und Sekretariat können Abrechnungen für einzelne Verleger hochladen. Verleger sehen nur ihre eigenen Abrechnungen.':'Les chefs, techniciens et le secrétariat peuvent télécharger les décomptes de chaque poseur. Les poseurs ne voient que leurs propres décomptes.',
-    '➕ Abrechnung hochladen':'➕ Télécharger un décompte',
-    'PDF, JPG oder PNG · max. 2 MB':'PDF, JPG ou PNG · max. 2 Mo',
-    '📤 Abrechnung speichern':'📤 Enregistrer le décompte',
-    'URLAUB-REST BEARBEITEN BEREICH':'MODIFICATION DU SOLDE DE CONGÉS',
-    'Trage hier ein, wie viel Urlaub Dir für dieses Jahr noch zusteht.':'Indiquez ici le nombre de jours de congé qu’il vous reste pour cette année.',
-    'MEINE URLAUBSANTRÄGE: Nur der aktuell eingeloggte Verleger sieht seine eigenen Anträge':'MES DEMANDES DE CONGÉ : seul le poseur actuellement connecté voit ses propres demandes',
-    'Hier siehst nur du deine eigenen Anträge und deren Entscheidung.':'Ici, vous voyez uniquement vos propres demandes et leur décision.',
-    'MODAL: WOCHENPLANUNG EINTRAG':'FENÊTRE : PLANIFICATION HEBDOMADAIRE',
-    '🤒 Krankmeldung':'🤒 Arrêt maladie',
-    'Zeitraum und Krankmeldung hinterlegen':'Indiquer la période et l’arrêt maladie',
-    '💾 Krankmeldung speichern':'💾 Enregistrer l’arrêt maladie',
-    '🏗️ Baustelle einteilen':'🏗️ Affecter un chantier',
-    '🏖️ Urlaub':'🏖️ Congé',
-    '⚠️ Problem auf Baustelle melden':'⚠️ Signaler un problème sur le chantier',
-    '📦 Material fehlt':'📦 Matériel manquant',
-    '👤 Kunde nicht vor Ort':'👤 Client absent',
-    'Artikel, Bestand und Bild für das Lager hinterlegen.':'Enregistrer l’article, le stock et l’image pour le magasin.',
-    '💾 Artikel speichern':'💾 Enregistrer l’article',
-    '👷 Werkzeug / Material ausgeben':'👷 Sortir un outil / matériau',
-    '✓ Ausgabe speichern':'✓ Enregistrer la sortie',
-    '🟢 Aktuell muss nichts nachbestellt werden.':'🟢 Aucun réapprovisionnement nécessaire actuellement.',
-    'MODAL: PLAN GROSSANSICHT / VOLLBILD (LICHTBOX)':'FENÊTRE : PLAN EN GRAND FORMAT / PLEIN ÉCRAN',
-    'MODAL: UZIN PRODUKT-AUSWAHL FÜR PACKLISTE':'FENÊTRE : SÉLECTION DU PRODUIT UZIN POUR LA LISTE',
-    'MODAL: BAUSTELLEN-ADRESSE AUF KARTE AUSWÄHLEN':'FENÊTRE : SÉLECTIONNER L’ADRESSE DU CHANTIER SUR LA CARTE',
-    '💡 Der Marker kann mit dem Finger/der Maus auf das genaue Gebäude gezogen werden.':'💡 Le marqueur peut être déplacé avec le doigt ou la souris jusqu’au bâtiment exact.',
-    'MODAL FÜR NACHRICHT SENDEN':'FENÊTRE D’ENVOI DE MESSAGE',
-    'MODAL FÜR KI-AUFTRAG – NUR TEXTEINGABE':'FENÊTRE DE COMMANDE IA – SAISIE DE TEXTE UNIQUEMENT',
-    'Schreibe einfach in deinen eigenen Worten. Mehrere Räume können direkt angegeben werden, z. B. „1: Raum 69 m² … 2: Raum 35 m² … in alle Räume …“':'Écrivez simplement avec vos propres mots. Plusieurs pièces peuvent être indiquées directement, par ex. « 1 : pièce 69 m² … 2 : pièce 35 m² … dans toutes les pièces … ».',
-    'Adresse eingeben oder 📍 Karte öffnen. Dort kannst du das genaue Gebäude markieren.':'Saisissez l’adresse ou ouvrez la 📍 carte. Vous pouvez y marquer le bâtiment exact.',
-    '⏱️ Zeiterfassung & Urlaub verwalten →':'⏱️ Gérer le temps de travail et les congés →',
-    'Adresse: 15 Avenue J.F. Kennedy, Luxemburg-Kirchberg':'Adresse : 15 Avenue J.F. Kennedy, Luxembourg-Kirchberg',
-    'DIREKT IM PROJEKT: ZUGETEILTE MITARBEITER & MEHRFACH-ZUWEISUNG':'DIRECTEMENT DANS LE PROJET : EMPLOYÉS AFFECTÉS & AFFECTATIONS MULTIPLES',
-    'zu öffnen, heranzuzoomen und Pins zu setzen.':'pour ouvrir, zoomer et placer des pins.',
-    'Klicke auf einen Eintrag, um direkt zum richtigen Plan und Pin zu springen.':'Cliquez sur une entrée pour accéder directement au bon plan et au bon pin.',
-    'LAGER & WERKZEUG':'STOCK & OUTILS',
-    'Hier werden alle verwendeten Produkte mit Verbrauch hinterlegt. Die KI-Auftragserstellung greift automatisch auf diese Liste zurück.':'Tous les produits utilisés et leur consommation sont enregistrés ici. La création de commande IA utilise automatiquement cette liste.',
-    '✔ Alle als gelesen markieren':'✔ Tout marquer comme lu',
-    '🗑️ Alle löschen':'🗑️ Tout supprimer',
-    '💬 Nachricht verfassen...':'💬 Rédiger un message...',
-    '💾 Daten in der Cloud aktualisieren':'💾 Mettre à jour les données dans le cloud',
-    'MITARBEITER-ZUWEISUNG':'AFFECTATION DES EMPLOYÉS',
-
-    'Guten Tag,':'Bonjour,',
-    'Montag':'Lundi',
-    'Dienstag':'Mardi',
-    'Mittwoch':'Mercredi',
-    'Donnerstag':'Jeudi',
-    'Freitag':'Vendredi',
-    'Samstag':'Samedi',
-    'Sonntag':'Dimanche',
-    'Mont':'Lun',
-    'Di':'Mar',
-    'Mi':'Mer',
-    'Do':'Jeu',
-    'Fr':'Ven',
-    'Sa':'Sam',
-    'So':'Dim',
-    'Januar':'janvier',
-    'Februar':'février',
-    'März':'mars',
-    'April':'avril',
-    'Mai':'mai',
-    'Juni':'juin',
-    'Juli':'juillet',
-    'August':'août',
-    'September':'septembre',
-    'Oktober':'octobre',
-    'November':'novembre',
-    'Dezember':'décembre',
-    'Techniker':'Technicien',
-    'Sekretariat':'Secrétariat',
-    '2. Chef':'2e chef',
-    'Tage':'jours',
-    'Tag':'jour',
+    'Aktueller Bestand':'Stock actuel','Bestände, Wareneingänge, Werkzeugausgaben und automatische Nachbestellungen.':'Stocks, réceptions de marchandises, sorties d’outils et commandes automatiques.','Lager & Werkzeug':'Stock & outils','Menge':'Quantité','Meter':'Mètre','Eimer':'Seau','Karton':'Carton','Packung':'Paquet','Rolle':'Rouleau','Set':'Set','Stk':'Pce','Stk./Packung':'Pce/paquet',
+    'Chef-Dashboard':'Tableau de bord du chef','CHEF-DASHBOARD':'TABLEAU DE BORD DU CHEF','Chef-Zentrale: Urlaubs-Freigaben & Team-Stunden':'Centrale chef : validations des congés & heures de l’équipe','Erfasste Stunden im Team (September)':'Heures enregistrées de l’équipe (septembre)','Mitarbeiter-Zentrale':'Centrale des employés','Mitarbeiter & Zuweisung':'Employés & affectations','Neuen Mitarbeiter anlegen':'Ajouter un nouvel employé','Mitarbeiter auswählen':'Sélectionner un employé',
+    'Zeiterfassung & Urlaub':'Temps de travail & congés','ZEITERFASSUNG & URLAUB':'TEMPS DE TRAVAIL & CONGÉS','Tägliche Zeiterfassung':'Suivi quotidien du temps de travail','Netto-Stunden':'Heures nettes','Heutige Netto-Arbeitszeit':'Temps de travail net aujourd’hui','Startzeit':'Heure de début','Pause':'Pause','Feierabend':'Fin de journée','Überstunden starten':'Démarrer les heures supplémentaires','🏁 Feierabend':'🏁 Fin de journée','☕ Pause':'☕ Pause','▶ Starten':'▶ Démarrer','GESPEICHERTE ZEITEN HISTORIE':'HISTORIQUE DES TEMPS ENREGISTRÉS','Meine erfassten Arbeitszeiten (Historie)':'Mes temps de travail enregistrés (historique)',
+    'Verbleibender Resturlaub (Tage)':'Congés restants (jours)','Trage hier ein, wie viel Urlaub Dir für dieses Jahr noch zusteht.':'Indiquez ici combien de jours de congé il vous reste pour cette année.','🌴 Neuen Urlaubsantrag einreichen':'🌴 Soumettre une nouvelle demande de congé','🌴 Neuen Urlaubsantrag':'🌴 Nouvelle demande de congé','🌴 Meine Urlaubsanträge':'🌴 Mes demandes de congé','🌴 Offene Urlaubsanträge':'🌴 Demandes de congés en attente','🏖️ Urlaub':'🏖️ Congés',
+    'Noch keine Materialien hinterlegt. Klicke auf „Material hinzufügen“.':'Aucun matériau enregistré. Cliquez sur « Ajouter un matériau ».','Materialanlieferung erfolgt am Dienstag direkt über den Hintereingang.':'La livraison des matériaux a lieu mardi directement par l’entrée arrière.','📦 Projekt-Packliste & Materialverbrauch':'📦 Liste du projet & consommation','📦 Material fehlt':'📦 Matériau manquant','👷 Werkzeug / Material ausgeben':'👷 Sortir outil / matériau',
+    'Hier siehst du, welche Maschine gerade bei welchem Mitarbeiter ist.':'Vous voyez ici quelle machine est actuellement attribuée à quel employé.','📋 Projekt-Zuweisung (Grundzuordnung)':'📋 Affectation du projet (affectation de base)','👥 Neuen Mitarbeiter anlegen':'👥 Ajouter un nouvel employé','➕ Mitarbeiter anlegen (start123)':'➕ Ajouter un employé (start123)',
+    'Baustellen direkt für jeden Wochentag planen. Pro Tag sind mehrere Baustellen möglich.':'Planifiez directement les chantiers pour chaque jour de la semaine. Plusieurs chantiers sont possibles par jour.','Diese Zuordnung bestimmt, welche Baustellen in der Wochenplanung auswählbar sind.':'Cette affectation détermine quels chantiers peuvent être sélectionnés dans le planning hebdomadaire.','Deine geplanten Baustellen für diese Woche':'Vos chantiers planifiés pour cette semaine','🏗️ Baustelle einteilen':'🏗️ Affecter un chantier',
+    '🗺️ Live-Baustellen & zugeteilte Verleger':'🗺️ Chantiers en direct & poseurs affectés','📞 Verleger- & Telefonliste':'📞 Liste des poseurs & téléphonique','Name / Verleger':'Nom / poseur','Verleger sehen nur eigene Belege. Chef, Techniker und Sekretariat sehen alle Belege.':'Les poseurs ne voient que leurs propres justificatifs. Le chef, les techniciens et le secrétariat voient tous les justificatifs.','Chef, Techniker und Sekretariat können Abrechnungen für einzelne Verleger hochladen. Verleger sehen nur ihre eigenen Abrechnungen.':'Le chef, les techniciens et le secrétariat peuvent téléverser des décomptes pour chaque poseur. Les poseurs ne voient que leurs propres décomptes.',
+    '🔔 Anweisungen & Team-Nachrichten':'🔔 Instructions & messages de l’équipe','Klicke auf eine Nachricht, um sie als separates Fenster zu öffnen.':'Cliquez sur un message pour l’ouvrir dans une fenêtre séparée.','💬 Nachricht verfassen...':'💬 Rédiger un message...',
+    '🤒 Krankheitstage-Sammler':'🤒 Récapitulatif des jours de maladie','Alle deine gespeicherten Krankmeldungen und Krankheitstage.':'Tous vos arrêts maladie et jours de maladie enregistrés.','🤒 Krankmeldung':'🤒 Arrêt maladie','Zeitraum und Krankmeldung hinterlegen':'Enregistrer la période et l’arrêt maladie','Krankmeldung / Attest':'Arrêt maladie / certificat','Foto oder PDF der Krankmeldung.':'Photo ou PDF de l’arrêt maladie.','💾 Krankmeldung speichern':'💾 Enregistrer l’arrêt maladie',
+    'Eigene Abrechnungen':'Mes décomptes','➕ Abrechnung hochladen':'➕ Téléverser un décompte','📤 Abrechnung speichern':'📤 Enregistrer le décompte','Noch keine Abrechnungen vorhanden.':'Aucun décompte disponible.',
+    'Grundriss-Plan (Bild oder PDF) antippen oder per Drag & Drop einfügen':'Touchez le plan (image ou PDF) ou insérez-le par glisser-déposer','Tipp: Nutze oben die Zoom-Buttons oder ziehe den Plan mit der Maus / dem Finger. Klicke auf eine Stelle, um Pins zu setzen oder anzusehen.':'Astuce : utilisez les boutons de zoom en haut ou déplacez le plan avec la souris / le doigt. Cliquez sur un endroit pour placer ou consulter des pins.','➕ Plan hinzufügen':'➕ Ajouter un plan','Klicke auf einen Eintrag, um direkt zum richtigen Plan und Pin zu springen.':'Cliquez sur une entrée pour accéder directement au bon plan et au pin.',
+    'Ideale Bedingungen für Baustellen- und Verlegearbeiten in Luxemburg.':'Conditions idéales pour les travaux de chantier et de pose au Luxembourg.','Lade Wetter...':'Chargement de la météo...','für heute':'pour aujourd’hui','Heute':'Aujourd’hui',
+    'Bitte Problem auswählen und kurz beschreiben.':'Veuillez sélectionner un problème et le décrire brièvement.','Problem auswählen':'Sélectionner un problème','🧱 Untergrund nicht geeignet':'🧱 Support inadapté','📦 Material fehlt':'📦 Matériau manquant','📐 Fläche stimmt nicht':'📐 Surface incorrecte','👤 Kunde nicht vor Ort':'👤 Client absent','💥 Beschädigung vorhanden':'💥 Dommage présent','📅 Terminproblem':'📅 Problème de rendez-vous',
+    'Untergrund nicht geeignet':'Support inadapté','Fläche stimmt nicht':'Surface incorrecte','Kunde nicht vor Ort':'Client absent','Beschädigung vorhanden':'Dommage présent','Terminproblem':'Problème de rendez-vous',
+    '📤 Beleg speichern':'📤 Enregistrer le justificatif','Noch keine Belege vorhanden.':'Aucun justificatif disponible.','Belegdatei':'Fichier justificatif','Betrag':'Montant',
+    'Guten Tag,':'Bonjour,','Guten Tag!':'Bonjour !','Montag':'Lundi','Dienstag':'Mardi','Mittwoch':'Mercredi','Donnerstag':'Jeudi','Freitag':'Vendredi','Samstag':'Samedi','Sonntag':'Dimanche','Mont':'Lun','Di':'Mar','Mi':'Mer','Do':'Jeu','Fr':'Ven','Sa':'Sam','So':'Dim','Januar':'janvier','Februar':'février','März':'mars','April':'avril','Mai':'mai','Juni':'juin','Juli':'juillet','August':'août','September':'septembre','Oktober':'octobre','November':'novembre','Dezember':'décembre','Techniker':'Technicien','Sekretariat':'Secrétariat','2. Chef':'2e chef','Tage':'jours','Tag':'jour',
+    'Speichern':'Enregistrer','Löschen':'Supprimer','Bearbeiten':'Modifier','Auswählen':'Sélectionner','Hinzufügen':'Ajouter','Anlegen':'Créer','Suchen':'Rechercher','Keine':'Aucun','Heute':'Aujourd’hui','Woche':'Semaine','Nachricht':'Message','Chef':'Chef','Verleger':'Poseur','Krank':'Malade','Urlaub':'Congé','Werkzeuge':'Outils','Lager':'Stock','Materialien':'Matériaux','Zuweisung':'Affectation','Stunden':'Heures','Adresse':'Adresse','Uhrzeit':'Heure','Menge':'Quantité','Produkt':'Produit','Hersteller':'Fabricant','Verbrauch':'Consommation','Fläche':'Surface','Räume':'Pièces','Arbeiten':'Travaux','Anweisung':'Instruction','Plan':'Plan','Pläne':'Plans','Auftrag':'Commande','Bericht':'Rapport','Problem':'Problème','Belege':'Justificatifs','Kasse':'Caisse','Telefon':'Téléphone','E-Mail':'E-mail','Name':'Nom','Vorname':'Prénom','Nachname':'Nom de famille','Telefonnummer':'Numéro de téléphone','optional':'facultatif','erforderlich':'obligatoire','Speichern':'Enregistrer','Schließen':'Fermer','Zurück':'Retour','Weiter':'Suivant','Ja':'Oui','Nein':'Non','Laden':'Charger','Hochladen':'Téléverser','Download':'Téléchargement','Öffnen':'Ouvrir','Details':'Détails','Aktiv':'Actif','In Arbeit':'En cours','Fertig':'Terminé','Offen':'Ouvert','Gesamt':'Total','Rest':'Reste','Verbraucht':'Consommé','Soll':'Prévu','Status':'Statut'
   };
 
   const originals=new WeakMap();
-  const translated=new WeakMap();
+  const attrOriginals=new WeakMap();
   window.portalLanguage=localStorage.getItem('brisbois_language')||'de';
-  function norm(v){return String(v||'').replace(/\s+/g,' ').trim()}
+  function norm(v){return String(v||'').replace(/\s+/g,' ').trim();}
   function updateLanguageButtons(lang){
     document.querySelectorAll('#language-de-login,#language-de-app').forEach(b=>b.classList.toggle('language-active',lang==='de'));
     document.querySelectorAll('#language-fr-login,#language-fr-app').forEach(b=>b.classList.toggle('language-active',lang==='fr'));
   }
   const frKeys=Object.keys(FR).sort((a,b)=>b.length-a.length);
-  const frReverse={};
-  frKeys.forEach(k=>{ if(FR[k] && FR[k]!==k && !frReverse[FR[k]]) frReverse[FR[k]]=k; });
-  const frValues=Object.keys(frReverse).sort((a,b)=>b.length-a.length);
-
   function translateText(raw,lang){
-    let out=String(raw||'');
-    if(lang==='fr'){
-      frValues.forEach(fr=>{ if(out.includes(fr)) out=out.split(fr).join(frReverse[fr]); });
-      frKeys.forEach(de=>{ if(FR[de] && out.includes(de)) out=out.split(de).join(FR[de]); });
-    }
+    const original=String(raw||'');
+    if(lang!=='fr') return original;
+    let out=original;
+    for(const de of frKeys){if(out.includes(de)) out=out.split(de).join(FR[de]);}
     return out;
   }
-
   function translateNode(n,lang){
+    if(!n) return;
     if(n.nodeType===3){
       const raw=n.nodeValue;
-      if(!raw || !norm(raw)) return;
-      if(lang==='fr'){
-        if(!originals.has(n) || translated.get(n)!==raw) originals.set(n,raw);
-        const out=translateText(originals.get(n),lang);
-        if(out!==raw){ translated.set(n,out); n.nodeValue=out; }
-      } else {
-        if(translated.get(n)===raw && originals.has(n)) n.nodeValue=originals.get(n);
-        else { originals.set(n,raw); translated.delete(n); }
-      }
-    } else if(n.nodeType===1){
+      if(!raw||!norm(raw))return;
+      if(!originals.has(n)) originals.set(n,raw);
+      const base=originals.get(n);
+      const out=translateText(base,lang);
+      if(n.nodeValue!==out)n.nodeValue=out;
+    }else if(n.nodeType===1){
       ['placeholder','title','aria-label'].forEach(a=>{
-        if(n.hasAttribute(a)){
-          const attrKey='orig'+a.replace(/-/g,'');
-          const val=n.getAttribute(a);
-          if(!n.dataset[attrKey]) n.dataset[attrKey]=val;
-          n.setAttribute(a,lang==='fr'?translateText(n.dataset[attrKey],lang):n.dataset[attrKey]);
-        }
+        if(!n.hasAttribute(a))return;
+        let m=attrOriginals.get(n); if(!m){m={};attrOriginals.set(n,m);}
+        if(m[a]===undefined)m[a]=n.getAttribute(a);
+        n.setAttribute(a,lang==='fr'?translateText(m[a],lang):m[a]);
       });
       Array.from(n.childNodes).forEach(c=>translateNode(c,lang));
     }
   }
   window.portalApplyLanguage=function(lang){
-    lang=lang==='fr'?'fr':'de'; window.portalLanguage=lang; localStorage.setItem('brisbois_language',lang);
-    document.documentElement.lang=lang; document.body.setAttribute('data-portal-language',lang); updateLanguageButtons(lang);
-    translateNode(document.body,lang);
+    lang=lang==='fr'?'fr':'de';
+    window.portalLanguage=lang;
+    try{localStorage.setItem('brisbois_language',lang);}catch(e){}
+    document.documentElement.lang=lang;
+    if(document.body)document.body.setAttribute('data-portal-language',lang);
+    updateLanguageButtons(lang);
+    if(document.body)translateNode(document.body,lang);
   };
-  function profileLanguage(){try{const u=window.__brisboisUserName||'',gd=window.__brisboisGlobalDaten||window.globalDaten,p=gd&&u&&gd.mitarbeiterProfil?gd.mitarbeiterProfil[u]:null;return p&&(p.sprache==='fr'||p.sprache==='de')?p.sprache:null}catch(e){return null}}
-  window.setPortalLanguage=async function(lang){
-    lang=lang==='fr'?'fr':'de'; window.portalApplyLanguage(lang);
-    try{const u=window.__brisboisUserName||'',gd=window.__brisboisGlobalDaten||window.globalDaten;if(u&&gd){gd.mitarbeiterProfil=gd.mitarbeiterProfil||{};const old=gd.mitarbeiterProfil[u]||{};gd.mitarbeiterProfil[u]=Object.assign({},old,{sprache:lang});if(typeof window.globalGlobalSpeichern==='function')await window.globalGlobalSpeichern();}}catch(e){console.warn('Sprache konnte nicht gespeichert werden:',e)}
+  window.setPortalLanguage=function(lang){
+    /* ABSICHTLICH KEIN globalGlobalSpeichern(): Sprachwahl darf niemals Portal-Daten überschreiben. */
+    window.portalApplyLanguage(lang);
   };
-  window.portalLanguageAfterLogin=function(){window.portalApplyLanguage(profileLanguage()||localStorage.getItem('brisbois_language')||'de')};
-  const obs=new MutationObserver(ms=>{const lang=window.portalLanguage||'de';ms.forEach(m=>{if(lang==='fr'){if(m.type==='characterData')translateNode(m.target,'fr');else m.addedNodes.forEach(n=>translateNode(n,'fr'));}else if(lang==='de' && m.type==='characterData'){translateNode(m.target,'de');}})});
-  function init(){window.portalApplyLanguage(localStorage.getItem('brisbois_language')||'de');obs.observe(document.body,{childList:true,subtree:true,characterData:true})}
+  window.portalLanguageAfterLogin=function(){window.portalApplyLanguage(localStorage.getItem('brisbois_language')||'de');};
+
+  /* Sicherer, sehr leichter Observer: nur neu eingefügte Elemente, keine characterData-Schleife. */
+  let queued=[]; let timer=null;
+  function queueNode(n){if(n&&n.nodeType===1)queued.push(n);if(timer)return;timer=setTimeout(()=>{const list=queued;queued=[];timer=null;if(window.portalLanguage==='fr')list.forEach(x=>translateNode(x,'fr'));},120);}
+  function init(){
+    window.portalApplyLanguage(localStorage.getItem('brisbois_language')||'de');
+    if(document.body){
+      const obs=new MutationObserver(ms=>ms.forEach(m=>m.addedNodes&&m.addedNodes.forEach(queueNode)));
+      obs.observe(document.body,{childList:true,subtree:true});
+    }
+  }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
