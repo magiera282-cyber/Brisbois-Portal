@@ -6697,13 +6697,44 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             materiallisteNormalisieren();
             return globalDaten.materialliste.filter(m=>m.aktiv!==false && m.produkt && Number(m.verbrauchVon)>0);
         }
+        function kiMaterialTextNorm(v){
+            return String(v||'')
+                .toLowerCase()
+                .replace(/[–—_]/g,'-')
+                .replace(/[^a-z0-9äöüß]+/gi,' ')
+                .replace(/\s+/g,' ')
+                .trim();
+        }
+        function kiProduktSuchbegriffe(m){
+            const raw=[m?.produkt||'',m?.suchbegriffe||''].join(',').split(/[,;|]+/);
+            const out=[];
+            raw.forEach(x=>{
+                const n=kiMaterialTextNorm(x);
+                if(!n)return;
+                out.push(n);
+                // Herstellerpräfix entfernen: „UZIN LE 44“ wird auch als „LE 44“ erkannt.
+                out.push(n.replace(/^(?:uzin|wakol|mapei|ardex|bostik)\s+/i,''));
+                // Allgemeine Materialbezeichnungen am Ende entfernen: „LE 44 Kleber“ -> „LE 44“.
+                out.push(n.replace(/\s+(?:kleber|klebstoff|adhesiv|adhäsiv|colle|adhésif)$/i,''));
+                out.push(n.replace(/^(?:uzin|wakol|mapei|ardex|bostik)\s+/i,'').replace(/\s+(?:kleber|klebstoff|adhesiv|adhäsiv|colle|adhésif)$/i,''));
+            });
+            return [...new Set(out.filter(x=>x.length>=3))];
+        }
         function kiProduktAusMaterialliste(text, liste){
-            const t=String(text||'').toLowerCase();
+            const t=kiMaterialTextNorm(text);
             let best=null,bestScore=0;
             liste.forEach(m=>{
-                const begriffe=[m.produkt,m.suchbegriffe||''].join(',').split(/[,;|]+/).map(x=>x.trim().toLowerCase()).filter(Boolean);
+                const begriffe=kiProduktSuchbegriffe(m);
                 let score=0;
-                begriffe.forEach(b=>{ if(b && t.includes(b)) score=Math.max(score,b.length); });
+                begriffe.forEach(b=>{
+                    if(!b)return;
+                    if(t.includes(b)) score=Math.max(score,b.length+100);
+                    else {
+                        const teile=b.split(' ').filter(x=>x.length>=2);
+                        const treffer=teile.filter(x=>t.includes(x)).length;
+                        if(teile.length>=2 && treffer===teile.length) score=Math.max(score,teile.join('').length+50);
+                    }
+                });
                 if(score>bestScore){bestScore=score;best=m;}
             });
             return best;
@@ -6732,8 +6763,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         };
         const _kiAlleProdukteAlt=kiAlleProdukte;
         kiAlleProdukte=function(text){
-            const liste=materiallisteFuerKI(); const t=String(text||'').toLowerCase();
-            const dyn=liste.filter(m=>[m.produkt,m.suchbegriffe||''].join(' ').split(/[,;|]+/).some(b=>b.trim() && t.includes(b.trim().toLowerCase()))).map(m=>m.produkt);
+            const liste=materiallisteFuerKI();
+            const dyn=liste.filter(m=>kiProduktSuchbegriffe(m).some(b=>b && kiMaterialTextNorm(text).includes(b))).map(m=>m.produkt);
             const old=_kiAlleProdukteAlt(text);
             return [...new Set([...dyn,...old])];
         };
