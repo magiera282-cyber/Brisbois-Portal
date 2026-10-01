@@ -690,7 +690,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
              onmouseleave="stopVollbildPan()"
              onclick="vollbildGrundrissKlickVerarbeiten(event)">
             
-            <div id="vollbild-transform-wrapper" class="relative inline-block transition-transform duration-100 origin-center" style="transform: scale(1);">
+            <div id="vollbild-transform-wrapper" class="relative inline-block origin-top-left" style="transform: translate3d(0,0,0);">
                 <img id="vollbild-plan-bild" class="hidden block max-w-none select-none shadow-2xl rounded-lg" alt="Grundriss Vollbild">
                 <div id="vollbild-pdf-viewer" class="hidden relative inline-block select-none w-[900px] h-[700px] bg-white border shadow-2xl rounded-lg"></div>
                 <div id="vollbild-pin-container" class="absolute inset-0 pointer-events-none z-20"></div>
@@ -5025,11 +5025,37 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
         function aktualisiereVollbildTransform() {
             const wrapper = document.getElementById('vollbild-transform-wrapper');
-            if(wrapper) {
-                wrapper.style.transition = 'none';
-                wrapper.style.transform =
-                    `translate3d(${mobilePlanOffsetX}px, ${mobilePlanOffsetY}px, 0) scale(${vollbildZoomFaktor})`;
-            }
+            if (!wrapper) return;
+
+            // Desktop: Nicht mehr den kompletten Wrapper skalieren.
+            // Dadurch kennt der Scroll-Container die echte vergrößerte Fläche
+            // und man kann auch ganz nach links/rechts scrollen.
+            // Mobile: Die Verschiebung bleibt am Wrapper, damit das bisherige
+            // Wischen/Pan-Verhalten erhalten bleibt.
+            wrapper.style.transition = 'none';
+            wrapper.style.transform = `translate3d(${mobilePlanOffsetX}px, ${mobilePlanOffsetY}px, 0)`;
+
+            const bild = document.getElementById('vollbild-plan-bild');
+            const pdf = document.getElementById('vollbild-pdf-viewer');
+            const pins = document.getElementById('vollbild-pin-container');
+            const aktiv = (bild && !bild.classList.contains('hidden')) ? bild :
+                          ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
+
+            if (!aktiv) return;
+
+            // offsetWidth/offsetHeight sind die unskalierten Originalmaße.
+            const baseW = aktiv.offsetWidth || aktiv.clientWidth || 1;
+            const baseH = aktiv.offsetHeight || aktiv.clientHeight || 1;
+            const zoom = Math.max(0.7, Math.min(4, Number(vollbildZoomFaktor) || 1));
+
+            wrapper.style.width = `${Math.max(1, Math.round(baseW * zoom))}px`;
+            wrapper.style.height = `${Math.max(1, Math.round(baseH * zoom))}px`;
+
+            [bild, pdf, pins].forEach(el => {
+                if (!el) return;
+                el.style.transformOrigin = 'top left';
+                el.style.transform = `scale(${zoom})`;
+            });
         }
 
         window.startVollbildPan = function(e) {
@@ -5314,8 +5340,18 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     planIndex: planIdx
                 });
 
+                // Der Pin wird zuerst sicher im Baustellen-Dokument gespeichert.
+                // Die globale Benachrichtigung darf den Speichervorgang nicht mehr
+                // blockieren (sonst bleibt auf dem iPhone dauerhaft „Wird gespeichert...“).
                 await projektSpeichern(aktuellesProjekt);
-                await window.globalGlobalSpeichern();
+                try {
+                    await Promise.race([
+                        window.globalGlobalSpeichern(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Portal-Synchronisation dauert zu lange')), 8000))
+                    ]);
+                } catch (syncError) {
+                    console.warn('Pin gespeichert, globale Benachrichtigung wird später synchronisiert:', syncError);
+                }
                 document.getElementById('pin-modal').classList.add('hidden');
                 vollbildPinsAnzeigen();
                 benachrichtigungenAnzeigen();
