@@ -676,6 +676,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
             </div>
             <div class="flex items-center gap-2">
                 <button type="button" onclick="vollbildZoomIn()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Vergrößern">+</button>
+                <button type="button" onclick="vollbildPinModusUmschalten()" id="vollbild-pin-btn" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Pin setzen">📌</button>
                 <button type="button" onclick="vollbildZoomReset()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition" title="Zurücksetzen">⌂</button>
                 <button type="button" onclick="vollbildZoomOut()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition" title="Verkleinern">-</button>
                 <button type="button" onclick="vollbildSchliessen()" class="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg text-sm transition ml-2">✕ Schließen</button>
@@ -4987,6 +4988,14 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
 
             document.getElementById('plan-vollbild-modal').classList.remove('hidden');
 
+            const vollPinBtn = document.getElementById('vollbild-pin-btn');
+            if (vollPinBtn) {
+                vollPinBtn.className = pinModusAktiv
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse"
+                    : "bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition";
+                vollPinBtn.innerText = pinModusAktiv ? "📌✓" : "📌";
+            }
+
             if (window.innerWidth <= 640) {
                 const mobilePlan = document.getElementById('vollbild-scroll-container');
                 if (mobilePlan && mobilePlan.dataset.mobilePlanGestures !== '1') {
@@ -5027,11 +5036,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const wrapper = document.getElementById('vollbild-transform-wrapper');
             if (!wrapper) return;
 
-            // Desktop: Nicht mehr den kompletten Wrapper skalieren.
-            // Dadurch kennt der Scroll-Container die echte vergrößerte Fläche
-            // und man kann auch ganz nach links/rechts scrollen.
-            // Mobile: Die Verschiebung bleibt am Wrapper, damit das bisherige
-            // Wischen/Pan-Verhalten erhalten bleibt.
             wrapper.style.transition = 'none';
             wrapper.style.transform = `translate3d(${mobilePlanOffsetX}px, ${mobilePlanOffsetY}px, 0)`;
 
@@ -5040,29 +5044,47 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             const pins = document.getElementById('vollbild-pin-container');
             const aktiv = (bild && !bild.classList.contains('hidden')) ? bild :
                           ((pdf && !pdf.classList.contains('hidden')) ? pdf : null);
-
             if (!aktiv) return;
 
-            // offsetWidth/offsetHeight sind die unskalierten Originalmaße.
-            const baseW = aktiv.offsetWidth || aktiv.clientWidth || 1;
-            const baseH = aktiv.offsetHeight || aktiv.clientHeight || 1;
             const zoom = Math.max(0.7, Math.min(4, Number(vollbildZoomFaktor) || 1));
 
-            wrapper.style.width = `${Math.max(1, Math.round(baseW * zoom))}px`;
-            wrapper.style.height = `${Math.max(1, Math.round(baseH * zoom))}px`;
+            // Ganz wichtig für Pins: Plan und Pin-Container müssen dieselbe
+            // echte Layout-Größe haben. Nur dann bleibt ein gespeicherter
+            // Prozentwert auch nach dem Speichern exakt auf derselben Stelle.
+            let baseW = 0, baseH = 0;
+            if (aktiv === bild && bild.naturalWidth && bild.naturalHeight) {
+                baseW = bild.naturalWidth;
+                baseH = bild.naturalHeight;
+                const maxW = Math.max(1, window.innerWidth * 0.92);
+                const maxH = Math.max(1, (window.innerHeight - 150) * 0.92);
+                const fit = Math.min(1, maxW / baseW, maxH / baseH);
+                baseW *= fit;
+                baseH *= fit;
+            } else {
+                baseW = 900;
+                baseH = 700;
+            }
 
-            // Bild/PDF wird skaliert. Der Pin-Container darf NICHT noch einmal
-            // skaliert werden: seine Breite/Höhe entspricht bereits der durch
-            // den Wrapper vergrößerten Planfläche. Andernfalls würde die Pin-
-            // Position bei Zoom doppelt skaliert und vom gesetzten Punkt wegwandern.
-            [bild, pdf].forEach(el => {
-                if (!el) return;
-                el.style.transformOrigin = 'top left';
-                el.style.transform = `scale(${zoom})`;
-            });
+            const targetW = Math.max(1, Math.round(baseW * zoom));
+            const targetH = Math.max(1, Math.round(baseH * zoom));
+
+            wrapper.style.width = `${targetW}px`;
+            wrapper.style.height = `${targetH}px`;
+
+            if (aktiv === bild) {
+                bild.style.transform = 'none';
+                bild.style.width = `${targetW}px`;
+                bild.style.height = `${targetH}px`;
+            } else {
+                pdf.style.transform = 'none';
+                pdf.style.width = `${targetW}px`;
+                pdf.style.height = `${targetH}px`;
+            }
+
             if (pins) {
-                pins.style.transformOrigin = 'top left';
                 pins.style.transform = 'none';
+                pins.style.width = `${targetW}px`;
+                pins.style.height = `${targetH}px`;
             }
         }
 
@@ -5097,6 +5119,25 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             projektSpeichern(aktuellesProjekt);
         }
 
+        window.vollbildPinModusUmschalten = function() {
+            pinModusAktiv = !pinModusAktiv;
+            const btn = document.getElementById('vollbild-pin-btn');
+            if (btn) {
+                btn.className = pinModusAktiv
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse"
+                    : "bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition";
+                btn.title = pinModusAktiv ? "Pin setzen ist aktiv" : "Pin setzen";
+                btn.innerText = pinModusAktiv ? "📌✓" : "📌";
+            }
+            const outside = document.getElementById('pin-modus-btn');
+            if (outside) {
+                outside.className = pinModusAktiv
+                    ? "text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm animate-pulse"
+                    : "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
+                outside.innerText = pinModusAktiv ? "📌 Pin setzen (Aktiv)" : "📌 Pin setzen (Aus)";
+            }
+        };
+
         window.pinModusUmschalten = function() {
             pinModusAktiv = !pinModusAktiv;
             const btn = document.getElementById('pin-modus-btn');
@@ -5104,6 +5145,13 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 btn.className = "text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm animate-pulse";
                 btn.innerText = "📌 Pin setzen (Aktiv im Vollbild)";
                 vollbildOeffnen();
+                setTimeout(() => {
+                    const vb = document.getElementById('vollbild-pin-btn');
+                    if (vb) {
+                        vb.className = "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse";
+                        vb.innerText = "📌✓";
+                    }
+                }, 0);
             } else {
                 btn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
                 btn.innerText = "📌 Pin setzen (Aus)";
@@ -5391,11 +5439,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 vollbildPinsAnzeigen();
                 benachrichtigungenAnzeigen();
 
-                pinModusAktiv = false;
-                const modusBtn = document.getElementById('pin-modus-btn');
-                if (modusBtn) {
-                    modusBtn.className = "text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm";
-                    modusBtn.innerText = "📌 Pin setzen (Aus)";
+                // Pin-Modus bleibt nach dem Speichern aktiv, damit direkt der
+                // nächste Pin gesetzt werden kann, ohne die Großansicht zu schließen.
+                const vollPinBtn = document.getElementById('vollbild-pin-btn');
+                if (vollPinBtn && pinModusAktiv) {
+                    vollPinBtn.className = "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse";
+                    vollPinBtn.innerText = "📌✓";
                 }
             } catch (error) {
                 console.error("Fehler beim Speichern des Mangel-Pins:", error);
