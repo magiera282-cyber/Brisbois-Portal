@@ -623,6 +623,76 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
 }
 </style>
 
+
+<style id="lager-breiter-ohne-scroll">
+/* Nur Lagerliste: auf Desktop breiter und ohne horizontales Scrollen.
+   Bestehende Daten und Funktionen bleiben unverändert. */
+@media (min-width: 768px){
+  #tab-lager{
+    max-width:1600px !important;
+    width:100% !important;
+  }
+  #tab-lager > .bg-white:first-child{
+    width:100%;
+  }
+  #tab-lager .overflow-x-auto{
+    overflow-x:hidden !important;
+  }
+  #tab-lager .overflow-x-auto > table{
+    width:100% !important;
+    min-width:0 !important;
+    table-layout:fixed !important;
+  }
+  #tab-lager .overflow-x-auto > table th:nth-child(1),
+  #tab-lager .overflow-x-auto > table td:nth-child(1){width:24%;}
+  #tab-lager .overflow-x-auto > table th:nth-child(2),
+  #tab-lager .overflow-x-auto > table td:nth-child(2){width:11%;}
+  #tab-lager .overflow-x-auto > table th:nth-child(3),
+  #tab-lager .overflow-x-auto > table td:nth-child(3),
+  #tab-lager .overflow-x-auto > table th:nth-child(4),
+  #tab-lager .overflow-x-auto > table td:nth-child(4),
+  #tab-lager .overflow-x-auto > table th:nth-child(5),
+  #tab-lager .overflow-x-auto > table td:nth-child(5){width:8%;}
+  #tab-lager .overflow-x-auto > table th:nth-child(6),
+  #tab-lager .overflow-x-auto > table td:nth-child(6){width:10%;}
+  #tab-lager .overflow-x-auto > table th:nth-child(7),
+  #tab-lager .overflow-x-auto > table td:nth-child(7){width:10%;}
+  #tab-lager .overflow-x-auto > table th:nth-child(8),
+  #tab-lager .overflow-x-auto > table td:nth-child(8){width:21%;}
+
+  #tab-lager .overflow-x-auto > table td{
+    min-width:0;
+  }
+  #tab-lager .overflow-x-auto > table td input,
+  #tab-lager .overflow-x-auto > table td select{
+    max-width:100% !important;
+    box-sizing:border-box;
+  }
+  #tab-lager .overflow-x-auto > table td:first-child .flex{
+    min-width:0;
+  }
+  #tab-lager .overflow-x-auto > table td:first-child .min-w-0{
+    min-width:0;
+    flex:1 1 auto;
+  }
+  #tab-lager .overflow-x-auto > table td:first-child input{
+    width:100% !important;
+  }
+  #tab-lager .overflow-x-auto > table td:nth-child(2) select,
+  #tab-lager .overflow-x-auto > table td:nth-child(3) input,
+  #tab-lager .overflow-x-auto > table td:nth-child(4) input,
+  #tab-lager .overflow-x-auto > table td:nth-child(5) input,
+  #tab-lager .overflow-x-auto > table td:nth-child(6) input{
+    width:100% !important;
+  }
+  #tab-lager .overflow-x-auto > table td:nth-child(8){
+    white-space:normal !important;
+  }
+  #tab-lager .overflow-x-auto > table td:nth-child(8) button{
+    margin:2px 1px;
+  }
+}
+</style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
