@@ -6664,9 +6664,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
             return true;
         }
-        function lagerBerechtigt(){
-            return lagerAusgabeBerechtigt();
-        }
         function lagerNormalisieren(){
             if(!Array.isArray(globalDaten.lagerbestand)) globalDaten.lagerbestand=[];
             globalDaten.lagerbestand=globalDaten.lagerbestand.map((x,i)=>({
