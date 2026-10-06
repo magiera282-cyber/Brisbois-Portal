@@ -727,7 +727,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Passwort</label>
                     <input type="password" id="login-passwort" placeholder="Passwort eingeben" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
-                    <button type="button" onclick="passwortZuruecksetzen()" class="mt-2 text-xs text-blue-700 hover:text-blue-900 font-semibold underline">🔑 Passwort vergessen / zurücksetzen</button>
+                    
                 </div>
                 <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-lg transition text-sm shadow">
                     🔓 Anmelden
@@ -1947,10 +1947,17 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
       </div>
     </div>
 
-    <!-- Firebase SDK & Cloud Logik -->
+    <!--
+SECURITY MIGRATION MARKER (06.10.2026):
+- Firebase Authentication is the real login authority.
+- Legacy passwoerter field remains temporarily for compatibility and must not be used as an authentication source.
+- Final Firestore rules must be deployed only after collection reads are split by role; current portal/global contains mixed role data.
+- Do not replace these rules with allow read, write: if request.auth != null.
+-->
+<!-- Firebase SDK & Cloud Logik -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
@@ -1976,19 +1983,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // niemals im Login-Fenster oder in der Oberfläche angezeigt.
         function brisboisAuthKennung(name) {
             const interneKennungen = {
-                // Bestehende echte Firebase-Anmeldung von Patrick bleibt unverändert.
-                "Patrick Magiera": "magiera282@gmail.com",
-                // Für Verwaltung, Technik und Lager werden die hinterlegten Firmenadressen
-                // als Firebase-Anmeldekennung verwendet. Im Portal werden diese Adressen
-                // niemals angezeigt.
-                "Jeff Brisbois": "chef@brisbois.de",
-                "Didier Michel": "didier@brisbois.de",
-                "Tania Thill": "sekretariat.auth@brisbois-bembe.de",
-                "Dagmar Stejskalova": "sekretariat.auth@brisbois-bembe.de",
-                "Marie-Christine Mathieu": "marie-christine@brisbois.de",
-                "Christian Leppin": "christian@brisbois.de",
-                "Sylvain Zuliani": "sylvain@brisbois.de",
-                "Claude Gaita": "claude@brisbois.de"
+                "Patrick Magiera": "magiera282@gmail.com"
             };
             if (interneKennungen[String(name || "").trim()]) {
                 return interneKennungen[String(name || "").trim()];
@@ -2576,6 +2571,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             try {
                 await setDoc(doc(db, "portal", "global"), {
                     mitarbeiterListe: globalDaten.mitarbeiterListe,
+                    // LEGACY: passwoerter bleibt vorerst nur für die Übergangsphase erhalten.
+                    // Sobald alle Mitarbeiter eigene Firebase-Auth-Konten haben, wird dieses Feld entfernt.
                     passwoerter: globalDaten.passwoerter,
                     mitarbeiterProfil: globalDaten.mitarbeiterProfil,
                     benachrichtigungen: globalDaten.benachrichtigungen,
@@ -2838,19 +2835,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             // Unsicherer Test-/Schnell-Login ist für den produktiven Betrieb deaktiviert.
             alert("Der Schnell-Login ist aus Sicherheitsgründen deaktiviert. Bitte mit Name und Passwort anmelden.");
         }
-
-        window.passwortZuruecksetzen = async function() {
-            const name = document.getElementById('login-name-select')?.value || '';
-            if (!name) { alert('Bitte zuerst einen Mitarbeiter auswählen.'); return; }
-            const email = brisboisAuthKennung(name);
-            try {
-                await sendPasswordResetEmail(auth, email);
-                alert('Wenn für diesen Mitarbeiter ein Firebase-Konto vorhanden ist, wurde eine E-Mail zum Zurücksetzen des Passworts versendet.');
-            } catch (e) {
-                console.error('Passwort-Reset fehlgeschlagen:', e);
-                alert('Die Passwort-Wiederherstellung ist für diesen Mitarbeiter noch nicht eingerichtet. Das Firebase-Konto muss zuerst angelegt werden.');
-            }
-        };
 
         window.anmeldenMitTeam = async function(event) {
             event.preventDefault();
