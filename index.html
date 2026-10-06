@@ -2299,6 +2299,27 @@ SECURITY MIGRATION MARKER (06.10.2026):
             resturlaub: {}
         };
 
+        // Kompatibilität mit dem bisherigen Portal-Login: Die bereits vergebenen
+        // Portal-Passwörter werden einmalig aus dem bestehenden portal/global-Datensatz
+        // gelesen. Es werden dabei keine neuen Passwörter erzeugt oder geändert.
+        async function brisboisAltePasswoerterLaden() {
+            try {
+                const snap = await getDoc(doc(db, "portal", "global"));
+                if (snap.exists()) {
+                    const daten = snap.data() || {};
+                    if (daten.passwoerter && typeof daten.passwoerter === "object") {
+                        globalDaten.passwoerter = daten.passwoerter;
+                    }
+                    if (Array.isArray(daten.mitarbeiterListe) && daten.mitarbeiterListe.length) {
+                        globalDaten.mitarbeiterListe = daten.mitarbeiterListe;
+                    }
+                }
+            } catch (e) {
+                console.warn("Bestehende Portal-Passwörter konnten nicht geladen werden:", e);
+            }
+        }
+        brisboisAltePasswoerterLaden();
+
         // Entfernt den alten Demo-Eintrag, falls er bereits in Firebase gespeichert wurde.
         globalDaten.benachrichtigungen = (globalDaten.benachrichtigungen || []).filter(item =>
             !(String(item.von || '') === "Jeff Brisbois (Chef)" &&
@@ -3001,62 +3022,27 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         window.anmeldenMitTeam = async function(event) {
             event.preventDefault();
-            const name = document.getElementById('login-name-select').value;
-            const eingegebenesPasswort = document.getElementById('login-passwort').value;
+            const name = document.getElementById('login-name-select')?.value || '';
+            const eingegebenesPasswort = document.getElementById('login-passwort')?.value || '';
             if (!name || !eingegebenesPasswort) {
                 alert("Bitte Name und Passwort eingeben.");
                 return;
             }
 
-            // Der Mitarbeiter gibt weiterhin nur Name + Passwort ein.
-            // Firebase erhält im Hintergrund eine technische interne Kennung.
-            let angemeldeteKennung = "";
-            let letzterFehler = null;
-            const kennungen = brisboisAuthKennungen(name);
-            for (const kennung of kennungen) {
-                try {
-                    await signInWithEmailAndPassword(auth, kennung, eingegebenesPasswort);
-                    angemeldeteKennung = kennung;
-                    break;
-                } catch (e) {
-                    letzterFehler = e;
-                    try { await signOut(auth); } catch(ignore) {}
-                }
-            }
-            if (!angemeldeteKennung) {
-                console.error("Firebase-Anmeldung fehlgeschlagen:", letzterFehler);
-                const code = String(letzterFehler?.code || "");
-                if (code.includes("user-not-found") || code.includes("invalid-credential")) {
-                    alert("Für diesen Mitarbeiter konnte Firebase die Anmeldung nicht bestätigen. Das Portal-Passwort aus der alten Liste ist nicht automatisch das Firebase-Passwort.");
-                } else if (code.includes("wrong-password") || code.includes("invalid-login-credentials")) {
-                    alert("Das eingegebene Passwort stimmt nicht mit dem Firebase-Passwort dieses Kontos überein.");
-                } else {
-                    alert("Anmeldung momentan nicht möglich. Bitte Internetverbindung und Firebase prüfen.");
-                }
-                return;
-            }
-
-            // Firebase Authentication ist jetzt die einzige technische
-            // Login-Quelle. Ein lokaler Name/Passwort-Vergleich findet nicht statt.
-            const firebaseUser = auth.currentUser;
-            const erlaubteKennungen = brisboisAuthKennungen(name).map(e => String(e || '').toLowerCase());
-            if (!firebaseUser || !erlaubteKennungen.includes(String(firebaseUser.email || '').toLowerCase())) {
-                try { await signOut(auth); } catch(e) {}
-                alert("Die Firebase-Anmeldung konnte nicht eindeutig dem ausgewählten Mitarbeiter zugeordnet werden.");
+            // Bestehender Portal-Login: Das bereits vergebene Passwort aus
+            // portal/global wird verwendet. Firebase-Passwörter werden hier
+            // NICHT geändert und sind für diesen Login nicht erforderlich.
+            const passwoerter = globalDaten.passwoerter || {};
+            const gespeichertesPasswort = passwoerter[name] || "start123";
+            if (String(eingegebenesPasswort) !== String(gespeichertesPasswort)) {
+                alert("Falsches Passwort.");
                 return;
             }
 
             eingeloggterMitarbeiter = name;
             const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === name);
-            if (!maObjekt) {
-                try { await signOut(auth); } catch(e) {}
-                alert("Für diesen Firebase-Benutzer ist im Portal noch keine Mitarbeiterrolle hinterlegt.");
-                return;
-            }
-            eingeloggteRolle = maObjekt.rolle || "Verleger";
+            eingeloggteRolle = maObjekt?.rolle || "Verleger";
 
-            // Login dauerhaft auf diesem Gerät merken. Dabei wird niemals
-            // das Passwort und niemals eine Rolle als Sicherheitsnachweis gespeichert.
             try {
                 await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
             } catch(e) {
@@ -3064,7 +3050,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
 
             setTimeout(() => { try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {} }, 50);
-            
             oeffneAppNachLogin();
         }
 
