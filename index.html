@@ -1620,7 +1620,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Telefonnummer / Handynummer</label>
-                        <input type="text" id="profil-telefon" placeholder="z.B. +352 691..." class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" autocomplete="tel">
+                        <input type="text" id="profil-telefon" placeholder="z.B. +352 691..." class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" autocomplete="new-password">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-1">E-Mail-Adresse</label>
@@ -1966,7 +1966,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 <!-- Firebase SDK & Cloud Logik -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
@@ -1985,13 +1985,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app, "(default)");
-
-        // SECURITY: Firebase Auth ist die einzige Login-Quelle.
-        // Die Sitzung darf nach einem Browser-Neustart erhalten bleiben,
-        // aber lokale Name-/Rollenwerte werden niemals als Login akzeptiert.
-        setPersistence(auth, browserLocalPersistence).catch((e) => {
-            console.warn("Firebase-Sitzung konnte nicht auf dauerhaft gesetzt werden:", e);
-        });
         const messaging = getMessaging(app);
 
         // Sichere technische Identität: Im Portal wird weiterhin ausschließlich
@@ -2018,25 +2011,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 .replace(/[^a-z0-9]+/g, ".")
                 .replace(/^\.|\.$/g, "") + "@auth.brisbois-bembe.firebaseapp.com";
         }
-        // SECURITY: Nur die aktuell eingerichteten echten Firebase-Konten dürfen
-        // sich über das Mitarbeiter-Dropdown anmelden. Weitere Mitarbeiter bleiben
-        // im Portal sichtbar, erhalten aber erst nach Einrichtung eines echten
-        // Firebase-Kontos Zugriff.
-        const BRISBOIS_FREIGESCHALTETE_KONTEN = new Set([
-            "Patrick Magiera",
-            "Jeff Brisbois",
-            "Didier Michel",
-            "Christian Leppin",
-            "Sylvain Zuliani",
-            "Claude Gaita",
-            "Wolfgang Seimetz",
-            "Marie-Christine Mathieu"
-        ]);
-        function brisboisLoginFreigeschaltet(name) {
-            return BRISBOIS_FREIGESCHALTETE_KONTEN.has(String(name || "").trim());
-        }
-        window.__brisboisLoginFreigeschaltet = brisboisLoginFreigeschaltet;
-
         window.__brisboisAuth = auth;
         window.__brisboisAuthKennung = brisboisAuthKennung;
         window.__brisboisFirebaseUser = null;
@@ -2054,25 +2028,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     if (appContainer) appContainer.classList.add("hidden");
                     if (loginModal) loginModal.classList.remove("hidden");
                 } catch(e) {}
-                return;
-            }
-
-            // SECURITY: Auch eine gültige Firebase-Sitzung darf nur mit einem
-            // ausdrücklich freigeschalteten Mitarbeiterkonto das Portal öffnen.
-            const authEmail = String(user.email || "").trim().toLowerCase();
-            const freigegebenerName = Object.keys({
-                "Patrick Magiera": "magiera282@gmail.com",
-                "Jeff Brisbois": "chef@brisbois.de",
-                "Didier Michel": "didier@brisbois.de",
-                "Christian Leppin": "christian@brisbois.de",
-                "Sylvain Zuliani": "sylvain@brisbois.de",
-                "Claude Gaita": "claude@brisbois.de",
-                "Wolfgang Seimetz": "wolfgang@brisbois.de",
-                "Marie-Christine Mathieu": "marie-christine@brisbois.de"
-            }).find(n => brisboisAuthKennung(n).toLowerCase() === authEmail);
-            if (!freigegebenerName || !brisboisLoginFreigeschaltet(freigegebenerName)) {
-                console.warn("Firebase-Konto ist für das Brisbois-Portal nicht freigeschaltet.");
-                try { signOut(auth).catch(() => {}); } catch(e) {}
                 return;
             }
 
@@ -3057,20 +3012,19 @@ SECURITY MIGRATION MARKER (06.10.2026):
         window.passwortZuruecksetzenAusLogin = async function() {
             const name = document.getElementById('login-name-select')?.value || '';
             const kennung = brisboisAuthKennung(name);
-            if (!name || !kennung || !brisboisLoginFreigeschaltet(name)) {
-                alert("Für diesen Mitarbeiter ist noch kein sicherer Firebase-Zugang eingerichtet.");
+            if (!name || !kennung) {
+                alert("Bitte zuerst einen Mitarbeiter auswählen.");
                 return;
             }
             try {
                 await sendPasswordResetEmail(auth, kennung);
+                alert("Eine E-Mail zum Zurücksetzen des Passworts wurde an die hinterlegte Adresse gesendet. Bitte auch den Spam-Ordner prüfen.");
             } catch (e) {
+                // Aus Sicherheitsgründen keine Information darüber preisgeben,
+                // ob das ausgewählte Konto bzw. die Adresse in Firebase existiert.
                 console.error("Passwort-Reset fehlgeschlagen:", e);
-                // Keine Information darüber preisgeben, ob ein Konto existiert.
-            } finally {
-                const pass = document.getElementById('login-passwort');
-                if (pass) pass.value = '';
+                alert("Falls für diesen Mitarbeiter ein Konto hinterlegt ist, wurde eine E-Mail zum Zurücksetzen des Passworts angefordert. Bitte auch den Spam-Ordner prüfen.");
             }
-            alert("Falls für diesen Mitarbeiter ein Konto hinterlegt ist, wurde eine E-Mail zum Zurücksetzen des Passworts angefordert. Bitte auch den Spam-Ordner prüfen.");
         };
 
         window.anmeldenMitTeam = async function(event) {
@@ -3079,12 +3033,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const eingegebenesPasswort = document.getElementById('login-passwort')?.value || '';
             if (!name || !eingegebenesPasswort) {
                 alert("Bitte Name und Passwort eingeben.");
-                return;
-            }
-            if (!brisboisLoginFreigeschaltet(name)) {
-                const feld = document.getElementById('login-passwort');
-                if (feld) feld.value = '';
-                alert("Für diesen Mitarbeiter ist noch kein sicherer Firebase-Zugang eingerichtet.");
                 return;
             }
 
@@ -3102,13 +3050,13 @@ SECURITY MIGRATION MARKER (06.10.2026):
             } catch (e) {
                 console.error("Firebase-Anmeldung fehlgeschlagen:", e);
                 const code = String(e?.code || '');
-                if (code.includes('wrong-password') || code.includes('invalid-credential') || code.includes('invalid-login-credentials') || code.includes('user-not-found')) {
-                    alert("Name oder Passwort sind nicht korrekt.");
+                if (code.includes('wrong-password') || code.includes('invalid-credential') || code.includes('invalid-login-credentials')) {
+                    alert("Das Passwort dieses Firebase-Kontos stimmt nicht mit dem eingegebenen Passwort überein. Die Mitarbeiterkonten sind vorhanden, aber das bisherige Portal-Passwort wurde noch nicht als Firebase-Passwort übernommen.");
+                } else if (code.includes('user-not-found')) {
+                    alert("Das Firebase-Konto für diesen Mitarbeiter wurde nicht gefunden.");
                 } else {
-                    alert("Anmeldung momentan nicht möglich. Bitte später erneut versuchen.");
+                    alert("Firebase-Anmeldung momentan nicht möglich. Fehler: " + (e?.code || 'unbekannt'));
                 }
-                const feld = document.getElementById('login-passwort');
-                if (feld) feld.value = '';
                 return;
             }
 
@@ -4695,8 +4643,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             document.getElementById('profil-telefon').value = prof.tel || "";
             document.getElementById('profil-email').value = prof.email || "";
             document.getElementById('profil-passwort').value = "";
-            const bestaetigungFeld = document.getElementById('profil-passwort-bestaetigung');
-            if (bestaetigungFeld) bestaetigungFeld.value = "";
         }
 
         window.eigenesProfilSpeichern = async function(event) {
@@ -4715,11 +4661,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 return;
             }
 
-            // Neues Passwort direkt in Firebase Authentication ändern.
-            // Erst wenn die Passwortänderung erfolgreich war, werden die übrigen
-            // Profildaten gespeichert. So bleibt bei einem Firebase-Fehler nichts
-            // halb gespeichert.
+            // Profildaten speichern. Das Passwort wird NICHT mehr in Firestore/globalDaten gespeichert.
+            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
+            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
 
+            // Neues Passwort direkt in Firebase Authentication ändern.
             if (passNeu) {
                 const user = auth.currentUser;
                 if (!user) {
@@ -4740,10 +4686,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 }
             }
 
-            // Profildaten speichern. Das Passwort wird NICHT in Firestore/globalDaten gespeichert.
-            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
-            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
-
             globalGlobalSpeichern();
             telefonlistenTabelleFüllen();
             document.getElementById('profil-passwort').value = "";
@@ -4751,27 +4693,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (bestaetigungFeld) bestaetigungFeld.value = "";
             alert(passNeu ? "Deine Profildaten wurden gespeichert und dein Firebase-Passwort wurde geändert." : "Deine Profildaten wurden in der Cloud aktualisiert!");
         }
-
-        // SECURITY WATCHDOG: Falls die Firebase-Sitzung verloren geht oder
-        // nicht mehr zum ausgewählten Mitarbeiter passt, wird das Portal sofort
-        // wieder geschlossen. Lokale Speicherwerte können diesen Check niemals
-        // umgehen.
-        setInterval(async () => {
-            try {
-                if (!eingeloggterMitarbeiter) return;
-                const user = auth.currentUser;
-                const expected = brisboisAuthKennung(eingeloggterMitarbeiter);
-                if (!user || !expected || String(user.email || '').toLowerCase() !== String(expected).toLowerCase()) {
-                    try { await signOut(auth); } catch(e) {}
-                    eingeloggterMitarbeiter = '';
-                    eingeloggteRolle = '';
-                    const app = document.getElementById('app-container');
-                    const login = document.getElementById('login-modal');
-                    if (app) app.classList.add('hidden');
-                    if (login) login.classList.remove('hidden');
-                }
-            } catch(e) {}
-        }, 60000);
 
         function telefonlistenTabelleFüllen() {
             const tbody = document.querySelector('#telefonlisten-tabelle tbody');
