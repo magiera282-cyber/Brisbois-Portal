@@ -2359,7 +2359,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const belegeRef = buero
                 ? collection(db, "belege")
-                : query(collection(db, "belege"), where("mitarbeiter", "==", eigeneMitarbeiter));
+                : query(collection(db, "belege"), where("mitarbeiterEmail", "==", email));
             sensibleListenerAbmelden.push(onSnapshot(belegeRef, (snapshot) => {
                 belegeDaten = [];
                 snapshot.forEach((belegSnap) => belegeDaten.push({ id: belegSnap.id, ...belegSnap.data() }));
@@ -2368,7 +2368,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const abrechnungenRef = buero
                 ? collection(db, "abrechnungen")
-                : query(collection(db, "abrechnungen"), where("verleger", "==", eigeneMitarbeiter));
+                : query(collection(db, "abrechnungen"), where("verlegerEmail", "==", email));
             sensibleListenerAbmelden.push(onSnapshot(abrechnungenRef, (snapshot) => {
                 abrechnungenDaten = [];
                 snapshot.forEach((snap) => abrechnungenDaten.push({ id: snap.id, ...snap.data() }));
@@ -2377,7 +2377,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const krankRef = buero
                 ? collection(db, "krankmeldungen")
-                : query(collection(db, "krankmeldungen"), where("mitarbeiter", "==", eigeneMitarbeiter));
+                : query(collection(db, "krankmeldungen"), where("mitarbeiterEmail", "==", email));
             sensibleListenerAbmelden.push(onSnapshot(krankRef, (snapshot) => {
                 globalDaten.krankmeldungen = [];
                 snapshot.forEach((snap) => globalDaten.krankmeldungen.push({ id: snap.id, ...snap.data() }));
