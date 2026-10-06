@@ -6630,13 +6630,26 @@ SECURITY MIGRATION MARKER (06.10.2026):
         function istLagerist(){
             return String(eingeloggteRolle||'').toLowerCase().includes('lagerist');
         }
+        // SCHRITT 3 – Lagerist: nur Ausgaben buchen.
+        // Alle Stamm-/Bestandsänderungen laufen zentral über diese Prüfung.
         function lagerVerwaltenBerechtigt(){
             const r=String(eingeloggteRolle||'').toLowerCase();
-            return !istLagerist() && (istDauerhafterAdmin() || r.includes('chef') || r.includes('techniker') || r.includes('sekretariat') || r.includes('admin'));
+            if (istLagerist()) return false;
+            return istDauerhafterAdmin() || r.includes('chef') || r.includes('techniker') || r.includes('sekretariat') || r.includes('admin');
         }
         function lagerAusgabeBerechtigt(){
             const r=String(eingeloggteRolle||'').toLowerCase();
             return istLagerist() || istDauerhafterAdmin() || r.includes('chef') || r.includes('techniker') || r.includes('sekretariat') || r.includes('admin');
+        }
+        function lagerBerechtigt(){
+            return lagerAusgabeBerechtigt();
+        }
+        function lagerAdminMutationSicher(){
+            if (!lagerVerwaltenBerechtigt()) {
+                alert('🔐 Keine Berechtigung. Als Lagerist darfst du nur Lagerausgaben buchen.');
+                return false;
+            }
+            return true;
         }
         function lagerBerechtigt(){
             return lagerAusgabeBerechtigt();
@@ -6697,7 +6710,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             img.onerror=()=>wrap.classList.add('hidden');
             img.src=url;
         };
-        window.lagerNeuerArtikel=function(){ if(!lagerVerwaltenBerechtigt())return;
+        window.lagerNeuerArtikel=function(){ if(!lagerAdminMutationSicher())return;
             if(!lagerBerechtigt()) return alert('Keine Berechtigung.');
             ['lager-neu-name','lager-neu-beschreibung','lager-neu-hersteller','lager-neu-artikelnummer','lager-neu-bild-url','lager-neu-bestand','lager-neu-mindest','lager-neu-bestell','lager-neu-ort','lager-neu-inventar'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';}); const bildVorschau=document.getElementById('lager-neu-bild-vorschau'); if(bildVorschau)bildVorschau.classList.add('hidden'); const bildImg=document.getElementById('lager-neu-bild-img'); if(bildImg)bildImg.removeAttribute('src');
             const k=document.getElementById('lager-neu-kategorie'); if(k) { k.value='Werkzeug'; k.onchange=lagerMaschinenFelderAktualisieren; } lagerMaschinenFelderAktualisieren();
@@ -6707,7 +6720,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         window.lagerMaschinenFelderAktualisieren=function(){ const k=document.getElementById('lager-neu-kategorie'); const w=document.getElementById('lager-neu-inventar-wrap'); if(w) w.classList.toggle('hidden',k?.value!=='Maschine'); };
         window.lagerNeuerArtikelSchliessen=function(){document.getElementById('lager-neu-artikel-modal')?.classList.add('hidden');};
         window.lagerNeuenArtikelSpeichern=async function(){
-            if(!lagerVerwaltenBerechtigt()) return;
+            if(!lagerAdminMutationSicher())return;
             const name=String(document.getElementById('lager-neu-name')?.value||'').trim();
             if(!name) return alert('Bitte einen Artikelnamen eintragen.');
             lagerNormalisieren();
@@ -6729,9 +6742,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
             lagerNeuerArtikelSchliessen();
             lagerAnzeigen();
         };
-        window.lagerZeileSpeichern=async function(i){if(!lagerVerwaltenBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; x.name=document.getElementById('lag-n-'+i)?.value.trim()||''; x.kategorie=document.getElementById('lag-k-'+i)?.value||'Sonstiges'; x.bestand=Number(document.getElementById('lag-b-'+i)?.value)||0; x.mindestbestand=Number(document.getElementById('lag-m-'+i)?.value)||0; x.bestellmenge=Number(document.getElementById('lag-o-'+i)?.value)||0; x.ort=document.getElementById('lag-r-'+i)?.value.trim()||''; if(!x.name)return alert('Bitte Artikelname eintragen.'); await globalGlobalSpeichern(); lagerAnzeigen();};
-        window.lagerLoeschen=async function(i){if(!lagerVerwaltenBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; if(!confirm(`„${x.name}“ wirklich aus dem Lager löschen?`))return; globalDaten.lagerbestand.splice(i,1); await globalGlobalSpeichern(); lagerAnzeigen();};
-        window.lagerWareneingang=async function(i){if(!lagerVerwaltenBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; const m=prompt(`Wie viele ${x.einheit} „${x.name}“ sind eingetroffen?`,'1'); if(m===null)return; const n=Number(m); if(!Number.isFinite(n)||n<=0)return alert('Bitte eine gültige Menge eingeben.'); x.bestand+=n; x.bestellstatus=''; x.letzterEingang={menge:n,datum:new Date().toISOString(),von:eingeloggterMitarbeiter}; await globalGlobalSpeichern(); lagerAnzeigen();};
+        window.lagerZeileSpeichern=async function(i){if(!lagerAdminMutationSicher())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; x.name=document.getElementById('lag-n-'+i)?.value.trim()||''; x.kategorie=document.getElementById('lag-k-'+i)?.value||'Sonstiges'; x.bestand=Number(document.getElementById('lag-b-'+i)?.value)||0; x.mindestbestand=Number(document.getElementById('lag-m-'+i)?.value)||0; x.bestellmenge=Number(document.getElementById('lag-o-'+i)?.value)||0; x.ort=document.getElementById('lag-r-'+i)?.value.trim()||''; if(!x.name)return alert('Bitte Artikelname eintragen.'); await globalGlobalSpeichern(); lagerAnzeigen();};
+        window.lagerLoeschen=async function(i){if(!lagerAdminMutationSicher())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; if(!confirm(`„${x.name}“ wirklich aus dem Lager löschen?`))return; globalDaten.lagerbestand.splice(i,1); await globalGlobalSpeichern(); lagerAnzeigen();};
+        window.lagerWareneingang=async function(i){if(!lagerAdminMutationSicher())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; const m=prompt(`Wie viele ${x.einheit} „${x.name}“ sind eingetroffen?`,'1'); if(m===null)return; const n=Number(m); if(!Number.isFinite(n)||n<=0)return alert('Bitte eine gültige Menge eingeben.'); x.bestand+=n; x.bestellstatus=''; x.letzterEingang={menge:n,datum:new Date().toISOString(),von:eingeloggterMitarbeiter}; await globalGlobalSpeichern(); lagerAnzeigen();};
         window.lagerAusgabe=async function(i){
             if(!lagerAusgabeBerechtigt())return;
             lagerNormalisieren();
@@ -6784,10 +6797,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const count=document.getElementById('lager-maschinen-unterwegs-anzahl'); if(count) count.textContent=`${unterwegs.length} unterwegs`;
             el.innerHTML=arr.length?arr.map((x)=>{const i=globalDaten.lagerbestand.indexOf(x); return `<div class="border ${x.maschineBei?'border-blue-200 bg-blue-50':'border-slate-200 bg-slate-50'} rounded-xl p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><div class="font-bold">🏗️ ${lagerEsc(x.name)} ${x.inventarnr?`<span class="text-xs text-slate-500">(${lagerEsc(x.inventarnr)})</span>`:''}</div><div class="text-xs mt-1 ${x.maschineBei?'text-blue-700':'text-slate-500'}">${x.maschineBei?`🔴 Bei: <b>${lagerEsc(x.maschineBei)}</b> · Seit: ${new Date(x.maschineSeit).toLocaleDateString('de-DE')}`:'🟢 Im Lager'}</div></div>${x.maschineBei?`<button type="button" onclick="lagerMaschineRueckgabe(${i})" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold">↩️ Rückgabe</button>`:''}</div>`}).join(''):'<div class="text-sm text-slate-400 italic">Noch keine Maschinen angelegt.</div>';
         }
-        window.lagerMaschineRueckgabe=async function(i){ if(!lagerVerwaltenBerechtigt())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x||x.kategorie!=='Maschine'||!x.maschineBei)return; const name=x.maschineBei; const jetzt=new Date().toISOString(); x.bestand=Math.max(0,Number(x.bestand||0)+1); x.maschinenHistorie=x.maschinenHistorie||[]; x.maschinenHistorie.unshift({aktion:'Rückgabe',mitarbeiter:name,datum:jetzt,von:eingeloggterMitarbeiter}); x.maschineBei=''; x.maschineSeit=''; await globalGlobalSpeichern(); lagerAnzeigen(); };
+        window.lagerMaschineRueckgabe=async function(i){ if(!lagerAdminMutationSicher())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x||x.kategorie!=='Maschine'||!x.maschineBei)return; const name=x.maschineBei; const jetzt=new Date().toISOString(); x.bestand=Math.max(0,Number(x.bestand||0)+1); x.maschinenHistorie=x.maschinenHistorie||[]; x.maschinenHistorie.unshift({aktion:'Rückgabe',mitarbeiter:name,datum:jetzt,von:eingeloggterMitarbeiter}); x.maschineBei=''; x.maschineSeit=''; await globalGlobalSpeichern(); lagerAnzeigen(); };
         function lagerAusgabenAnzeigen(){const el=document.getElementById('lager-ausgaben-liste'); if(!el)return; const a=lagerAusgabenAlle().slice(0,20); el.innerHTML=a.length?a.map(x=>`<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3"><div><b>🔧 ${lagerEsc(x.artikel)}</b> – ${x.menge} ${lagerEsc(x.einheit)} an <b>${lagerEsc(x.mitarbeiter)}</b></div><div class="text-xs text-slate-500">${new Date(x.datum).toLocaleString('de-DE')} · von ${lagerEsc(x.ausgegebenVon)}</div></div>`).join(''):'<div class="text-sm text-slate-400 italic">Noch keine Werkzeugausgaben.</div>';}
         window.lagerBestellungHinzufuegen=async function(i){
-            if(!lagerVerwaltenBerechtigt()) return;
+            if(!lagerAdminMutationSicher())return;
             lagerNormalisieren();
             const x=globalDaten.lagerbestand[i];
             if(!x) return;
