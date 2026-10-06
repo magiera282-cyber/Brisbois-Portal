@@ -2446,118 +2446,44 @@ SECURITY MIGRATION MARKER (06.10.2026):
             document.head.appendChild(style);
         }
 
-        let schritt8MigrationGestartet = false;
-        onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
-            if (docSnap.exists()) {
-                const cloudDaten = docSnap.data();
-                if (!schritt8MigrationGestartet) {
-                    schritt8MigrationGestartet = true;
-                    portalGlobalNachGetrenntMigrieren(cloudDaten);
-                }
-                if (Array.isArray(cloudDaten.mitarbeiterListe) && cloudDaten.mitarbeiterListe.length > 0) {
-                    globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
-                } else if (!Array.isArray(globalDaten.mitarbeiterListe) || globalDaten.mitarbeiterListe.length === 0) {
-                    globalDaten.mitarbeiterListe = basisMitarbeiter.slice();
-                }
-                globalDaten.passwoerter = cloudDaten.passwoerter || {};
-                globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || {};
-
-                // Patrick Magiera bleibt ausschließlich Verleger.
-                // Falls ein alter Datenstand noch ein Admin-Flag enthält, wird nur dieses Flag entfernt.
-                const patrickName = "Patrick Magiera";
-                const patrickBasis = basisMitarbeiter.find(m => m.name === patrickName);
-                const patrickIndex = globalDaten.mitarbeiterListe.findIndex(m => m.name === patrickName);
-                let patrickKorrekturNoetig = false;
-                if (patrickBasis) {
-                    if (patrickIndex === -1) {
-                        globalDaten.mitarbeiterListe.push({...patrickBasis, rolle: "Verleger"});
-                        patrickKorrekturNoetig = true;
-                    } else {
-                        if (globalDaten.mitarbeiterListe[patrickIndex].rolle !== "Verleger" || Object.prototype.hasOwnProperty.call(globalDaten.mitarbeiterListe[patrickIndex], "admin")) patrickKorrekturNoetig = true;
-                        globalDaten.mitarbeiterListe[patrickIndex].rolle = "Verleger";
-                        delete globalDaten.mitarbeiterListe[patrickIndex].admin;
-                    }
-                    globalDaten.passwoerter[patrickName] = globalDaten.passwoerter[patrickName] || "start123";
-                    globalDaten.mitarbeiterProfil[patrickName] = globalDaten.mitarbeiterProfil[patrickName] || {tel: patrickBasis.tel, email: patrickBasis.email};
-                    if (patrickKorrekturNoetig) {
-                        try { await globalGlobalSpeichern(); } catch(e) { console.warn("Patrick-Rollenbereinigung konnte nicht sofort gespeichert werden:", e); }
-                    }
-                }
-                const neueBenachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen || [];
-                const vorherigerBenachrichtigungsStand = letzterBenachrichtigungsStand;
-                letzterBenachrichtigungsStand = JSON.stringify(neueBenachrichtigungen);
-                globalDaten.benachrichtigungen = neueBenachrichtigungen;
-
-                if (vorherigerBenachrichtigungsStand !== null && vorherigerBenachrichtigungsStand !== letzterBenachrichtigungsStand && eingeloggterMitarbeiter) {
-                    const vorherigeListe = (() => { try { return JSON.parse(vorherigerBenachrichtigungsStand) || []; } catch(e) { return []; } })();
-                    const vorherigeIds = new Set(vorherigeListe.map((item, i) => item.id || (String(item.datum || '') + '|' + String(item.von || '') + '|' + String(item.text || '') + '|' + i)));
-                    const neueFuerMich = neueBenachrichtigungen.filter((item, i) => {
-                        const emp = String(item.empfaenger || '');
-                        const sichtbar = emp === 'Alle' || emp === eingeloggterMitarbeiter || String(item.von || '').startsWith(eingeloggterMitarbeiter);
-                        const id = item.id || (String(item.datum || '') + '|' + String(item.von || '') + '|' + String(item.text || '') + '|' + i);
-                        return sichtbar && !vorherigeIds.has(id);
+        // SCHRITT 9: portal/global wird nicht mehr als laufende Datenquelle verwendet.
+        // Die getrennten Dokumente sind ab jetzt die aktiven Datenquellen.
+        // Wichtig: Die alte portal/global-Struktur bleibt unangetastet und wird
+        // weder gelöscht noch überschrieben.
+        function getrenntePortalListenerStarten() {
+            const listener = (sammlung, dokument, feldMap) => {
+                onSnapshot(doc(db, sammlung, dokument), snap => {
+                    if (!snap.exists()) return;
+                    const d = snap.data() || {};
+                    Object.entries(feldMap).forEach(([quelle, ziel]) => {
+                        if (Object.prototype.hasOwnProperty.call(d, quelle)) globalDaten[ziel] = d[quelle];
                     });
-                    if (neueFuerMich.length > 0) {
-                        benachrichtigungstonAbspielen();
-                    }
-                }
-                // Alten Demo-Hinweis entfernen, falls er bereits in Firebase gespeichert wurde.
-                const benachrichtigungenVorher = JSON.stringify(globalDaten.benachrichtigungen || []);
-                globalDaten.benachrichtigungen = (globalDaten.benachrichtigungen || []).filter(item =>
-                    !(String(item.von || '') === "Jeff Brisbois (Chef)" &&
-                      String(item.text || '') === "Wichtige Anweisung: Materialanlieferung für alle Luxemburger Baustellen am Dienstag ab 07:00 Uhr beachten!" &&
-                      String(item.datum || '') === "Heute, 08:30 Uhr")
-                );
-                if (JSON.stringify(globalDaten.benachrichtigungen || []) !== benachrichtigungenVorher) {
-                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Alter Demo-Hinweis konnte nicht bereinigt werden:", e); }
-                }
-                globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
-                globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
-                globalDaten.lagerbestand = Array.isArray(cloudDaten.lagerbestand) ? cloudDaten.lagerbestand : (globalDaten.lagerbestand || []);
-                globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
-                if (!wochenplanungSeparatGeladen) {
-                    globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
-                }
-                globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
-                // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
-                globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
-                // Alte Wochenplan-/Zeiterfassungsreste von bereits gelöschten Baustellen entfernen.
-                if (veralteteBaustellenBereinigen()) {
-                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Bereinigung alter Baustellen fehlgeschlagen", e); }
-                }
-                globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
-                // Krankmeldungen werden ausschließlich über die separate Firestore-Sammlung geladen.
-                // So kann ein Foto/PDF niemals das Größenlimit des globalen Portal-Dokuments sprengen.
-                globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
-                globalDaten.resturlaub = cloudDaten.resturlaub || {};
 
-                // Nach dem vollständigen Laden der Firebase-Daten den letzten
-                // Login auf diesem Gerät wiederherstellen.
-                try { dauerhaftenLoginWiederherstellen(); } catch(e) {
-                    console.warn("Dauerhafter Login nach Firebase-Laden übersprungen:", e);
-                }
-
-                // Nachrichten sofort aktualisieren und neue eingehende Nachrichten als Popup anzeigen.
-                const aktuelleNachrichten = Array.isArray(globalDaten.benachrichtigungen) ? globalDaten.benachrichtigungen : [];
-                const aktuelleSignaturen = new Set(aktuelleNachrichten.map(item => JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || ''])));
-                if (benachrichtigungenEchtzeitInitialisiert && eingeloggterMitarbeiter) {
-                    aktuelleNachrichten.slice(0, 20).forEach(item => {
-                        const signatur = JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || '']);
-                        if (!bekannteBenachrichtigungenSignaturen.has(signatur) &&
-                            !String(item.von || '').startsWith(eingeloggterMitarbeiter) &&
-                            !benachrichtigungIstFuerAktuellenMitarbeiterGeloescht(item) &&
-                            benachrichtigungIstFuerAktuellenMitarbeiter(item)) {
-                            neueNachrichtPopupAnzeigen(item);
+                    // Patrick Magiera bleibt ausschließlich Verleger.
+                    if (sammlung === "portal_meta" && dokument === "team" && Array.isArray(globalDaten.mitarbeiterListe)) {
+                        const p = globalDaten.mitarbeiterListe.find(m => m.name === "Patrick Magiera");
+                        if (p) {
+                            p.rolle = "Verleger";
+                            delete p.admin;
                         }
-                    });
-                }
-                bekannteBenachrichtigungenSignaturen = aktuelleSignaturen;
-                benachrichtigungenEchtzeitInitialisiert = true;
-                allesAktualisieren();
-            } else {
-                globalGlobalSpeichern();
-            }
-        });
+                    }
+                    try { allesAktualisieren(); } catch(e) {}
+                }, err => console.warn(`Getrennter Portalbereich ${sammlung}/${dokument} nicht lesbar:`, err));
+            };
+            listener("portal_meta", "team", {mitarbeiterListe:"mitarbeiterListe"});
+            listener("portal_meta", "profile", {mitarbeiterProfil:"mitarbeiterProfil"});
+            listener("portal_data", "notifications", {benachrichtigungen:"benachrichtigungen"});
+            listener("portal_data", "material", {uzinKatalog:"uzinKatalog", materialliste:"materialliste"});
+            listener("portal_data", "warehouse", {lagerbestand:"lagerbestand"});
+            listener("portal_data", "assignments", {zuweisungen:"zuweisungen"});
+            listener("portal_data", "absence", {abwesenheiten:"abwesenheiten"});
+            listener("portal_data", "problems", {probleme:"probleme"});
+            listener("portal_data", "vacation", {urlaubsantraege:"urlaubsantraege", resturlaub:"resturlaub"});
+            listener("portal_data", "time", {zeiterfassung:"zeiterfassung"});
+        }
+        getrenntePortalListenerStarten();
+
+        window.globalGlobalSpeichern = globalGlobalSpeichern;
 
         // Wochenplanung separat speichern/laden, damit Tageszuweisungen nicht durch
         // parallele globale Speichervorgänge überschrieben werden.
@@ -2627,10 +2553,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         });
 
-        // SCHRITT 8: Getrennte Speicherung statt portal/global.
-        // Die alten Daten bleiben unangetastet; dieser Speicher schreibt nur die
-        // neuen Bereiche. Die endgültige Sperre von portal/global erfolgt erst,
-        // wenn die Migration abgeschlossen und geprüft ist.
+        // SCHRITT 9: Getrennte Speicherung.
+        // Dieser Speicher schreibt ausschließlich in die neuen, getrennten Bereiche.
+        // portal/global wird nicht mehr beschrieben.
         async function globalGlobalSpeichern() {
             try {
                 const writes = [
@@ -2684,29 +2609,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         }
 
-        // Einmalige Migration des bestehenden portal/global-Dokuments.
-        // Nichts wird aus portal/global gelöscht oder überschrieben.
-        async function portalGlobalNachGetrenntMigrieren(cloudDaten) {
-            if (!cloudDaten || cloudDaten.__schritt8Migriert === true) return;
-            try {
-                if (Array.isArray(cloudDaten.mitarbeiterListe)) globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
-                globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || globalDaten.mitarbeiterProfil || {};
-                globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen || [];
-                globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog || {};
-                globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
-                globalDaten.lagerbestand = Array.isArray(cloudDaten.lagerbestand) ? cloudDaten.lagerbestand : (globalDaten.lagerbestand || []);
-                globalDaten.zuweisungen = cloudDaten.zuweisungen || globalDaten.zuweisungen || {};
-                globalDaten.abwesenheiten = cloudDaten.abwesenheiten || globalDaten.abwesenheiten || {};
-                globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : (globalDaten.probleme || []);
-                globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
-                globalDaten.zeiterfassung = cloudDaten.zeiterfassung || globalDaten.zeiterfassung || {};
-                globalDaten.resturlaub = cloudDaten.resturlaub || globalDaten.resturlaub || {};
-                await globalGlobalSpeichern();
-                console.info("Brisbois Portal: Schritt-8-Migration abgeschlossen.");
-            } catch(e) {
-                console.error("Schritt-8-Migration fehlgeschlagen:", e);
-            }
-        }
+        // SCHRITT 9: Keine laufende Migration aus portal/global mehr.
+        // Die getrennten Dokumente sind die alleinigen aktiven Datenquellen.
+        // Die alte Sammlung bleibt unangetastet, wird aber nicht mehr gelesen.
 
         // Getrennte Echtzeitquellen. Sie überschreiben lokale Daten nur mit den
         // jeweils zugehörigen Dokumenten und lassen alle anderen Portalbereiche unangetastet.
@@ -2718,6 +2623,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     Object.entries(feldMap).forEach(([quelle, ziel]) => {
                         if (Object.prototype.hasOwnProperty.call(d, quelle)) globalDaten[ziel] = d[quelle];
                     });
+                    if (sammlung === "portal_meta" && dokument === "team" && Array.isArray(globalDaten.mitarbeiterListe)) {
+                        const p = globalDaten.mitarbeiterListe.find(m => m.name === "Patrick Magiera");
+                        if (p) { p.rolle = "Verleger"; delete p.admin; }
+                    }
                     try { allesAktualisieren(); } catch(e) {}
                 }, err => console.warn(`Getrennter Portalbereich ${sammlung}/${dokument} nicht lesbar:`, err));
             };
