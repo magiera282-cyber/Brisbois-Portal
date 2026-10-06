@@ -2021,27 +2021,28 @@ SECURITY MIGRATION MARKER (06.10.2026):
         // Sichere technische Identität: Im Portal wird weiterhin ausschließlich
         // der Mitarbeitername angezeigt. Die interne Firebase-Adresse wird
         // niemals im Login-Fenster oder in der Oberfläche angezeigt.
-        function brisboisAuthKennung(name) {
-            const interneKennungen = {
-                "Patrick Magiera": "magiera282@gmail.com",
-                "Jeff Brisbois": "chef@brisbois.de",
-                "Didier Michel": "didier@brisbois.de",
-                "Christian Leppin": "christian@brisbois.de",
-                "Sylvain Zuliani": "sylvain@brisbois.de",
-                "Claude Gaita": "claude@brisbois.de",
-                "Wolfgang Seimetz": "wolfgang@brisbois.de",
-                "Marie-Christine Mathieu": "marie-christine@brisbois.de"
+        function brisboisAuthKennungen(name) {
+            const n = String(name || "").trim();
+            const map = {
+                "Patrick Magiera": ["magiera282@gmail.com", "patrick@brisbois-bembe.lu"],
+                "Jeff Brisbois": ["chef@brisbois.de", "jeff@brisbois-bembe.lu"],
+                "Didier Michel": ["didier@brisbois.de", "michel@brisbois-bembe.lu"],
+                "Christian Leppin": ["christian@brisbois.de", "christian@brisbois-bembe.lu"],
+                "Sylvain Zuliani": ["sylvain@brisbois.de", "sylvain@brisbois-bembe.lu"],
+                "Claude Gaita": ["claude@brisbois.de", "claude@brisbois-bembe.lu"],
+                "Wolfgang Seimetz": ["wolfgang@brisbois.de"],
+                "Marie-Christine Mathieu": ["marie-christine@brisbois.de", "marie@brisbois-bembe.lu"],
+                "Tania Thill": ["tania@brisbois.de", "tania@brisbois-bembe.lu"],
+                "Dagmar Stejskalova": ["dagmar@brisbois.de", "dagmar@brisbois-bembe.lu"]
             };
-            if (interneKennungen[String(name || "").trim()]) {
-                return interneKennungen[String(name || "").trim()];
-            }
-            return String(name || "")
-                .trim()
-                .toLowerCase()
-                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                .replace(/[^a-z0-9]+/g, ".")
-                .replace(/^\.|\.$/g, "") + "@auth.brisbois-bembe.firebaseapp.com";
+            if (map[n]) return [...new Set(map[n].filter(Boolean))];
+            const basis = Array.isArray(window.__brisboisBasisMitarbeiter) ? window.__brisboisBasisMitarbeiter : [];
+            const obj = basis.find(m => String(m?.name || "").trim() === n);
+            if (obj?.email) return [String(obj.email).trim().toLowerCase()];
+            const fallback = n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "") + "@auth.brisbois-bembe.firebaseapp.com";
+            return fallback ? [fallback] : [];
         }
+        function brisboisAuthKennung(name) { return brisboisAuthKennungen(name)[0] || ""; }
         window.__brisboisAuth = auth;
         window.__brisboisAuthKennung = brisboisAuthKennung;
         window.__brisboisFirebaseUser = null;
@@ -2217,6 +2218,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             { name: "Paolo Zangari", tel: "691 102 671", rolle: "Verleger" },
             { name: "Nino Zenzola", tel: "691 100 044", rolle: "Verleger" }
         ];
+        window.__brisboisBasisMitarbeiter = basisMitarbeiter;
 
         // Patrick Magiera ist ausschließlich Verleger.
         // Die Funktion bleibt als neutrale Kompatibilität bestehen, damit andere Bereiche
@@ -3012,15 +3014,26 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             // Der Mitarbeiter gibt weiterhin nur Name + Passwort ein.
             // Firebase erhält im Hintergrund eine technische interne Kennung.
-            try {
-                await signInWithEmailAndPassword(auth, brisboisAuthKennung(name), eingegebenesPasswort);
-            } catch (e) {
-                console.error("Firebase-Anmeldung fehlgeschlagen:", e);
-                const code = String(e?.code || "");
+            let angemeldeteKennung = "";
+            let letzterFehler = null;
+            const kennungen = brisboisAuthKennungen(name);
+            for (const kennung of kennungen) {
+                try {
+                    await signInWithEmailAndPassword(auth, kennung, eingegebenesPasswort);
+                    angemeldeteKennung = kennung;
+                    break;
+                } catch (e) {
+                    letzterFehler = e;
+                    try { await signOut(auth); } catch(ignore) {}
+                }
+            }
+            if (!angemeldeteKennung) {
+                console.error("Firebase-Anmeldung fehlgeschlagen:", letzterFehler);
+                const code = String(letzterFehler?.code || "");
                 if (code.includes("user-not-found") || code.includes("invalid-credential")) {
-                    alert("Die sichere Anmeldung für diesen Mitarbeiter ist noch nicht eingerichtet. Bitte den Benutzer zuerst in Firebase Authentication anlegen.");
+                    alert("Für diesen Mitarbeiter wurde in Firebase Authentication noch kein passendes Konto gefunden – oder das hinterlegte Passwort ist dort noch nicht eingerichtet.");
                 } else if (code.includes("wrong-password") || code.includes("invalid-login-credentials")) {
-                    alert("Falsches Passwort.");
+                    alert("Das hinterlegte Passwort stimmt mit dem Firebase-Passwort dieses Kontos nicht überein.");
                 } else {
                     alert("Anmeldung momentan nicht möglich. Bitte Internetverbindung und Firebase prüfen.");
                 }
@@ -3030,8 +3043,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // Firebase Authentication ist jetzt die einzige technische
             // Login-Quelle. Ein lokaler Name/Passwort-Vergleich findet nicht statt.
             const firebaseUser = auth.currentUser;
-            const erwarteteKennung = brisboisAuthKennung(name);
-            if (!firebaseUser || String(firebaseUser.email || '').toLowerCase() !== String(erwarteteKennung || '').toLowerCase()) {
+            const erlaubteKennungen = brisboisAuthKennungen(name).map(e => String(e || '').toLowerCase());
+            if (!firebaseUser || !erlaubteKennungen.includes(String(firebaseUser.email || '').toLowerCase())) {
                 try { await signOut(auth); } catch(e) {}
                 alert("Die Firebase-Anmeldung konnte nicht eindeutig dem ausgewählten Mitarbeiter zugeordnet werden.");
                 return;
