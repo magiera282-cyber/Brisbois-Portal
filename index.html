@@ -2735,29 +2735,72 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         function loginDropdownBefuellen() {
             const select = document.getElementById('login-name-select');
-            if(!select) return;
+            if (!select) return;
+
             const aktuellerWert = select.value;
-            select.innerHTML = '';
+            const cloudListe = Array.isArray(globalDaten.mitarbeiterListe) ? globalDaten.mitarbeiterListe : [];
+            const basisListe = Array.isArray(basisMitarbeiter) ? basisMitarbeiter : [];
 
-            // Beim ersten Laden kann Firestore noch keine Mitarbeiterliste geliefert haben.
-            // In diesem Fall immer die eingebauten Teamdaten als sichere Fallback-Liste verwenden.
-            const mitarbeiterQuelle = Array.isArray(globalDaten.mitarbeiterListe) && globalDaten.mitarbeiterListe.length
-                ? globalDaten.mitarbeiterListe
-                : basisMitarbeiter;
+            // LOGIN-SICHERHEIT/FUNKTIONS-SCHUTZ:
+            // Die Auswahl darf niemals leer werden, nur weil die getrennte
+            // Firestore-Teamliste noch nicht geladen, unvollständig oder
+            // vorübergehend nicht lesbar ist. Cloud-Daten werden bevorzugt,
+            // die eingebaute Teamliste bleibt als Fallback erhalten.
+            const zusammengefuehrt = [];
+            const gesehen = new Set();
+            [...cloudListe, ...basisListe].forEach(m => {
+                if (!m || !m.name) return;
+                const key = String(m.name).trim().toLowerCase();
+                if (gesehen.has(key)) return;
+                gesehen.add(key);
+                zusammengefuehrt.push({
+                    name: String(m.name),
+                    tel: m.tel || '',
+                    email: m.email || '',
+                    rolle: m.rolle || 'Verleger'
+                });
+            });
 
-            const chefs = mitarbeiterQuelle.filter(m => m.rolle && (m.rolle.includes('Chef') || m.rolle.includes('Admin') || m.rolle.includes('Sekretariat') || m.rolle.includes('Techniker') || m.rolle.includes('Lagerist')) || m.name === 'Jeff Brisbois' || m.name === 'Didier Michel' || m.name === 'Tania Thill' || m.name === 'Dagmar Stejskalova' || m.name === 'Marie-Christine Mathieu' || m.name === 'Christian Leppin' || m.name === 'Sylvain Zuliani' || m.name === 'Claude Gaita');
-            const verleger = mitarbeiterQuelle.filter(m => !chefs.includes(m));
+            // Patrick bleibt dauerhaft Verleger; ein altes Admin-Feld darf
+            // seine Login-Auswahl nicht wieder in eine höhere Rolle ändern.
+            zusammengefuehrt.forEach(m => {
+                if (m.name === 'Patrick Magiera') m.rolle = 'Verleger';
+            });
 
-            let chefHtml = `<optgroup label="👑 Chefs, Verwaltung, Technik & Lager">`;
-            chefs.forEach(c => { chefHtml += `<option value="${c.name}">${c.name} (${c.rolle || 'Chef/Admin'})</option>`; });
-            chefHtml += `</optgroup>`;
+            const bueroRollen = ['Chef', '2. Chef', 'Admin', 'Sekretariat', 'Techniker', 'Lagerist'];
+            const chefs = zusammengefuehrt.filter(m =>
+                bueroRollen.includes(String(m.rolle || '')) ||
+                ['Jeff Brisbois', 'Didier Michel', 'Tania Thill', 'Dagmar Stejskalova',
+                 'Marie-Christine Mathieu', 'Christian Leppin', 'Sylvain Zuliani', 'Claude Gaita']
+                    .includes(m.name)
+            );
+            const verleger = zusammengefuehrt.filter(m => !chefs.includes(m));
 
-            let verlegerHtml = `<optgroup label="👷 Verleger">`;
-            verleger.forEach(v => { verlegerHtml += `<option value="${v.name}">${v.name}</option>`; });
-            verlegerHtml += `</optgroup>`;
+            let html = '';
+            if (chefs.length) {
+                html += '<optgroup label="👑 Chefs, Verwaltung, Technik & Lager">';
+                chefs.forEach(c => {
+                    const value = String(c.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const label = `${value} (${String(c.rolle || 'Chef/Admin').replace(/</g, '&lt;').replace(/>/g, '&gt;')})`;
+                    html += `<option value="${value}">${label}</option>`;
+                });
+                html += '</optgroup>';
+            }
+            if (verleger.length) {
+                html += '<optgroup label="👷 Verleger">';
+                verleger.forEach(v => {
+                    const value = String(v.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    html += `<option value="${value}">${value}</option>`;
+                });
+                html += '</optgroup>';
+            }
 
-            select.innerHTML = chefHtml + verlegerHtml;
-            if(aktuellerWert) select.value = aktuellerWert;
+            select.innerHTML = html || '<option value="">Mitarbeiter werden geladen …</option>';
+            if (aktuellerWert && [...select.options].some(o => o.value === aktuellerWert)) {
+                select.value = aktuellerWert;
+            } else if (select.options.length) {
+                select.selectedIndex = 0;
+            }
         }
 
         // Login-Auswahl sofort mit den eingebauten Teamdaten füllen, auch wenn Firebase noch lädt.
