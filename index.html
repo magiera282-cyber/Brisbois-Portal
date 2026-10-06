@@ -724,42 +724,11 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                         <option value="Jeff Brisbois">Jeff Brisbois (Chef)</option>
                         <option value="Patrick Magiera">Patrick Magiera (Verleger)</option>
                         <option value="Didier Michel">Didier Michel (2. Chef)</option>
-                        <option value="Tania Thill">Tania Thill (Sekretariat)</option>
-                        <option value="Dagmar Stejskalova">Dagmar Stejskalova (Sekretariat)</option>
                         <option value="Marie-Christine Mathieu">Marie-Christine Mathieu (Sekretariat)</option>
                         <option value="Christian Leppin">Christian Leppin (Techniker)</option>
                         <option value="Sylvain Zuliani">Sylvain Zuliani (Lagerist)</option>
                         <option value="Claude Gaita">Claude Gaita (Lagerist)</option>
                         <option value="Wolfgang Seimetz">Wolfgang Seimetz (Verleger)</option>
-                        <option value="Waldemar Magiera">Waldemar Magiera (Verleger)</option>
-                        <option value="Christophe Becker">Christophe Becker (Verleger)</option>
-                        <option value="Christophe Biagioli">Christophe Biagioli (Verleger)</option>
-                        <option value="Stéphane Bouillon">Stéphane Bouillon (Verleger)</option>
-                        <option value="Pedro Da Cruz Fortes">Pedro Da Cruz Fortes (Verleger)</option>
-                        <option value="Pavel Dimitrov">Pavel Dimitrov (Verleger)</option>
-                        <option value="Ednei Dos Santos">Ednei Dos Santos (Verleger)</option>
-                        <option value="Gérard Franck">Gérard Franck (Verleger)</option>
-                        <option value="Paul Fritz">Paul Fritz (Verleger)</option>
-                        <option value="Kévin Ghuel">Kévin Ghuel (Verleger)</option>
-                        <option value="Marco Goncalves">Marco Goncalves (Verleger)</option>
-                        <option value="Johannes Harth">Johannes Harth (Verleger)</option>
-                        <option value="Max Heiderscheid">Max Heiderscheid (Verleger)</option>
-                        <option value="Sacha Heiderscheid">Sacha Heiderscheid (Verleger)</option>
-                        <option value="Laurent Izzi">Laurent Izzi (Verleger)</option>
-                        <option value="Aleksandar Jovanovic">Aleksandar Jovanovic (Verleger)</option>
-                        <option value="Raphael Klein">Raphael Klein (Verleger)</option>
-                        <option value="Dora Morais">Dora Morais (Verleger)</option>
-                        <option value="Tristan Novali">Tristan Novali (Verleger)</option>
-                        <option value="Biagio Panarello">Biagio Panarello (Verleger)</option>
-                        <option value="Wjatscheslaw Panfilow">Wjatscheslaw Panfilow (Verleger)</option>
-                        <option value="Hervé Poline">Hervé Poline (Verleger)</option>
-                        <option value="Nicolas Sanitate">Nicolas Sanitate (Verleger)</option>
-                        <option value="Christophe Sartor">Christophe Sartor (Verleger)</option>
-                        <option value="Jacky Schneider">Jacky Schneider (Verleger)</option>
-                        <option value="Nicolas Sourlier">Nicolas Sourlier (Verleger)</option>
-                        <option value="Jorge Teixeira">Jorge Teixeira (Verleger)</option>
-                        <option value="Paolo Zangari">Paolo Zangari (Verleger)</option>
-                        <option value="Nino Zenzola">Nino Zenzola (Verleger)</option>
                     </select>
                 </div>
                 <div>
@@ -2794,74 +2763,36 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const select = document.getElementById('login-name-select');
             if (!select) return;
 
+            // LOGIN: Ausschließlich die 8 bereits hinterlegten Konten.
+            // Andere Mitarbeiter dürfen hier nicht auswählbar sein.
+            const loginMitarbeiter = [
+                { name: "Jeff Brisbois", rolle: "Chef" },
+                { name: "Patrick Magiera", rolle: "Verleger" },
+                { name: "Didier Michel", rolle: "2. Chef" },
+                { name: "Marie-Christine Mathieu", rolle: "Sekretariat" },
+                { name: "Christian Leppin", rolle: "Techniker" },
+                { name: "Sylvain Zuliani", rolle: "Lagerist" },
+                { name: "Claude Gaita", rolle: "Lagerist" },
+                { name: "Wolfgang Seimetz", rolle: "Verleger" }
+            ];
+
             const aktuellerWert = select.value;
-            const cloudListe = Array.isArray(globalDaten.mitarbeiterListe) ? globalDaten.mitarbeiterListe : [];
-            const basisListe = Array.isArray(basisMitarbeiter) ? basisMitarbeiter : [];
+            select.innerHTML = loginMitarbeiter.map(m => {
+                const value = String(m.name)
+                    .replace(/&/g, '&amp;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                const rolle = String(m.rolle)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                return `<option value="${value}">${value} (${rolle})</option>`;
+            }).join('');
 
-            // LOGIN-SICHERHEIT/FUNKTIONS-SCHUTZ:
-            // Die Auswahl darf niemals leer werden, nur weil die getrennte
-            // Firestore-Teamliste noch nicht geladen, unvollständig oder
-            // vorübergehend nicht lesbar ist. Cloud-Daten werden bevorzugt,
-            // die eingebaute Teamliste bleibt als Fallback erhalten.
-            const zusammengefuehrt = [];
-            const gesehen = new Set();
-            [...cloudListe, ...basisListe].forEach(m => {
-                if (!m || !m.name) return;
-                const key = String(m.name).trim().toLowerCase();
-                if (gesehen.has(key)) return;
-                gesehen.add(key);
-                zusammengefuehrt.push({
-                    name: String(m.name),
-                    tel: m.tel || '',
-                    email: m.email || '',
-                    rolle: m.rolle || 'Verleger'
-                });
-            });
-
-            // Patrick bleibt dauerhaft Verleger; ein altes Admin-Feld darf
-            // seine Login-Auswahl nicht wieder in eine höhere Rolle ändern.
-            zusammengefuehrt.forEach(m => {
-                if (m.name === 'Patrick Magiera') m.rolle = 'Verleger';
-            });
-
-            const bueroRollen = ['Chef', '2. Chef', 'Admin', 'Sekretariat', 'Techniker', 'Lagerist'];
-            const chefs = zusammengefuehrt.filter(m =>
-                bueroRollen.includes(String(m.rolle || '')) ||
-                ['Jeff Brisbois', 'Didier Michel', 'Tania Thill', 'Dagmar Stejskalova',
-                 'Marie-Christine Mathieu', 'Christian Leppin', 'Sylvain Zuliani', 'Claude Gaita']
-                    .includes(m.name)
-            );
-            const verleger = zusammengefuehrt.filter(m => !chefs.includes(m));
-
-            let html = '';
-            if (chefs.length) {
-                html += '<optgroup label="👑 Chefs, Verwaltung, Technik & Lager">';
-                chefs.forEach(c => {
-                    const value = String(c.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    const label = `${value} (${String(c.rolle || 'Chef/Admin').replace(/</g, '&lt;').replace(/>/g, '&gt;')})`;
-                    html += `<option value="${value}">${label}</option>`;
-                });
-                html += '</optgroup>';
-            }
-            if (verleger.length) {
-                html += '<optgroup label="👷 Verleger">';
-                verleger.forEach(v => {
-                    const value = String(v.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    html += `<option value="${value}">${value}</option>`;
-                });
-                html += '</optgroup>';
-            }
-
-            // Niemals eine leere Auswahl anzeigen: Bei Firebase-/Regelfehlern
-            // bleiben die statisch eingebauten Mitarbeiter auswählbar.
-            if (html) {
-                select.innerHTML = html;
-            } else if (!select.options.length) {
-                select.innerHTML = basisListe.map(m => `<option value="${String(m.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}">${String(m.name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')} (${String(m.rolle || 'Verleger').replace(/</g, '&lt;').replace(/>/g, '&gt;')})</option>`).join('');
-            }
-            if (aktuellerWert && [...select.options].some(o => o.value === aktuellerWert)) {
+            if (aktuellerWert && loginMitarbeiter.some(m => m.name === aktuellerWert)) {
                 select.value = aktuellerWert;
-            } else if (select.options.length) {
+            } else {
                 select.selectedIndex = 0;
             }
         }
@@ -3029,11 +2960,33 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 return;
             }
 
-            // Bestehender Portal-Login: Das bereits vergebene Passwort aus
-            // portal/global wird verwendet. Firebase-Passwörter werden hier
-            // NICHT geändert und sind für diesen Login nicht erforderlich.
+            // Bestehender Portal-Login:
+            // Das bereits vergebene Passwort aus portal/global wird verwendet.
+            // Firebase-Passwörter werden hier NICHT geändert.
+            const erlaubteLoginNamen = [
+                "Jeff Brisbois",
+                "Patrick Magiera",
+                "Didier Michel",
+                "Marie-Christine Mathieu",
+                "Christian Leppin",
+                "Sylvain Zuliani",
+                "Claude Gaita",
+                "Wolfgang Seimetz"
+            ];
+
+            if (!erlaubteLoginNamen.includes(name)) {
+                alert("Dieser Mitarbeiter ist für den Portal-Login noch nicht freigeschaltet.");
+                return;
+            }
+
             const passwoerter = globalDaten.passwoerter || {};
-            const gespeichertesPasswort = passwoerter[name] || "start123";
+            const gespeichertesPasswort = passwoerter[name];
+
+            if (!gespeichertesPasswort) {
+                alert("Für diesen Mitarbeiter ist noch kein Portal-Passwort hinterlegt.");
+                return;
+            }
+
             if (String(eingegebenesPasswort) !== String(gespeichertesPasswort)) {
                 alert("Falsches Passwort.");
                 return;
