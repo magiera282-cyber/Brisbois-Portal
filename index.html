@@ -732,6 +732,9 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-lg transition text-sm shadow">
                     🔓 Anmelden
                 </button>
+                <button type="button" onclick="passwortZuruecksetzenAusLogin()" class="w-full text-blue-700 hover:text-blue-900 font-semibold py-2 text-sm transition">
+                    🔑 Passwort vergessen / zurücksetzen
+                </button>
             </form>
         </div>
     </div>
@@ -1959,7 +1962,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 <!-- Firebase SDK & Cloud Logik -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
@@ -3001,6 +3004,22 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // Unsicherer Test-/Schnell-Login ist für den produktiven Betrieb deaktiviert.
             alert("Der Schnell-Login ist aus Sicherheitsgründen deaktiviert. Bitte mit Name und Passwort anmelden.");
         }
+
+        window.passwortZuruecksetzenAusLogin = async function() {
+            const name = document.getElementById('login-name-select')?.value || '';
+            const kennung = brisboisAuthKennung(name);
+            if (!name || !kennung) {
+                alert("Bitte zuerst einen Mitarbeiter auswählen.");
+                return;
+            }
+            try {
+                await sendPasswordResetEmail(auth, kennung);
+                alert("Eine E-Mail zum Zurücksetzen des Passworts wurde an die hinterlegte Adresse gesendet. Bitte auch den Spam-Ordner prüfen.");
+            } catch (e) {
+                console.error("Passwort-Reset fehlgeschlagen:", e);
+                alert("Die Passwort-Zurücksetzung konnte momentan nicht gestartet werden. Bitte prüfe die hinterlegte Firebase-E-Mail-Adresse.");
+            }
+        };
 
         window.anmeldenMitTeam = async function(event) {
             event.preventDefault();
