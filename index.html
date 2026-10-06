@@ -3016,8 +3016,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 await sendPasswordResetEmail(auth, kennung);
                 alert("Eine E-Mail zum Zurücksetzen des Passworts wurde an die hinterlegte Adresse gesendet. Bitte auch den Spam-Ordner prüfen.");
             } catch (e) {
+                // Aus Sicherheitsgründen keine Information darüber preisgeben,
+                // ob das ausgewählte Konto bzw. die Adresse in Firebase existiert.
                 console.error("Passwort-Reset fehlgeschlagen:", e);
-                alert("Die Passwort-Zurücksetzung konnte momentan nicht gestartet werden. Bitte prüfe die hinterlegte Firebase-E-Mail-Adresse.");
+                alert("Falls für diesen Mitarbeiter ein Konto hinterlegt ist, wurde eine E-Mail zum Zurücksetzen des Passworts angefordert. Bitte auch den Spam-Ordner prüfen.");
             }
         };
 
