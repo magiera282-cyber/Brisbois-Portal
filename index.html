@@ -1975,6 +1975,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
     <!-- Firebase SDK & Cloud Logik -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
@@ -1991,8 +1992,38 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         };
 
         const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
         const db = getFirestore(app, "(default)");
         const messaging = getMessaging(app);
+
+        // Sichere technische Identität: Im Portal wird weiterhin ausschließlich
+        // der Mitarbeitername angezeigt. Die interne Firebase-Adresse wird
+        // niemals im Login-Fenster oder in der Oberfläche angezeigt.
+        function brisboisAuthKennung(name) {
+            const interneKennungen = {
+                "Patrick Magiera": "magiera282@gmail.com"
+            };
+            if (interneKennungen[String(name || "").trim()]) {
+                return interneKennungen[String(name || "").trim()];
+            }
+            return String(name || "")
+                .trim()
+                .toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]+/g, ".")
+                .replace(/^\.|\.$/g, "") + "@auth.brisbois-bembe.firebaseapp.com";
+        }
+        window.__brisboisAuth = auth;
+        window.__brisboisAuthKennung = brisboisAuthKennung;
+        window.__brisboisFirebaseUser = null;
+        onAuthStateChanged(auth, (user) => {
+            window.__brisboisFirebaseUser = user || null;
+            if (!user) {
+                window.__brisboisAuthUid = "";
+                return;
+            }
+            window.__brisboisAuthUid = user.uid;
+        });
         let brisboisPushRegistration = null;
 
         async function brisboisPushAktivieren() {
@@ -2816,46 +2847,34 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             setTimeout(() => { dauerhaftenLoginWiederherstellen(); }, 1800);
         });
 
-        window.schnellLoginDirekt = function(name, rolle) {
-            // Schnell-Test: Benutzer zusätzlich in der Session merken, damit ein
-            // notwendiger Sprach-Reload den Schnell-Login nicht wieder verliert.
-            eingeloggterMitarbeiter = name;
-            eingeloggteRolle = rolle;
-            try {
-                sessionStorage.setItem('brisbois_quick_user', name);
-                sessionStorage.setItem('brisbois_quick_role', rolle);
-                sessionStorage.setItem('brisbois_quick_login', '1');
-            } catch(e) {}
-            try { oeffneAppNachLogin(); } catch(e) {
-                console.error('Schnell-Login Fehler:', e);
-                const loginModal = document.getElementById('login-modal');
-                const appContainer = document.getElementById('app-container');
-                if (loginModal) loginModal.classList.add('hidden');
-                if (appContainer) appContainer.classList.remove('hidden');
-            // Push-Aktivierung nach dem Login einmal anbieten. Bereits aktivierte Geräte werden nicht erneut gefragt.
-            setTimeout(() => {
-                try {
-                    if (localStorage.getItem("brisbois_push_aktiv") !== "1" && typeof window.brisboisPushAktivieren === "function") {
-                        window.brisboisPushAktivieren();
-                    } else if (typeof window.brisboisPushDuplikateBereinigen === "function") {
-                        window.brisboisPushDuplikateBereinigen();
-                    }
-                } catch(e) { console.warn("Push-Aktivierung nach Login übersprungen:", e); }
-            }, 700);
-                const badge = document.getElementById('user-badge');
-                if (badge) badge.innerHTML = `👤 <strong class="text-white">${eingeloggterMitarbeiter}</strong>`;
-            }
+        window.schnellLoginDirekt = function() {
+            // Unsicherer Test-/Schnell-Login ist für den produktiven Betrieb deaktiviert.
+            alert("Der Schnell-Login ist aus Sicherheitsgründen deaktiviert. Bitte mit Name und Passwort anmelden.");
         }
 
         window.anmeldenMitTeam = async function(event) {
             event.preventDefault();
             const name = document.getElementById('login-name-select').value;
             const eingegebenesPasswort = document.getElementById('login-passwort').value;
+            if (!name || !eingegebenesPasswort) {
+                alert("Bitte Name und Passwort eingeben.");
+                return;
+            }
 
-            const gespeichertesPasswort = globalDaten.passwoerter[name] || "start123";
-
-            if (eingegebenesPasswort !== gespeichertesPasswort) {
-                alert("Falsches Passwort! Standard-Passwort für den ersten Login ist: start123");
+            // Der Mitarbeiter gibt weiterhin nur Name + Passwort ein.
+            // Firebase erhält im Hintergrund eine technische interne Kennung.
+            try {
+                await signInWithEmailAndPassword(auth, brisboisAuthKennung(name), eingegebenesPasswort);
+            } catch (e) {
+                console.error("Firebase-Anmeldung fehlgeschlagen:", e);
+                const code = String(e?.code || "");
+                if (code.includes("user-not-found") || code.includes("invalid-credential")) {
+                    alert("Die sichere Anmeldung für diesen Mitarbeiter ist noch nicht eingerichtet. Bitte den Benutzer zuerst in Firebase Authentication anlegen.");
+                } else if (code.includes("wrong-password") || code.includes("invalid-login-credentials")) {
+                    alert("Falsches Passwort.");
+                } else {
+                    alert("Anmeldung momentan nicht möglich. Bitte Internetverbindung und Firebase prüfen.");
+                }
                 return;
             }
 
@@ -4763,7 +4782,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         window.urlaubEntscheidungNeu = urlaubEntscheidungNeu;
         window.urlaubEntscheidung = urlaubEntscheidungNeu;
 
-        window.abmelden = function() {
+        window.abmelden = async function() {
+            try { await signOut(auth); } catch(e) { console.warn("Firebase-Abmeldung fehlgeschlagen:", e); }
             try {
                 localStorage.removeItem("brisbois_login_user");
                 localStorage.removeItem("brisbois_login_role");
