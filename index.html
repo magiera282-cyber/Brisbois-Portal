@@ -1667,7 +1667,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Neues Passwort (optional)</label>
-                        <input type="password" id="profil-passwort" placeholder="Mindestens 4 Zeichen (leer lassen zum Beibehalten)" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        <input type="password" id="profil-passwort" placeholder="Mindestens 8 Zeichen (leer lassen zum Beibehalten)" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
                     </div>
                     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition text-sm shadow">
                         💾 Daten in der Cloud aktualisieren
@@ -4569,16 +4569,13 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const emailNeu = document.getElementById('profil-email').value;
             const passNeu = document.getElementById('profil-passwort').value;
 
-            if (passNeu && passNeu.length < 4) {
-                alert("Das Passwort muss mindestens 4 Zeichen lang sein!");
+            if (passNeu && passNeu.length < 8) {
+                alert("Das Passwort muss mindestens 8 Zeichen lang sein!");
                 return;
             }
 
-            // Profildaten speichern. Das Passwort wird NICHT mehr in Firestore/globalDaten gespeichert.
-            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
-            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
-
-            // Neues Passwort direkt in Firebase Authentication ändern.
+            // Ein Passwort darf ausschließlich über Firebase Authentication geändert werden.
+            // Es wird niemals in Firestore/globalDaten gespeichert.
             if (passNeu) {
                 const user = auth.currentUser;
                 if (!user) {
@@ -4599,7 +4596,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 }
             }
 
-            globalGlobalSpeichern();
+            // Erst nach erfolgreicher Passwortänderung die übrigen Profildaten speichern.
+            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
+            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
+            await globalGlobalSpeichern();
             telefonlistenTabelleFüllen();
             document.getElementById('profil-passwort').value = "";
             alert(passNeu ? "Deine Profildaten wurden gespeichert und dein Firebase-Passwort wurde geändert." : "Deine Profildaten wurden in der Cloud aktualisiert!");
