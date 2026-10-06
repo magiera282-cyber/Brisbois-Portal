@@ -721,14 +721,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mitarbeiter / Chef auswählen</label>
                     <select id="login-name-select" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-semibold">
-                        <option value="Jeff Brisbois">Jeff Brisbois (Chef)</option>
-                        <option value="Patrick Magiera">Patrick Magiera (Verleger)</option>
-                        <option value="Didier Michel">Didier Michel (2. Chef)</option>
-                        <option value="Marie-Christine Mathieu">Marie-Christine Mathieu (Sekretariat)</option>
-                        <option value="Christian Leppin">Christian Leppin (Techniker)</option>
-                        <option value="Sylvain Zuliani">Sylvain Zuliani (Lagerist)</option>
-                        <option value="Claude Gaita">Claude Gaita (Lagerist)</option>
-                        <option value="Wolfgang Seimetz">Wolfgang Seimetz (Verleger)</option>
+                        <!-- Wird dynamisch befüllt -->
                     </select>
                 </div>
                 <div>
@@ -1990,24 +1983,27 @@ SECURITY MIGRATION MARKER (06.10.2026):
         // Sichere technische Identität: Im Portal wird weiterhin ausschließlich
         // der Mitarbeitername angezeigt. Die interne Firebase-Adresse wird
         // niemals im Login-Fenster oder in der Oberfläche angezeigt.
-        function brisboisAuthKennungen(name) {
-            const n = String(name || "").trim();
-            // Ausschließlich die tatsächlich eingerichteten Firebase-Auth-Konten verwenden.
-            // Die @brisbois-bembe.lu Test-/Profiladressen sind KEINE Login-Adressen.
-            const map = {
-                "Patrick Magiera": ["magiera282@gmail.com"],
-                "Jeff Brisbois": ["chef@brisbois.de"],
-                "Didier Michel": ["didier@brisbois.de"],
-                "Christian Leppin": ["christian@brisbois.de"],
-                "Sylvain Zuliani": ["sylvain@brisbois.de"],
-                "Claude Gaita": ["claude@brisbois.de"],
-                "Wolfgang Seimetz": ["wolfgang@brisbois.de"],
-                "Marie-Christine Mathieu": ["marie-christine@brisbois.de"]
+        function brisboisAuthKennung(name) {
+            const interneKennungen = {
+                "Patrick Magiera": "magiera282@gmail.com",
+                "Jeff Brisbois": "chef@brisbois.de",
+                "Didier Michel": "didier@brisbois.de",
+                "Christian Leppin": "christian@brisbois.de",
+                "Sylvain Zuliani": "sylvain@brisbois.de",
+                "Claude Gaita": "claude@brisbois.de",
+                "Wolfgang Seimetz": "wolfgang@brisbois.de",
+                "Marie-Christine Mathieu": "marie-christine@brisbois.de"
             };
-            if (map[n]) return map[n];
-            return [];
+            if (interneKennungen[String(name || "").trim()]) {
+                return interneKennungen[String(name || "").trim()];
+            }
+            return String(name || "")
+                .trim()
+                .toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]+/g, ".")
+                .replace(/^\.|\.$/g, "") + "@auth.brisbois-bembe.firebaseapp.com";
         }
-        function brisboisAuthKennung(name) { return brisboisAuthKennungen(name)[0] || ""; }
         window.__brisboisAuth = auth;
         window.__brisboisAuthKennung = brisboisAuthKennung;
         window.__brisboisFirebaseUser = null;
@@ -2183,7 +2179,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             { name: "Paolo Zangari", tel: "691 102 671", rolle: "Verleger" },
             { name: "Nino Zenzola", tel: "691 100 044", rolle: "Verleger" }
         ];
-        window.__brisboisBasisMitarbeiter = basisMitarbeiter;
 
         // Patrick Magiera ist ausschließlich Verleger.
         // Die Funktion bleibt als neutrale Kompatibilität bestehen, damit andere Bereiche
@@ -2267,27 +2262,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             zeiterfassung: {},
             resturlaub: {}
         };
-
-        // Kompatibilität mit dem bisherigen Portal-Login: Die bereits vergebenen
-        // Portal-Passwörter werden einmalig aus dem bestehenden portal/global-Datensatz
-        // gelesen. Es werden dabei keine neuen Passwörter erzeugt oder geändert.
-        async function brisboisAltePasswoerterLaden() {
-            try {
-                const snap = await getDoc(doc(db, "portal", "global"));
-                if (snap.exists()) {
-                    const daten = snap.data() || {};
-                    if (daten.passwoerter && typeof daten.passwoerter === "object") {
-                        globalDaten.passwoerter = daten.passwoerter;
-                    }
-                    if (Array.isArray(daten.mitarbeiterListe) && daten.mitarbeiterListe.length) {
-                        globalDaten.mitarbeiterListe = daten.mitarbeiterListe;
-                    }
-                }
-            } catch (e) {
-                console.warn("Bestehende Portal-Passwörter konnten nicht geladen werden:", e);
-            }
-        }
-        brisboisAltePasswoerterLaden();
 
         // Entfernt den alten Demo-Eintrag, falls er bereits in Firebase gespeichert wurde.
         globalDaten.benachrichtigungen = (globalDaten.benachrichtigungen || []).filter(item =>
@@ -2385,7 +2359,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const belegeRef = buero
                 ? collection(db, "belege")
-                : query(collection(db, "belege"), where("mitarbeiterEmail", "==", email));
+                : query(collection(db, "belege"), where("mitarbeiter", "==", eigeneMitarbeiter));
             sensibleListenerAbmelden.push(onSnapshot(belegeRef, (snapshot) => {
                 belegeDaten = [];
                 snapshot.forEach((belegSnap) => belegeDaten.push({ id: belegSnap.id, ...belegSnap.data() }));
@@ -2394,7 +2368,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const abrechnungenRef = buero
                 ? collection(db, "abrechnungen")
-                : query(collection(db, "abrechnungen"), where("verlegerEmail", "==", email));
+                : query(collection(db, "abrechnungen"), where("verleger", "==", eigeneMitarbeiter));
             sensibleListenerAbmelden.push(onSnapshot(abrechnungenRef, (snapshot) => {
                 abrechnungenDaten = [];
                 snapshot.forEach((snap) => abrechnungenDaten.push({ id: snap.id, ...snap.data() }));
@@ -2403,7 +2377,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const krankRef = buero
                 ? collection(db, "krankmeldungen")
-                : query(collection(db, "krankmeldungen"), where("mitarbeiterEmail", "==", email));
+                : query(collection(db, "krankmeldungen"), where("mitarbeiter", "==", eigeneMitarbeiter));
             sensibleListenerAbmelden.push(onSnapshot(krankRef, (snapshot) => {
                 globalDaten.krankmeldungen = [];
                 snapshot.forEach((snap) => globalDaten.krankmeldungen.push({ id: snap.id, ...snap.data() }));
@@ -2472,65 +2446,118 @@ SECURITY MIGRATION MARKER (06.10.2026):
             document.head.appendChild(style);
         }
 
-        // SCHRITT 9: portal/global wird nicht mehr als laufende Datenquelle verwendet.
-        // Die getrennten Dokumente sind ab jetzt die aktiven Datenquellen.
-        // Wichtig: Die alte portal/global-Struktur bleibt unangetastet und wird
-        // weder gelöscht noch überschrieben.
-        function getrenntePortalListenerStarten() {
-            const listener = (sammlung, dokument, feldMap) => {
-                onSnapshot(doc(db, sammlung, dokument), snap => {
-                    if (!snap.exists()) return;
-                    const d = snap.data() || {};
-                    Object.entries(feldMap).forEach(([quelle, ziel]) => {
-                        if (Object.prototype.hasOwnProperty.call(d, quelle)) globalDaten[ziel] = d[quelle];
-                    });
+        let schritt8MigrationGestartet = false;
+        onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
+            if (docSnap.exists()) {
+                const cloudDaten = docSnap.data();
+                if (!schritt8MigrationGestartet) {
+                    schritt8MigrationGestartet = true;
+                    portalGlobalNachGetrenntMigrieren(cloudDaten);
+                }
+                if (Array.isArray(cloudDaten.mitarbeiterListe) && cloudDaten.mitarbeiterListe.length > 0) {
+                    globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
+                } else if (!Array.isArray(globalDaten.mitarbeiterListe) || globalDaten.mitarbeiterListe.length === 0) {
+                    globalDaten.mitarbeiterListe = basisMitarbeiter.slice();
+                }
+                globalDaten.passwoerter = cloudDaten.passwoerter || {};
+                globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || {};
 
-                    // Patrick Magiera bleibt ausschließlich Verleger.
-                    if (sammlung === "portal_meta" && dokument === "team" && Array.isArray(globalDaten.mitarbeiterListe)) {
-                        const p = globalDaten.mitarbeiterListe.find(m => m.name === "Patrick Magiera");
-                        if (p) {
-                            p.rolle = "Verleger";
-                            delete p.admin;
-                        }
+                // Patrick Magiera bleibt ausschließlich Verleger.
+                // Falls ein alter Datenstand noch ein Admin-Flag enthält, wird nur dieses Flag entfernt.
+                const patrickName = "Patrick Magiera";
+                const patrickBasis = basisMitarbeiter.find(m => m.name === patrickName);
+                const patrickIndex = globalDaten.mitarbeiterListe.findIndex(m => m.name === patrickName);
+                let patrickKorrekturNoetig = false;
+                if (patrickBasis) {
+                    if (patrickIndex === -1) {
+                        globalDaten.mitarbeiterListe.push({...patrickBasis, rolle: "Verleger"});
+                        patrickKorrekturNoetig = true;
+                    } else {
+                        if (globalDaten.mitarbeiterListe[patrickIndex].rolle !== "Verleger" || Object.prototype.hasOwnProperty.call(globalDaten.mitarbeiterListe[patrickIndex], "admin")) patrickKorrekturNoetig = true;
+                        globalDaten.mitarbeiterListe[patrickIndex].rolle = "Verleger";
+                        delete globalDaten.mitarbeiterListe[patrickIndex].admin;
                     }
-                    try { allesAktualisieren(); } catch(e) {}
-                }, err => console.warn(`Getrennter Portalbereich ${sammlung}/${dokument} nicht lesbar:`, err));
-            };
-            listener("portal_meta", "team", {mitarbeiterListe:"mitarbeiterListe"});
-            listener("portal_meta", "profile", {mitarbeiterProfil:"mitarbeiterProfil"});
-            listener("portal_data", "notifications", {benachrichtigungen:"benachrichtigungen"});
-            listener("portal_data", "material", {uzinKatalog:"uzinKatalog", materialliste:"materialliste"});
-            listener("portal_data", "warehouse", {lagerbestand:"lagerbestand"});
-            listener("portal_data", "assignments", {zuweisungen:"zuweisungen"});
-            listener("portal_data", "absence", {abwesenheiten:"abwesenheiten"});
-            listener("portal_data", "problems", {probleme:"probleme"});
-            listener("portal_data", "vacation", {urlaubsantraege:"urlaubsantraege", resturlaub:"resturlaub"});
-            listener("portal_data", "time", {zeiterfassung:"zeiterfassung"});
-        }
-        getrenntePortalListenerStarten();
-
-        // LOGIN-KOMPATIBILITÄT:
-        // Die bereits vergebenen Portal-Passwörter liegen weiterhin im alten
-        // portal/global-Datensatz. Sie werden hier nur für die Passwortprüfung
-        // geladen. Es werden keine Passwörter geändert oder neu erzeugt.
-        async function vorhandenePortalPasswoerterLaden() {
-            try {
-                const snap = await getDoc(doc(db, "portal", "global"));
-                if (snap.exists()) {
-                    const d = snap.data() || {};
-                    if (d.passwoerter && typeof d.passwoerter === "object") {
-                        globalDaten.passwoerter = d.passwoerter;
-                        return true;
+                    globalDaten.passwoerter[patrickName] = globalDaten.passwoerter[patrickName] || "start123";
+                    globalDaten.mitarbeiterProfil[patrickName] = globalDaten.mitarbeiterProfil[patrickName] || {tel: patrickBasis.tel, email: patrickBasis.email};
+                    if (patrickKorrekturNoetig) {
+                        try { await globalGlobalSpeichern(); } catch(e) { console.warn("Patrick-Rollenbereinigung konnte nicht sofort gespeichert werden:", e); }
                     }
                 }
-            } catch (e) {
-                console.warn("Vorhandene Portal-Passwörter konnten nicht geladen werden:", e);
+                const neueBenachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen || [];
+                const vorherigerBenachrichtigungsStand = letzterBenachrichtigungsStand;
+                letzterBenachrichtigungsStand = JSON.stringify(neueBenachrichtigungen);
+                globalDaten.benachrichtigungen = neueBenachrichtigungen;
+
+                if (vorherigerBenachrichtigungsStand !== null && vorherigerBenachrichtigungsStand !== letzterBenachrichtigungsStand && eingeloggterMitarbeiter) {
+                    const vorherigeListe = (() => { try { return JSON.parse(vorherigerBenachrichtigungsStand) || []; } catch(e) { return []; } })();
+                    const vorherigeIds = new Set(vorherigeListe.map((item, i) => item.id || (String(item.datum || '') + '|' + String(item.von || '') + '|' + String(item.text || '') + '|' + i)));
+                    const neueFuerMich = neueBenachrichtigungen.filter((item, i) => {
+                        const emp = String(item.empfaenger || '');
+                        const sichtbar = emp === 'Alle' || emp === eingeloggterMitarbeiter || String(item.von || '').startsWith(eingeloggterMitarbeiter);
+                        const id = item.id || (String(item.datum || '') + '|' + String(item.von || '') + '|' + String(item.text || '') + '|' + i);
+                        return sichtbar && !vorherigeIds.has(id);
+                    });
+                    if (neueFuerMich.length > 0) {
+                        benachrichtigungstonAbspielen();
+                    }
+                }
+                // Alten Demo-Hinweis entfernen, falls er bereits in Firebase gespeichert wurde.
+                const benachrichtigungenVorher = JSON.stringify(globalDaten.benachrichtigungen || []);
+                globalDaten.benachrichtigungen = (globalDaten.benachrichtigungen || []).filter(item =>
+                    !(String(item.von || '') === "Jeff Brisbois (Chef)" &&
+                      String(item.text || '') === "Wichtige Anweisung: Materialanlieferung für alle Luxemburger Baustellen am Dienstag ab 07:00 Uhr beachten!" &&
+                      String(item.datum || '') === "Heute, 08:30 Uhr")
+                );
+                if (JSON.stringify(globalDaten.benachrichtigungen || []) !== benachrichtigungenVorher) {
+                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Alter Demo-Hinweis konnte nicht bereinigt werden:", e); }
+                }
+                globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
+                globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
+                globalDaten.lagerbestand = Array.isArray(cloudDaten.lagerbestand) ? cloudDaten.lagerbestand : (globalDaten.lagerbestand || []);
+                globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
+                if (!wochenplanungSeparatGeladen) {
+                    globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
+                }
+                globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
+                // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
+                globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
+                // Alte Wochenplan-/Zeiterfassungsreste von bereits gelöschten Baustellen entfernen.
+                if (veralteteBaustellenBereinigen()) {
+                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Bereinigung alter Baustellen fehlgeschlagen", e); }
+                }
+                globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
+                // Krankmeldungen werden ausschließlich über die separate Firestore-Sammlung geladen.
+                // So kann ein Foto/PDF niemals das Größenlimit des globalen Portal-Dokuments sprengen.
+                globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
+                globalDaten.resturlaub = cloudDaten.resturlaub || {};
+
+                // Nach dem vollständigen Laden der Firebase-Daten den letzten
+                // Login auf diesem Gerät wiederherstellen.
+                try { dauerhaftenLoginWiederherstellen(); } catch(e) {
+                    console.warn("Dauerhafter Login nach Firebase-Laden übersprungen:", e);
+                }
+
+                // Nachrichten sofort aktualisieren und neue eingehende Nachrichten als Popup anzeigen.
+                const aktuelleNachrichten = Array.isArray(globalDaten.benachrichtigungen) ? globalDaten.benachrichtigungen : [];
+                const aktuelleSignaturen = new Set(aktuelleNachrichten.map(item => JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || ''])));
+                if (benachrichtigungenEchtzeitInitialisiert && eingeloggterMitarbeiter) {
+                    aktuelleNachrichten.slice(0, 20).forEach(item => {
+                        const signatur = JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || '']);
+                        if (!bekannteBenachrichtigungenSignaturen.has(signatur) &&
+                            !String(item.von || '').startsWith(eingeloggterMitarbeiter) &&
+                            !benachrichtigungIstFuerAktuellenMitarbeiterGeloescht(item) &&
+                            benachrichtigungIstFuerAktuellenMitarbeiter(item)) {
+                            neueNachrichtPopupAnzeigen(item);
+                        }
+                    });
+                }
+                bekannteBenachrichtigungenSignaturen = aktuelleSignaturen;
+                benachrichtigungenEchtzeitInitialisiert = true;
+                allesAktualisieren();
+            } else {
+                globalGlobalSpeichern();
             }
-            return false;
-        }
-
-
-        window.globalGlobalSpeichern = globalGlobalSpeichern;
+        });
 
         // Wochenplanung separat speichern/laden, damit Tageszuweisungen nicht durch
         // parallele globale Speichervorgänge überschrieben werden.
@@ -2600,9 +2627,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         });
 
-        // SCHRITT 9: Getrennte Speicherung.
-        // Dieser Speicher schreibt ausschließlich in die neuen, getrennten Bereiche.
-        // portal/global wird nicht mehr beschrieben.
+        // SCHRITT 8: Getrennte Speicherung statt portal/global.
+        // Die alten Daten bleiben unangetastet; dieser Speicher schreibt nur die
+        // neuen Bereiche. Die endgültige Sperre von portal/global erfolgt erst,
+        // wenn die Migration abgeschlossen und geprüft ist.
         async function globalGlobalSpeichern() {
             try {
                 const writes = [
@@ -2656,9 +2684,29 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         }
 
-        // SCHRITT 9: Keine laufende Migration aus portal/global mehr.
-        // Die getrennten Dokumente sind die alleinigen aktiven Datenquellen.
-        // Die alte Sammlung bleibt unangetastet, wird aber nicht mehr gelesen.
+        // Einmalige Migration des bestehenden portal/global-Dokuments.
+        // Nichts wird aus portal/global gelöscht oder überschrieben.
+        async function portalGlobalNachGetrenntMigrieren(cloudDaten) {
+            if (!cloudDaten || cloudDaten.__schritt8Migriert === true) return;
+            try {
+                if (Array.isArray(cloudDaten.mitarbeiterListe)) globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
+                globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || globalDaten.mitarbeiterProfil || {};
+                globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen || [];
+                globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog || {};
+                globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
+                globalDaten.lagerbestand = Array.isArray(cloudDaten.lagerbestand) ? cloudDaten.lagerbestand : (globalDaten.lagerbestand || []);
+                globalDaten.zuweisungen = cloudDaten.zuweisungen || globalDaten.zuweisungen || {};
+                globalDaten.abwesenheiten = cloudDaten.abwesenheiten || globalDaten.abwesenheiten || {};
+                globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : (globalDaten.probleme || []);
+                globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
+                globalDaten.zeiterfassung = cloudDaten.zeiterfassung || globalDaten.zeiterfassung || {};
+                globalDaten.resturlaub = cloudDaten.resturlaub || globalDaten.resturlaub || {};
+                await globalGlobalSpeichern();
+                console.info("Brisbois Portal: Schritt-8-Migration abgeschlossen.");
+            } catch(e) {
+                console.error("Schritt-8-Migration fehlgeschlagen:", e);
+            }
+        }
 
         // Getrennte Echtzeitquellen. Sie überschreiben lokale Daten nur mit den
         // jeweils zugehörigen Dokumenten und lassen alle anderen Portalbereiche unangetastet.
@@ -2670,10 +2718,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     Object.entries(feldMap).forEach(([quelle, ziel]) => {
                         if (Object.prototype.hasOwnProperty.call(d, quelle)) globalDaten[ziel] = d[quelle];
                     });
-                    if (sammlung === "portal_meta" && dokument === "team" && Array.isArray(globalDaten.mitarbeiterListe)) {
-                        const p = globalDaten.mitarbeiterListe.find(m => m.name === "Patrick Magiera");
-                        if (p) { p.rolle = "Verleger"; delete p.admin; }
-                    }
                     try { allesAktualisieren(); } catch(e) {}
                 }, err => console.warn(`Getrennter Portalbereich ${sammlung}/${dokument} nicht lesbar:`, err));
             };
@@ -2782,40 +2826,29 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         function loginDropdownBefuellen() {
             const select = document.getElementById('login-name-select');
-            if (!select) return;
-
-            // LOGIN: Ausschließlich die 8 bereits hinterlegten Konten.
-            // Andere Mitarbeiter dürfen hier nicht auswählbar sein.
-            const loginMitarbeiter = [
-                { name: "Jeff Brisbois", rolle: "Chef" },
-                { name: "Patrick Magiera", rolle: "Verleger" },
-                { name: "Didier Michel", rolle: "2. Chef" },
-                { name: "Marie-Christine Mathieu", rolle: "Sekretariat" },
-                { name: "Christian Leppin", rolle: "Techniker" },
-                { name: "Sylvain Zuliani", rolle: "Lagerist" },
-                { name: "Claude Gaita", rolle: "Lagerist" },
-                { name: "Wolfgang Seimetz", rolle: "Verleger" }
-            ];
-
+            if(!select) return;
             const aktuellerWert = select.value;
-            select.innerHTML = loginMitarbeiter.map(m => {
-                const value = String(m.name)
-                    .replace(/&/g, '&amp;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;');
-                const rolle = String(m.rolle)
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;');
-                return `<option value="${value}">${value} (${rolle})</option>`;
-            }).join('');
+            select.innerHTML = '';
 
-            if (aktuellerWert && loginMitarbeiter.some(m => m.name === aktuellerWert)) {
-                select.value = aktuellerWert;
-            } else {
-                select.selectedIndex = 0;
-            }
+            // Beim ersten Laden kann Firestore noch keine Mitarbeiterliste geliefert haben.
+            // In diesem Fall immer die eingebauten Teamdaten als sichere Fallback-Liste verwenden.
+            const mitarbeiterQuelle = Array.isArray(globalDaten.mitarbeiterListe) && globalDaten.mitarbeiterListe.length
+                ? globalDaten.mitarbeiterListe
+                : basisMitarbeiter;
+
+            const chefs = mitarbeiterQuelle.filter(m => m.rolle && (m.rolle.includes('Chef') || m.rolle.includes('Admin') || m.rolle.includes('Sekretariat') || m.rolle.includes('Techniker') || m.rolle.includes('Lagerist')) || m.name === 'Jeff Brisbois' || m.name === 'Didier Michel' || m.name === 'Tania Thill' || m.name === 'Dagmar Stejskalova' || m.name === 'Marie-Christine Mathieu' || m.name === 'Christian Leppin' || m.name === 'Sylvain Zuliani' || m.name === 'Claude Gaita');
+            const verleger = mitarbeiterQuelle.filter(m => !chefs.includes(m));
+
+            let chefHtml = `<optgroup label="👑 Chefs, Verwaltung, Technik & Lager">`;
+            chefs.forEach(c => { chefHtml += `<option value="${c.name}">${c.name} (${c.rolle || 'Chef/Admin'})</option>`; });
+            chefHtml += `</optgroup>`;
+
+            let verlegerHtml = `<optgroup label="👷 Verleger">`;
+            verleger.forEach(v => { verlegerHtml += `<option value="${v.name}">${v.name}</option>`; });
+            verlegerHtml += `</optgroup>`;
+
+            select.innerHTML = chefHtml + verlegerHtml;
+            if(aktuellerWert) select.value = aktuellerWert;
         }
 
         // Login-Auswahl sofort mit den eingebauten Teamdaten füllen, auch wenn Firebase noch lädt.
@@ -2824,9 +2857,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const select = document.getElementById('login-name-select');
             if (select) select.innerHTML = basisMitarbeiter.map(m => `<option value="${String(m.name).replace(/"/g, '&quot;')}">${m.name} (${m.rolle || 'Verleger'})</option>`).join('');
         }
-
-        document.addEventListener('DOMContentLoaded', () => { try { loginDropdownBefuellen(); } catch(e) {} });
-        window.addEventListener('load', () => { try { loginDropdownBefuellen(); } catch(e) {} });
 
         // Dauerhaften Login speichern: localStorage + Cookie + IndexedDB.
         // Der Cookie/IndexedDB-Fallback hilft besonders bei Safari/iPhone,
@@ -2974,54 +3004,51 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         window.anmeldenMitTeam = async function(event) {
             event.preventDefault();
-            const name = document.getElementById('login-name-select')?.value || '';
-            const eingegebenesPasswort = document.getElementById('login-passwort')?.value || '';
+            const name = document.getElementById('login-name-select').value;
+            const eingegebenesPasswort = document.getElementById('login-passwort').value;
             if (!name || !eingegebenesPasswort) {
                 alert("Bitte Name und Passwort eingeben.");
                 return;
             }
 
-            // Bestehender Portal-Login:
-            // Das bereits vergebene Passwort aus portal/global wird verwendet.
-            // Firebase-Passwörter werden hier NICHT geändert.
-            const erlaubteLoginNamen = [
-                "Jeff Brisbois",
-                "Patrick Magiera",
-                "Didier Michel",
-                "Marie-Christine Mathieu",
-                "Christian Leppin",
-                "Sylvain Zuliani",
-                "Claude Gaita",
-                "Wolfgang Seimetz"
-            ];
-
-            if (!erlaubteLoginNamen.includes(name)) {
-                alert("Dieser Mitarbeiter ist für den Portal-Login noch nicht freigeschaltet.");
+            // Der Mitarbeiter gibt weiterhin nur Name + Passwort ein.
+            // Firebase erhält im Hintergrund eine technische interne Kennung.
+            try {
+                await signInWithEmailAndPassword(auth, brisboisAuthKennung(name), eingegebenesPasswort);
+            } catch (e) {
+                console.error("Firebase-Anmeldung fehlgeschlagen:", e);
+                const code = String(e?.code || "");
+                if (code.includes("user-not-found") || code.includes("invalid-credential")) {
+                    alert("Die sichere Anmeldung für diesen Mitarbeiter ist noch nicht eingerichtet. Bitte den Benutzer zuerst in Firebase Authentication anlegen.");
+                } else if (code.includes("wrong-password") || code.includes("invalid-login-credentials")) {
+                    alert("Falsches Passwort.");
+                } else {
+                    alert("Anmeldung momentan nicht möglich. Bitte Internetverbindung und Firebase prüfen.");
+                }
                 return;
             }
 
-            // Vor jeder Prüfung den bestehenden Passwortbestand laden.
-            // Dadurch ist es egal, ob die Cloud-Daten beim Öffnen des Loginfensters
-            // schon vollständig geladen waren.
-            await vorhandenePortalPasswoerterLaden();
-
-            const passwoerter = globalDaten.passwoerter || {};
-            const gespeichertesPasswort = passwoerter[name];
-
-            if (!gespeichertesPasswort) {
-                alert("Für diesen Mitarbeiter ist noch kein Portal-Passwort hinterlegt.");
-                return;
-            }
-
-            if (String(eingegebenesPasswort) !== String(gespeichertesPasswort)) {
-                alert("Falsches Passwort.");
+            // Firebase Authentication ist jetzt die einzige technische
+            // Login-Quelle. Ein lokaler Name/Passwort-Vergleich findet nicht statt.
+            const firebaseUser = auth.currentUser;
+            const erwarteteKennung = brisboisAuthKennung(name);
+            if (!firebaseUser || String(firebaseUser.email || '').toLowerCase() !== String(erwarteteKennung || '').toLowerCase()) {
+                try { await signOut(auth); } catch(e) {}
+                alert("Die Firebase-Anmeldung konnte nicht eindeutig dem ausgewählten Mitarbeiter zugeordnet werden.");
                 return;
             }
 
             eingeloggterMitarbeiter = name;
             const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === name);
-            eingeloggteRolle = maObjekt?.rolle || "Verleger";
+            if (!maObjekt) {
+                try { await signOut(auth); } catch(e) {}
+                alert("Für diesen Firebase-Benutzer ist im Portal noch keine Mitarbeiterrolle hinterlegt.");
+                return;
+            }
+            eingeloggteRolle = maObjekt.rolle || "Verleger";
 
+            // Login dauerhaft auf diesem Gerät merken. Dabei wird niemals
+            // das Passwort und niemals eine Rolle als Sicherheitsnachweis gespeichert.
             try {
                 await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
             } catch(e) {
@@ -3029,6 +3056,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
 
             setTimeout(() => { try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {} }, 50);
+            
             oeffneAppNachLogin();
         }
 
