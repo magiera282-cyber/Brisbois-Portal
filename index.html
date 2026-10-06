@@ -727,7 +727,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Passwort</label>
                     <input type="password" id="login-passwort" placeholder="Passwort eingeben" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
-                    
+                    <button type="button" onclick="passwortZuruecksetzen()" class="mt-2 text-xs text-blue-700 hover:text-blue-900 font-semibold underline">🔑 Passwort vergessen / zurücksetzen</button>
                 </div>
                 <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-lg transition text-sm shadow">
                     🔓 Anmelden
@@ -1950,7 +1950,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
     <!-- Firebase SDK & Cloud Logik -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
@@ -1976,7 +1976,19 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
         // niemals im Login-Fenster oder in der Oberfläche angezeigt.
         function brisboisAuthKennung(name) {
             const interneKennungen = {
-                "Patrick Magiera": "magiera282@gmail.com"
+                // Bestehende echte Firebase-Anmeldung von Patrick bleibt unverändert.
+                "Patrick Magiera": "magiera282@gmail.com",
+                // Für Verwaltung, Technik und Lager werden die hinterlegten Firmenadressen
+                // als Firebase-Anmeldekennung verwendet. Im Portal werden diese Adressen
+                // niemals angezeigt.
+                "Jeff Brisbois": "jeff@brisbois-bembe.lu",
+                "Didier Michel": "michel@brisbois-bembe.lu",
+                "Tania Thill": "tania@brisbois-bembe.lu",
+                "Dagmar Stejskalova": "dagmar@brisbois-bembe.lu",
+                "Marie-Christine Mathieu": "marie@brisbois-bembe.lu",
+                "Christian Leppin": "christian@brisbois-bembe.lu",
+                "Sylvain Zuliani": "sylvain@brisbois-bembe.lu",
+                "Claude Gaita": "claude@brisbois-bembe.lu"
             };
             if (interneKennungen[String(name || "").trim()]) {
                 return interneKennungen[String(name || "").trim()];
@@ -2826,6 +2838,19 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             // Unsicherer Test-/Schnell-Login ist für den produktiven Betrieb deaktiviert.
             alert("Der Schnell-Login ist aus Sicherheitsgründen deaktiviert. Bitte mit Name und Passwort anmelden.");
         }
+
+        window.passwortZuruecksetzen = async function() {
+            const name = document.getElementById('login-name-select')?.value || '';
+            if (!name) { alert('Bitte zuerst einen Mitarbeiter auswählen.'); return; }
+            const email = brisboisAuthKennung(name);
+            try {
+                await sendPasswordResetEmail(auth, email);
+                alert('Wenn für diesen Mitarbeiter ein Firebase-Konto vorhanden ist, wurde eine E-Mail zum Zurücksetzen des Passworts versendet.');
+            } catch (e) {
+                console.error('Passwort-Reset fehlgeschlagen:', e);
+                alert('Die Passwort-Wiederherstellung ist für diesen Mitarbeiter noch nicht eingerichtet. Das Firebase-Konto muss zuerst angelegt werden.');
+            }
+        };
 
         window.anmeldenMitTeam = async function(event) {
             event.preventDefault();
