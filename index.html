@@ -2509,6 +2509,27 @@ SECURITY MIGRATION MARKER (06.10.2026):
         }
         getrenntePortalListenerStarten();
 
+        // LOGIN-KOMPATIBILITÄT:
+        // Die bereits vergebenen Portal-Passwörter liegen weiterhin im alten
+        // portal/global-Datensatz. Sie werden hier nur für die Passwortprüfung
+        // geladen. Es werden keine Passwörter geändert oder neu erzeugt.
+        async function vorhandenePortalPasswoerterLaden() {
+            try {
+                const snap = await getDoc(doc(db, "portal", "global"));
+                if (snap.exists()) {
+                    const d = snap.data() || {};
+                    if (d.passwoerter && typeof d.passwoerter === "object") {
+                        globalDaten.passwoerter = d.passwoerter;
+                        return true;
+                    }
+                }
+            } catch (e) {
+                console.warn("Vorhandene Portal-Passwörter konnten nicht geladen werden:", e);
+            }
+            return false;
+        }
+
+
         window.globalGlobalSpeichern = globalGlobalSpeichern;
 
         // Wochenplanung separat speichern/laden, damit Tageszuweisungen nicht durch
@@ -2978,6 +2999,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 alert("Dieser Mitarbeiter ist für den Portal-Login noch nicht freigeschaltet.");
                 return;
             }
+
+            // Vor jeder Prüfung den bestehenden Passwortbestand laden.
+            // Dadurch ist es egal, ob die Cloud-Daten beim Öffnen des Loginfensters
+            // schon vollständig geladen waren.
+            await vorhandenePortalPasswoerterLaden();
 
             const passwoerter = globalDaten.passwoerter || {};
             const gespeichertesPasswort = passwoerter[name];
