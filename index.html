@@ -721,49 +721,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mitarbeiter / Chef auswählen</label>
                     <select id="login-name-select" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-semibold">
-                        <optgroup label="👑 Chefs, Verwaltung, Technik & Lager">
-                            <option value="Jeff Brisbois">Jeff Brisbois (Chef)</option>
-                            <option value="Didier Michel">Didier Michel (2. Chef)</option>
-                            <option value="Tania Thill">Tania Thill (Sekretariat)</option>
-                            <option value="Dagmar Stejskalova">Dagmar Stejskalova (Sekretariat)</option>
-                            <option value="Marie-Christine Mathieu">Marie-Christine Mathieu (Sekretariat)</option>
-                            <option value="Christian Leppin">Christian Leppin (Techniker)</option>
-                            <option value="Sylvain Zuliani">Sylvain Zuliani (Lagerist)</option>
-                            <option value="Claude Gaita">Claude Gaita (Lagerist)</option>
-                        </optgroup>
-                        <optgroup label="👷 Verleger">
-                            <option value="Patrick Magiera">Patrick Magiera</option>
-                            <option value="Waldemar Magiera">Waldemar Magiera</option>
-                            <option value="Wolfgang Seimetz">Wolfgang Seimetz</option>
-                            <option value="Christophe Becker">Christophe Becker</option>
-                            <option value="Christophe Biagioli">Christophe Biagioli</option>
-                            <option value="Stéphane Bouillon">Stéphane Bouillon</option>
-                            <option value="Pedro Da Cruz Fortes">Pedro Da Cruz Fortes</option>
-                            <option value="Pavel Dimitrov">Pavel Dimitrov</option>
-                            <option value="Ednei Dos Santos">Ednei Dos Santos</option>
-                            <option value="Gérard Franck">Gérard Franck</option>
-                            <option value="Paul Fritz">Paul Fritz</option>
-                            <option value="Kévin Ghuel">Kévin Ghuel</option>
-                            <option value="Marco Goncalves">Marco Goncalves</option>
-                            <option value="Johannes Harth">Johannes Harth</option>
-                            <option value="Max Heiderscheid">Max Heiderscheid</option>
-                            <option value="Sacha Heiderscheid">Sacha Heiderscheid</option>
-                            <option value="Laurent Izzi">Laurent Izzi</option>
-                            <option value="Aleksandar Jovanovic">Aleksandar Jovanovic</option>
-                            <option value="Raphael Klein">Raphael Klein</option>
-                            <option value="Dora Morais">Dora Morais</option>
-                            <option value="Tristan Novali">Tristan Novali</option>
-                            <option value="Biagio Panarello">Biagio Panarello</option>
-                            <option value="Wjatscheslaw Panfilow">Wjatscheslaw Panfilow</option>
-                            <option value="Hervé Poline">Hervé Poline</option>
-                            <option value="Nicolas Sanitate">Nicolas Sanitate</option>
-                            <option value="Christophe Sartor">Christophe Sartor</option>
-                            <option value="Jacky Schneider">Jacky Schneider</option>
-                            <option value="Nicolas Sourlier">Nicolas Sourlier</option>
-                            <option value="Jorge Teixeira">Jorge Teixeira</option>
-                            <option value="Paolo Zangari">Paolo Zangari</option>
-                            <option value="Nino Zenzola">Nino Zenzola</option>
-                        </optgroup>
+                        <!-- Wird dynamisch befüllt -->
                     </select>
                 </div>
                 <div>
@@ -1667,7 +1625,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Neues Passwort (optional)</label>
-                        <input type="password" id="profil-passwort" placeholder="Mindestens 8 Zeichen (leer lassen zum Beibehalten)" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        <input type="password" id="profil-passwort" placeholder="Mindestens 4 Zeichen (leer lassen zum Beibehalten)" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
                     </div>
                     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition text-sm shadow">
                         💾 Daten in der Cloud aktualisieren
@@ -2002,7 +1960,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
         import { serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -2020,28 +1978,25 @@ SECURITY MIGRATION MARKER (06.10.2026):
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app, "(default)");
-        let messaging = null;
-        try { messaging = getMessaging(app); } catch (e) {
-            console.warn("Firebase Messaging ist in diesem Browser nicht verfügbar. Das Portal bleibt trotzdem vollständig nutzbar:", e);
-        }
+        const messaging = getMessaging(app);
 
         // Sichere technische Identität: Im Portal wird weiterhin ausschließlich
         // der Mitarbeitername angezeigt. Die interne Firebase-Adresse wird
         // niemals im Login-Fenster oder in der Oberfläche angezeigt.
-        const BRISBOIS_AUTH_KONTEN = {
-            "Patrick Magiera": { email: "magiera282@gmail.com", rolle: "Verleger" },
-            "Jeff Brisbois": { email: "chef@brisbois.de", rolle: "Chef" },
-            "Didier Michel": { email: "didier@brisbois.de", rolle: "2. Chef" },
-            "Christian Leppin": { email: "christian@brisbois.de", rolle: "Techniker" },
-            "Sylvain Zuliani": { email: "sylvain@brisbois.de", rolle: "Lagerist" },
-            "Claude Gaita": { email: "claude@brisbois.de", rolle: "Lagerist" },
-            "Wolfgang Seimetz": { email: "wolfgang@brisbois.de", rolle: "Verleger" },
-            "Marie-Christine Mathieu": { email: "marie-christine@brisbois.de", rolle: "Sekretariat" }
-        };
-
         function brisboisAuthKennung(name) {
-            const eintrag = BRISBOIS_AUTH_KONTEN[String(name || "").trim()];
-            if (eintrag?.email) return eintrag.email;
+            const interneKennungen = {
+                "Patrick Magiera": "magiera282@gmail.com",
+                "Jeff Brisbois": "chef@brisbois.de",
+                "Didier Michel": "didier@brisbois.de",
+                "Christian Leppin": "christian@brisbois.de",
+                "Sylvain Zuliani": "sylvain@brisbois.de",
+                "Claude Gaita": "claude@brisbois.de",
+                "Wolfgang Seimetz": "wolfgang@brisbois.de",
+                "Marie-Christine Mathieu": "marie-christine@brisbois.de"
+            };
+            if (interneKennungen[String(name || "").trim()]) {
+                return interneKennungen[String(name || "").trim()];
+            }
             return String(name || "")
                 .trim()
                 .toLowerCase()
@@ -2049,14 +2004,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 .replace(/[^a-z0-9]+/g, ".")
                 .replace(/^\.|\.$/g, "") + "@auth.brisbois-bembe.firebaseapp.com";
         }
-
-        function brisboisAuthProfilAusUser(user) {
-            const email = String(user?.email || "").trim().toLowerCase();
-            const eintrag = Object.entries(BRISBOIS_AUTH_KONTEN).find(([, konto]) => String(konto.email).toLowerCase() === email);
-            return eintrag ? { name: eintrag[0], rolle: eintrag[1].rolle, email } : null;
-        }
-        window.__brisboisAuthKonten = BRISBOIS_AUTH_KONTEN;
-        window.__brisboisAuthProfilAusUser = brisboisAuthProfilAusUser;
         window.__brisboisAuth = auth;
         window.__brisboisAuthKennung = brisboisAuthKennung;
         window.__brisboisFirebaseUser = null;
@@ -2064,6 +2011,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             window.__brisboisFirebaseUser = user || null;
             window.__brisboisAuthUid = user ? user.uid : "";
             window.__brisboisAuthReady = true;
+            try { if (user) setTimeout(() => sensibleListenerStarten(), 0); else sensibleListenerStoppen(); } catch(e) {}
 
             // Ohne Firebase-Sitzung darf das Portal niemals sichtbar bleiben.
             if (!user) {
@@ -2163,7 +2111,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         window.brisboisPushAktivieren = brisboisPushAktivieren;
 
-        if (messaging) onMessage(messaging, (payload) => {
+        onMessage(messaging, (payload) => {
             try {
                 const title = payload?.notification?.title || "Brisbois Portal";
                 const body = payload?.notification?.body || "Neue Nachricht";
@@ -2386,25 +2334,57 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         }
 
-        onSnapshot(collection(db, "belege"), (snapshot) => {
-            belegeDaten = [];
-            snapshot.forEach((belegSnap) => belegeDaten.push({ id: belegSnap.id, ...belegSnap.data() }));
-            belegeAnzeigen();
-        }, (error) => console.error("Fehler beim Laden der Belege:", error));
+        // 🔐 SICHERHEIT: sensible Sammlungen werden erst nach erfolgreichem
+        // Firebase-Login aufgebaut. Büro darf alles sehen; andere Mitarbeiter
+        // bekommen ausschließlich ihre eigenen Datensätze.
+        let sensibleListenerAbmelden = [];
+        function sensibleListenerStoppen() {
+            try { sensibleListenerAbmelden.forEach(fn => { try { fn(); } catch(e) {} }); } catch(e) {}
+            sensibleListenerAbmelden = [];
+        }
+        function sensibleBueroadresse(email) {
+            return [
+                'chef@brisbois.de','didier@brisbois.de','magiera282@gmail.com',
+                'christian@brisbois.de','tania@brisbois.de','dagmar@brisbois.de',
+                'marie-christine@brisbois.de'
+            ].includes(String(email||'').toLowerCase());
+        }
+        function sensibleListenerStarten() {
+            sensibleListenerStoppen();
+            const user = auth.currentUser;
+            if (!user) return;
+            const email = String(user.email||'').toLowerCase();
+            const eigeneMitarbeiter = String(eingeloggterMitarbeiter||'').trim();
+            const buero = sensibleBueroadresse(email);
 
-        onSnapshot(collection(db, "abrechnungen"), (snapshot) => {
-            abrechnungenDaten = [];
-            snapshot.forEach((snap) => abrechnungenDaten.push({ id: snap.id, ...snap.data() }));
-            try { abrechnungenAnzeigen(); } catch(e) { console.warn("Abrechnungen konnten nicht angezeigt werden:", e); }
-        }, (error) => console.error("Fehler beim Laden der Abrechnungen:", error));
+            const belegeRef = buero
+                ? collection(db, "belege")
+                : query(collection(db, "belege"), where("mitarbeiter", "==", eigeneMitarbeiter));
+            sensibleListenerAbmelden.push(onSnapshot(belegeRef, (snapshot) => {
+                belegeDaten = [];
+                snapshot.forEach((belegSnap) => belegeDaten.push({ id: belegSnap.id, ...belegSnap.data() }));
+                belegeAnzeigen();
+            }, (error) => console.error("Fehler beim Laden der Belege:", error)));
 
-        // Krankmeldungen separat in Firestore speichern/laden.
-        onSnapshot(collection(db, "krankmeldungen"), (snapshot) => {
-            globalDaten.krankmeldungen = [];
-            snapshot.forEach((snap) => globalDaten.krankmeldungen.push({ id: snap.id, ...snap.data() }));
-            try { zeiterfassungAnzeigen(); } catch(e) {}
-            try { if (typeof dashboardAktualisieren === "function") dashboardAktualisieren(); } catch(e) {}
-        }, (error) => console.error("Fehler beim Laden der Krankmeldungen:", error));
+            const abrechnungenRef = buero
+                ? collection(db, "abrechnungen")
+                : query(collection(db, "abrechnungen"), where("verleger", "==", eigeneMitarbeiter));
+            sensibleListenerAbmelden.push(onSnapshot(abrechnungenRef, (snapshot) => {
+                abrechnungenDaten = [];
+                snapshot.forEach((snap) => abrechnungenDaten.push({ id: snap.id, ...snap.data() }));
+                try { abrechnungenAnzeigen(); } catch(e) { console.warn("Abrechnungen konnten nicht angezeigt werden:", e); }
+            }, (error) => console.error("Fehler beim Laden der Abrechnungen:", error)));
+
+            const krankRef = buero
+                ? collection(db, "krankmeldungen")
+                : query(collection(db, "krankmeldungen"), where("mitarbeiter", "==", eigeneMitarbeiter));
+            sensibleListenerAbmelden.push(onSnapshot(krankRef, (snapshot) => {
+                globalDaten.krankmeldungen = [];
+                snapshot.forEach((snap) => globalDaten.krankmeldungen.push({ id: snap.id, ...snap.data() }));
+                try { zeiterfassungAnzeigen(); } catch(e) {}
+                try { if (typeof dashboardAktualisieren === "function") dashboardAktualisieren(); } catch(e) {}
+            }, (error) => console.error("Fehler beim Laden der Krankmeldungen:", error)));
+        }
 
         let wochenplanungSeparatGeladen = false;
         // Neue Nachrichten werden in Echtzeit erkannt und als kurze Popup-Meldung angezeigt.
@@ -2972,25 +2952,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 return;
             }
 
-            // SECURITY STEP 4: Für die bereits eingerichteten Firebase-Konten kommen
-            // Mitarbeiteridentität und Rolle aus der technischen Auth-Zuordnung.
-            // Der sichtbare Name im Dropdown darf keine Rolle erhöhen.
-            const authProfil = brisboisAuthProfilAusUser(firebaseUser);
-            if (authProfil && authProfil.name !== name) {
-                try { await signOut(auth); } catch(e) {}
-                alert("🔐 Die ausgewählte Mitarbeiteridentität passt nicht zum angemeldeten Firebase-Konto.");
-                return;
-            }
-
-            eingeloggterMitarbeiter = authProfil ? authProfil.name : name;
-            const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === eingeloggterMitarbeiter);
+            eingeloggterMitarbeiter = name;
+            const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === name);
             if (!maObjekt) {
                 try { await signOut(auth); } catch(e) {}
                 alert("Für diesen Firebase-Benutzer ist im Portal noch keine Mitarbeiterrolle hinterlegt.");
                 return;
             }
-            eingeloggteRolle = authProfil ? authProfil.rolle : (maObjekt.rolle || "Verleger");
-            window.__brisboisAuthRole = eingeloggteRolle;
+            eingeloggteRolle = maObjekt.rolle || "Verleger";
 
             // Login dauerhaft auf diesem Gerät merken. Dabei wird niemals
             // das Passwort und niemals eine Rolle als Sicherheitsnachweis gespeichert.
@@ -3249,6 +3218,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
                 const krankmeldung={id,mitarbeiter:eingeloggterMitarbeiter,von,bis,dateiUrl:url,dateiPfad,dateiname:datei.name,dateityp:datei.type||'',erstelltAm:new Date().toISOString(),status:'eingereicht'};
                 // Krankmeldung zuerst als eigenes Dokument sichern.
+                krankmeldung.mitarbeiterEmail = String(auth.currentUser?.email || "").toLowerCase();
                 await setDoc(doc(db, "krankmeldungen", id), krankmeldung);
                 globalDaten.krankmeldungen = (globalDaten.krankmeldungen || []).filter(x => x && x.id !== id);
                 globalDaten.krankmeldungen.push(krankmeldung);
@@ -4569,13 +4539,16 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const emailNeu = document.getElementById('profil-email').value;
             const passNeu = document.getElementById('profil-passwort').value;
 
-            if (passNeu && passNeu.length < 8) {
-                alert("Das Passwort muss mindestens 8 Zeichen lang sein!");
+            if (passNeu && passNeu.length < 4) {
+                alert("Das Passwort muss mindestens 4 Zeichen lang sein!");
                 return;
             }
 
-            // Ein Passwort darf ausschließlich über Firebase Authentication geändert werden.
-            // Es wird niemals in Firestore/globalDaten gespeichert.
+            // Profildaten speichern. Das Passwort wird NICHT mehr in Firestore/globalDaten gespeichert.
+            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
+            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
+
+            // Neues Passwort direkt in Firebase Authentication ändern.
             if (passNeu) {
                 const user = auth.currentUser;
                 if (!user) {
@@ -4596,10 +4569,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 }
             }
 
-            // Erst nach erfolgreicher Passwortänderung die übrigen Profildaten speichern.
-            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
-            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
-            await globalGlobalSpeichern();
+            globalGlobalSpeichern();
             telefonlistenTabelleFüllen();
             document.getElementById('profil-passwort').value = "";
             alert(passNeu ? "Deine Profildaten wurden gespeichert und dein Firebase-Passwort wurde geändert." : "Deine Profildaten wurden in der Cloud aktualisiert!");
@@ -6580,7 +6550,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (datei.size > 750 * 1024) return alert("Die Belegdatei darf maximal 750 KB groß sein.");
             try {
                 const dataUrl = await new Promise((resolve,reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(datei); });
-                await setDoc(doc(db, "belege", crypto.randomUUID()), {datum, mitarbeiter: eingeloggterMitarbeiter, rolle: eingeloggteRolle, zweck, betrag, dateiname:datei.name, dateityp:datei.type, dateiUrl:dataUrl, erstelltAm:new Date().toISOString()});
+                await setDoc(doc(db, "belege", crypto.randomUUID()), {datum, mitarbeiter: eingeloggterMitarbeiter, mitarbeiterEmail: String(auth.currentUser?.email || "").toLowerCase(), rolle: eingeloggteRolle, zweck, betrag, dateiname:datei.name, dateityp:datei.type, dateiUrl:dataUrl, erstelltAm:new Date().toISOString()});
                 document.getElementById("beleg-formular").reset();
                 document.getElementById("beleg-datum").value = new Date().toISOString().split("T")[0];
                 alert("Beleg wurde gespeichert.");
@@ -6644,7 +6614,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (datei.size > 2 * 1024 * 1024) return alert('Die Abrechnung darf maximal 2 MB groß sein.');
             try {
                 const dataUrl = await new Promise((resolve,reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(datei); });
-                await setDoc(doc(db, 'abrechnungen', crypto.randomUUID()), { verleger, bezeichnung, dateiname: datei.name, dateityp: datei.type, dateiUrl: dataUrl, hochgeladenVon: eingeloggterMitarbeiter, hochgeladenRolle: eingeloggteRolle, erstelltAm: new Date().toISOString() });
+                await setDoc(doc(db, 'abrechnungen', crypto.randomUUID()), { verleger, verlegerEmail: String(brisboisAuthKennung(verleger) || '').toLowerCase(), bezeichnung, dateiname: datei.name, dateityp: datei.type, dateiUrl: dataUrl, hochgeladenVon: eingeloggterMitarbeiter, hochgeladenRolle: eingeloggteRolle, erstelltAm: new Date().toISOString() });
                 document.getElementById('abrechnung-formular').reset();
                 abrechnungenVerlegerBefuellen();
                 alert('Abrechnung wurde gespeichert.');
@@ -6703,10 +6673,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             try { await deleteDoc(doc(db, 'abrechnungen', id)); } catch(error) { console.error(error); alert('Die Abrechnung konnte nicht gelöscht werden.'); }
         };
 
-        // SECURITY STEP 4 (06.10.2026): Firebase-Auth-Konto ist die technische Identität.
-        // Bestehende Firestore-Daten werden durch diesen Schritt nicht verändert.
-        // Finale Firestore-Regeln folgen erst nach der kontrollierten Aufteilung von portal/global.
-
         // ==================== LAGER & WERKZEUG ====================
         function istLagerist(){
             return String(eingeloggteRolle||'').toLowerCase().includes('lagerist');
@@ -6732,6 +6698,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
             return true;
         }
+
         function lagerNormalisieren(){
             if(!Array.isArray(globalDaten.lagerbestand)) globalDaten.lagerbestand=[];
             globalDaten.lagerbestand=globalDaten.lagerbestand.map((x,i)=>({
@@ -6859,19 +6826,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             x.bestand-=n;
             x.ausgaben=x.ausgaben||[];
             const ausDatum=new Date().toISOString();
-            const ausgabeId='AUS_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
-            const lagerAusgabeDokument={id:ausgabeId,artikelId:String(x.id||''),artikel:String(x.name||''),einheit:String(x.einheit||''),mitarbeiter,menge:n,datum:ausDatum,ausgegebenVon:eingeloggterMitarbeiter||'',kategorie:String(x.kategorie||'')};
-            x.ausgaben.unshift(lagerAusgabeDokument);
-            // Sicherheitsvorbereitung: Jede Ausgabe wird zusätzlich als eigenes
-            // Firestore-Dokument protokolliert. Der bestehende globale Lagerstand
-            // bleibt vorerst unverändert, damit keine vorhandenen Funktionen oder
-            // Daten durch die Migration verloren gehen.
-            try {
-                await setDoc(doc(db, 'lagerausgaben', ausgabeId), lagerAusgabeDokument);
-            } catch (e) {
-                console.error('Lagerausgabe konnte separat nicht protokolliert werden:', e);
-                // Die bestehende Ausgabe darf weiterhin funktionieren.
-            }
+            x.ausgaben.unshift({id:'AUS_'+Date.now(),mitarbeiter,menge:n,datum:ausDatum,ausgegebenVon:eingeloggterMitarbeiter});
             if(x.kategorie==='Maschine'){
                 x.maschineBei=mitarbeiter; x.maschineSeit=ausDatum; x.maschinenHistorie=x.maschinenHistorie||[];
                 x.maschinenHistorie.unshift({aktion:'Ausgabe',mitarbeiter,datum:ausDatum,von:eingeloggterMitarbeiter,menge:n});
