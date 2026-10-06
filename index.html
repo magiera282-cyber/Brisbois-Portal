@@ -2028,20 +2028,20 @@ SECURITY MIGRATION MARKER (06.10.2026):
         // Sichere technische Identität: Im Portal wird weiterhin ausschließlich
         // der Mitarbeitername angezeigt. Die interne Firebase-Adresse wird
         // niemals im Login-Fenster oder in der Oberfläche angezeigt.
+        const BRISBOIS_AUTH_KONTEN = {
+            "Patrick Magiera": { email: "magiera282@gmail.com", rolle: "Verleger" },
+            "Jeff Brisbois": { email: "chef@brisbois.de", rolle: "Chef" },
+            "Didier Michel": { email: "didier@brisbois.de", rolle: "2. Chef" },
+            "Christian Leppin": { email: "christian@brisbois.de", rolle: "Techniker" },
+            "Sylvain Zuliani": { email: "sylvain@brisbois.de", rolle: "Lagerist" },
+            "Claude Gaita": { email: "claude@brisbois.de", rolle: "Lagerist" },
+            "Wolfgang Seimetz": { email: "wolfgang@brisbois.de", rolle: "Verleger" },
+            "Marie-Christine Mathieu": { email: "marie-christine@brisbois.de", rolle: "Sekretariat" }
+        };
+
         function brisboisAuthKennung(name) {
-            const interneKennungen = {
-                "Patrick Magiera": "magiera282@gmail.com",
-                "Jeff Brisbois": "chef@brisbois.de",
-                "Didier Michel": "didier@brisbois.de",
-                "Christian Leppin": "christian@brisbois.de",
-                "Sylvain Zuliani": "sylvain@brisbois.de",
-                "Claude Gaita": "claude@brisbois.de",
-                "Wolfgang Seimetz": "wolfgang@brisbois.de",
-                "Marie-Christine Mathieu": "marie-christine@brisbois.de"
-            };
-            if (interneKennungen[String(name || "").trim()]) {
-                return interneKennungen[String(name || "").trim()];
-            }
+            const eintrag = BRISBOIS_AUTH_KONTEN[String(name || "").trim()];
+            if (eintrag?.email) return eintrag.email;
             return String(name || "")
                 .trim()
                 .toLowerCase()
@@ -2049,6 +2049,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 .replace(/[^a-z0-9]+/g, ".")
                 .replace(/^\.|\.$/g, "") + "@auth.brisbois-bembe.firebaseapp.com";
         }
+
+        function brisboisAuthProfilAusUser(user) {
+            const email = String(user?.email || "").trim().toLowerCase();
+            const eintrag = Object.entries(BRISBOIS_AUTH_KONTEN).find(([, konto]) => String(konto.email).toLowerCase() === email);
+            return eintrag ? { name: eintrag[0], rolle: eintrag[1].rolle, email } : null;
+        }
+        window.__brisboisAuthKonten = BRISBOIS_AUTH_KONTEN;
+        window.__brisboisAuthProfilAusUser = brisboisAuthProfilAusUser;
         window.__brisboisAuth = auth;
         window.__brisboisAuthKennung = brisboisAuthKennung;
         window.__brisboisFirebaseUser = null;
@@ -2964,14 +2972,25 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 return;
             }
 
-            eingeloggterMitarbeiter = name;
-            const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === name);
+            // SECURITY STEP 4: Für die bereits eingerichteten Firebase-Konten kommen
+            // Mitarbeiteridentität und Rolle aus der technischen Auth-Zuordnung.
+            // Der sichtbare Name im Dropdown darf keine Rolle erhöhen.
+            const authProfil = brisboisAuthProfilAusUser(firebaseUser);
+            if (authProfil && authProfil.name !== name) {
+                try { await signOut(auth); } catch(e) {}
+                alert("🔐 Die ausgewählte Mitarbeiteridentität passt nicht zum angemeldeten Firebase-Konto.");
+                return;
+            }
+
+            eingeloggterMitarbeiter = authProfil ? authProfil.name : name;
+            const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === eingeloggterMitarbeiter);
             if (!maObjekt) {
                 try { await signOut(auth); } catch(e) {}
                 alert("Für diesen Firebase-Benutzer ist im Portal noch keine Mitarbeiterrolle hinterlegt.");
                 return;
             }
-            eingeloggteRolle = maObjekt.rolle || "Verleger";
+            eingeloggteRolle = authProfil ? authProfil.rolle : (maObjekt.rolle || "Verleger");
+            window.__brisboisAuthRole = eingeloggteRolle;
 
             // Login dauerhaft auf diesem Gerät merken. Dabei wird niemals
             // das Passwort und niemals eine Rolle als Sicherheitsnachweis gespeichert.
@@ -6683,6 +6702,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (!a || !confirm('Diese Abrechnung wirklich löschen?')) return;
             try { await deleteDoc(doc(db, 'abrechnungen', id)); } catch(error) { console.error(error); alert('Die Abrechnung konnte nicht gelöscht werden.'); }
         };
+
+        // SECURITY STEP 4 (06.10.2026): Firebase-Auth-Konto ist die technische Identität.
+        // Bestehende Firestore-Daten werden durch diesen Schritt nicht verändert.
+        // Finale Firestore-Regeln folgen erst nach der kontrollierten Aufteilung von portal/global.
 
         // ==================== LAGER & WERKZEUG ====================
         function istLagerist(){
