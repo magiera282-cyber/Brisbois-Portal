@@ -1991,7 +1991,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 "Christian Leppin": "christian@brisbois.de",
                 "Sylvain Zuliani": "sylvain@brisbois.de",
                 "Claude Gaita": "claude@brisbois.de",
-                "Wolfgang": "wolfgang@brisbois.de",
+                "Wolfgang Seimetz": "wolfgang@brisbois.de",
                 "Marie-Christine Mathieu": "marie-christine@brisbois.de"
             };
             if (interneKennungen[String(name || "").trim()]) {
@@ -2711,8 +2711,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const aktuellerWert = select.value;
             select.innerHTML = '';
 
-            const chefs = globalDaten.mitarbeiterListe.filter(m => m.rolle && (m.rolle.includes('Chef') || m.rolle.includes('Admin') || m.rolle.includes('Sekretariat') || m.rolle.includes('Techniker') || m.rolle.includes('Lagerist')) || m.name === 'Jeff Brisbois' || m.name === 'Didier Michel' || m.name === 'Tania Thill' || m.name === 'Dagmar Stejskalova' || m.name === 'Marie-Christine Mathieu' || m.name === 'Christian Leppin' || m.name === 'Sylvain Zuliani' || m.name === 'Claude Gaita');
-            const verleger = globalDaten.mitarbeiterListe.filter(m => !chefs.includes(m));
+            // Beim ersten Laden kann Firestore noch keine Mitarbeiterliste geliefert haben.
+            // In diesem Fall immer die eingebauten Teamdaten als sichere Fallback-Liste verwenden.
+            const mitarbeiterQuelle = Array.isArray(globalDaten.mitarbeiterListe) && globalDaten.mitarbeiterListe.length
+                ? globalDaten.mitarbeiterListe
+                : basisMitarbeiter;
+
+            const chefs = mitarbeiterQuelle.filter(m => m.rolle && (m.rolle.includes('Chef') || m.rolle.includes('Admin') || m.rolle.includes('Sekretariat') || m.rolle.includes('Techniker') || m.rolle.includes('Lagerist')) || m.name === 'Jeff Brisbois' || m.name === 'Didier Michel' || m.name === 'Tania Thill' || m.name === 'Dagmar Stejskalova' || m.name === 'Marie-Christine Mathieu' || m.name === 'Christian Leppin' || m.name === 'Sylvain Zuliani' || m.name === 'Claude Gaita');
+            const verleger = mitarbeiterQuelle.filter(m => !chefs.includes(m));
 
             let chefHtml = `<optgroup label="👑 Chefs, Verwaltung, Technik & Lager">`;
             chefs.forEach(c => { chefHtml += `<option value="${c.name}">${c.name} (${c.rolle || 'Chef/Admin'})</option>`; });
