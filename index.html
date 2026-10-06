@@ -721,45 +721,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mitarbeiter / Chef auswählen</label>
                     <select id="login-name-select" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-semibold">
-                        <option value="Jeff Brisbois">Jeff Brisbois (Chef)</option>
-                        <option value="Patrick Magiera">Patrick Magiera (Verleger)</option>
-                        <option value="Didier Michel">Didier Michel (2. Chef)</option>
-                        <option value="Tania Thill">Tania Thill (Sekretariat)</option>
-                        <option value="Dagmar Stejskalova">Dagmar Stejskalova (Sekretariat)</option>
-                        <option value="Marie-Christine Mathieu">Marie-Christine Mathieu (Sekretariat)</option>
-                        <option value="Christian Leppin">Christian Leppin (Techniker)</option>
-                        <option value="Sylvain Zuliani">Sylvain Zuliani (Lagerist)</option>
-                        <option value="Claude Gaita">Claude Gaita (Lagerist)</option>
-                        <option value="Wolfgang Seimetz">Wolfgang Seimetz (Verleger)</option>
-                        <option value="Waldemar Magiera">Waldemar Magiera (Verleger)</option>
-                        <option value="Christophe Becker">Christophe Becker (Verleger)</option>
-                        <option value="Christophe Biagioli">Christophe Biagioli (Verleger)</option>
-                        <option value="Stéphane Bouillon">Stéphane Bouillon (Verleger)</option>
-                        <option value="Pedro Da Cruz Fortes">Pedro Da Cruz Fortes (Verleger)</option>
-                        <option value="Pavel Dimitrov">Pavel Dimitrov (Verleger)</option>
-                        <option value="Ednei Dos Santos">Ednei Dos Santos (Verleger)</option>
-                        <option value="Gérard Franck">Gérard Franck (Verleger)</option>
-                        <option value="Paul Fritz">Paul Fritz (Verleger)</option>
-                        <option value="Kévin Ghuel">Kévin Ghuel (Verleger)</option>
-                        <option value="Marco Goncalves">Marco Goncalves (Verleger)</option>
-                        <option value="Johannes Harth">Johannes Harth (Verleger)</option>
-                        <option value="Max Heiderscheid">Max Heiderscheid (Verleger)</option>
-                        <option value="Sacha Heiderscheid">Sacha Heiderscheid (Verleger)</option>
-                        <option value="Laurent Izzi">Laurent Izzi (Verleger)</option>
-                        <option value="Aleksandar Jovanovic">Aleksandar Jovanovic (Verleger)</option>
-                        <option value="Raphael Klein">Raphael Klein (Verleger)</option>
-                        <option value="Dora Morais">Dora Morais (Verleger)</option>
-                        <option value="Tristan Novali">Tristan Novali (Verleger)</option>
-                        <option value="Biagio Panarello">Biagio Panarello (Verleger)</option>
-                        <option value="Wjatscheslaw Panfilow">Wjatscheslaw Panfilow (Verleger)</option>
-                        <option value="Hervé Poline">Hervé Poline (Verleger)</option>
-                        <option value="Nicolas Sanitate">Nicolas Sanitate (Verleger)</option>
-                        <option value="Christophe Sartor">Christophe Sartor (Verleger)</option>
-                        <option value="Jacky Schneider">Jacky Schneider (Verleger)</option>
-                        <option value="Nicolas Sourlier">Nicolas Sourlier (Verleger)</option>
-                        <option value="Jorge Teixeira">Jorge Teixeira (Verleger)</option>
-                        <option value="Paolo Zangari">Paolo Zangari (Verleger)</option>
-                        <option value="Nino Zenzola">Nino Zenzola (Verleger)</option>
+                        <!-- Wird dynamisch befüllt -->
                     </select>
                 </div>
                 <div>
@@ -769,6 +731,9 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 </div>
                 <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-lg transition text-sm shadow">
                     🔓 Anmelden
+                </button>
+                <button type="button" onclick="passwortZuruecksetzenAusLogin()" class="w-full text-blue-700 hover:text-blue-900 font-semibold py-2 text-sm transition">
+                    🔑 Passwort vergessen / zurücksetzen
                 </button>
             </form>
         </div>
@@ -1655,7 +1620,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Telefonnummer / Handynummer</label>
-                        <input type="text" id="profil-telefon" placeholder="z.B. +352 691..." class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        <input type="text" id="profil-telefon" placeholder="z.B. +352 691..." class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none" autocomplete="tel">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-1">E-Mail-Adresse</label>
@@ -1663,7 +1628,11 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Neues Passwort (optional)</label>
-                        <input type="password" id="profil-passwort" placeholder="Mindestens 4 Zeichen (leer lassen zum Beibehalten)" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                        <input type="password" id="profil-passwort" placeholder="Mindestens 8 Zeichen (leer lassen zum Beibehalten)" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Passwort wiederholen</label>
+                        <input type="password" id="profil-passwort-bestaetigung" placeholder="Neues Passwort wiederholen" autocomplete="new-password" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none">
                     </div>
                     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition text-sm shadow">
                         💾 Daten in der Cloud aktualisieren
@@ -1997,8 +1966,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
 <!-- Firebase SDK & Cloud Logik -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, where, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
         import { serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -2016,29 +1985,58 @@ SECURITY MIGRATION MARKER (06.10.2026):
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app, "(default)");
+
+        // SECURITY: Firebase Auth ist die einzige Login-Quelle.
+        // Die Sitzung darf nach einem Browser-Neustart erhalten bleiben,
+        // aber lokale Name-/Rollenwerte werden niemals als Login akzeptiert.
+        setPersistence(auth, browserLocalPersistence).catch((e) => {
+            console.warn("Firebase-Sitzung konnte nicht auf dauerhaft gesetzt werden:", e);
+        });
         const messaging = getMessaging(app);
 
         // Sichere technische Identität: Im Portal wird weiterhin ausschließlich
         // der Mitarbeitername angezeigt. Die interne Firebase-Adresse wird
         // niemals im Login-Fenster oder in der Oberfläche angezeigt.
-        function brisboisAuthKennungen(name) {
-            const n = String(name || "").trim();
-            // Ausschließlich die tatsächlich eingerichteten Firebase-Auth-Konten verwenden.
-            // Die @brisbois-bembe.lu Test-/Profiladressen sind KEINE Login-Adressen.
-            const map = {
-                "Patrick Magiera": ["magiera282@gmail.com"],
-                "Jeff Brisbois": ["chef@brisbois.de"],
-                "Didier Michel": ["didier@brisbois.de"],
-                "Christian Leppin": ["christian@brisbois.de"],
-                "Sylvain Zuliani": ["sylvain@brisbois.de"],
-                "Claude Gaita": ["claude@brisbois.de"],
-                "Wolfgang Seimetz": ["wolfgang@brisbois.de"],
-                "Marie-Christine Mathieu": ["marie-christine@brisbois.de"]
+        function brisboisAuthKennung(name) {
+            const interneKennungen = {
+                "Patrick Magiera": "magiera282@gmail.com",
+                "Jeff Brisbois": "chef@brisbois.de",
+                "Didier Michel": "didier@brisbois.de",
+                "Christian Leppin": "christian@brisbois.de",
+                "Sylvain Zuliani": "sylvain@brisbois.de",
+                "Claude Gaita": "claude@brisbois.de",
+                "Wolfgang Seimetz": "wolfgang@brisbois.de",
+                "Marie-Christine Mathieu": "marie-christine@brisbois.de"
             };
-            if (map[n]) return map[n];
-            return [];
+            if (interneKennungen[String(name || "").trim()]) {
+                return interneKennungen[String(name || "").trim()];
+            }
+            return String(name || "")
+                .trim()
+                .toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]+/g, ".")
+                .replace(/^\.|\.$/g, "") + "@auth.brisbois-bembe.firebaseapp.com";
         }
-        function brisboisAuthKennung(name) { return brisboisAuthKennungen(name)[0] || ""; }
+        // SECURITY: Nur die aktuell eingerichteten echten Firebase-Konten dürfen
+        // sich über das Mitarbeiter-Dropdown anmelden. Weitere Mitarbeiter bleiben
+        // im Portal sichtbar, erhalten aber erst nach Einrichtung eines echten
+        // Firebase-Kontos Zugriff.
+        const BRISBOIS_FREIGESCHALTETE_KONTEN = new Set([
+            "Patrick Magiera",
+            "Jeff Brisbois",
+            "Didier Michel",
+            "Christian Leppin",
+            "Sylvain Zuliani",
+            "Claude Gaita",
+            "Wolfgang Seimetz",
+            "Marie-Christine Mathieu"
+        ]);
+        function brisboisLoginFreigeschaltet(name) {
+            return BRISBOIS_FREIGESCHALTETE_KONTEN.has(String(name || "").trim());
+        }
+        window.__brisboisLoginFreigeschaltet = brisboisLoginFreigeschaltet;
+
         window.__brisboisAuth = auth;
         window.__brisboisAuthKennung = brisboisAuthKennung;
         window.__brisboisFirebaseUser = null;
@@ -2056,6 +2054,25 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     if (appContainer) appContainer.classList.add("hidden");
                     if (loginModal) loginModal.classList.remove("hidden");
                 } catch(e) {}
+                return;
+            }
+
+            // SECURITY: Auch eine gültige Firebase-Sitzung darf nur mit einem
+            // ausdrücklich freigeschalteten Mitarbeiterkonto das Portal öffnen.
+            const authEmail = String(user.email || "").trim().toLowerCase();
+            const freigegebenerName = Object.keys({
+                "Patrick Magiera": "magiera282@gmail.com",
+                "Jeff Brisbois": "chef@brisbois.de",
+                "Didier Michel": "didier@brisbois.de",
+                "Christian Leppin": "christian@brisbois.de",
+                "Sylvain Zuliani": "sylvain@brisbois.de",
+                "Claude Gaita": "claude@brisbois.de",
+                "Wolfgang Seimetz": "wolfgang@brisbois.de",
+                "Marie-Christine Mathieu": "marie-christine@brisbois.de"
+            }).find(n => brisboisAuthKennung(n).toLowerCase() === authEmail);
+            if (!freigegebenerName || !brisboisLoginFreigeschaltet(freigegebenerName)) {
+                console.warn("Firebase-Konto ist für das Brisbois-Portal nicht freigeschaltet.");
+                try { signOut(auth).catch(() => {}); } catch(e) {}
                 return;
             }
 
@@ -2214,7 +2231,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             { name: "Paolo Zangari", tel: "691 102 671", rolle: "Verleger" },
             { name: "Nino Zenzola", tel: "691 100 044", rolle: "Verleger" }
         ];
-        window.__brisboisBasisMitarbeiter = basisMitarbeiter;
 
         // Patrick Magiera ist ausschließlich Verleger.
         // Die Funktion bleibt als neutrale Kompatibilität bestehen, damit andere Bereiche
@@ -2395,7 +2411,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const belegeRef = buero
                 ? collection(db, "belege")
-                : query(collection(db, "belege"), where("mitarbeiterEmail", "==", email));
+                : query(collection(db, "belege"), where("mitarbeiter", "==", eigeneMitarbeiter));
             sensibleListenerAbmelden.push(onSnapshot(belegeRef, (snapshot) => {
                 belegeDaten = [];
                 snapshot.forEach((belegSnap) => belegeDaten.push({ id: belegSnap.id, ...belegSnap.data() }));
@@ -2404,7 +2420,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const abrechnungenRef = buero
                 ? collection(db, "abrechnungen")
-                : query(collection(db, "abrechnungen"), where("verlegerEmail", "==", email));
+                : query(collection(db, "abrechnungen"), where("verleger", "==", eigeneMitarbeiter));
             sensibleListenerAbmelden.push(onSnapshot(abrechnungenRef, (snapshot) => {
                 abrechnungenDaten = [];
                 snapshot.forEach((snap) => abrechnungenDaten.push({ id: snap.id, ...snap.data() }));
@@ -2413,7 +2429,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const krankRef = buero
                 ? collection(db, "krankmeldungen")
-                : query(collection(db, "krankmeldungen"), where("mitarbeiterEmail", "==", email));
+                : query(collection(db, "krankmeldungen"), where("mitarbeiter", "==", eigeneMitarbeiter));
             sensibleListenerAbmelden.push(onSnapshot(krankRef, (snapshot) => {
                 globalDaten.krankmeldungen = [];
                 snapshot.forEach((snap) => globalDaten.krankmeldungen.push({ id: snap.id, ...snap.data() }));
@@ -2482,60 +2498,118 @@ SECURITY MIGRATION MARKER (06.10.2026):
             document.head.appendChild(style);
         }
 
-        // SCHRITT 9: portal/global wird nicht mehr als laufende Datenquelle verwendet.
-        // Die getrennten Dokumente sind ab jetzt die aktiven Datenquellen.
-        // Wichtig: Die alte portal/global-Struktur bleibt unangetastet und wird
-        // weder gelöscht noch überschrieben.
-        function getrenntePortalListenerStarten() {
-            const listener = (sammlung, dokument, feldMap) => {
-                onSnapshot(doc(db, sammlung, dokument), snap => {
-                    if (!snap.exists()) return;
-                    const d = snap.data() || {};
-                    Object.entries(feldMap).forEach(([quelle, ziel]) => {
-                        if (Object.prototype.hasOwnProperty.call(d, quelle)) globalDaten[ziel] = d[quelle];
-                    });
-                    if (sammlung === "portal_data" && dokument === "warehouse" && Array.isArray(globalDaten.lagerbestand)) {
-                        setTimeout(() => { try { lagerArtikelAusBestandSynchronisieren(); } catch(e) {} }, 300);
-                    }
-
-                    // Patrick Magiera bleibt ausschließlich Verleger.
-                    if (sammlung === "portal_meta" && dokument === "team" && Array.isArray(globalDaten.mitarbeiterListe)) {
-                        const p = globalDaten.mitarbeiterListe.find(m => m.name === "Patrick Magiera");
-                        if (p) {
-                            p.rolle = "Verleger";
-                            delete p.admin;
-                        }
-                    }
-                    try { allesAktualisieren(); } catch(e) {}
-                }, err => console.warn(`Getrennter Portalbereich ${sammlung}/${dokument} nicht lesbar:`, err));
-            };
-            listener("portal_meta", "team", {mitarbeiterListe:"mitarbeiterListe"});
-            listener("portal_meta", "profile", {mitarbeiterProfil:"mitarbeiterProfil"});
-            listener("portal_data", "notifications", {benachrichtigungen:"benachrichtigungen"});
-            listener("portal_data", "material", {uzinKatalog:"uzinKatalog", materialliste:"materialliste"});
-            listener("portal_data", "warehouse", {lagerbestand:"lagerbestand"});
-            // SCHRITT 14: Der Lagerist arbeitet für Lageränderungen ausschließlich
-            // mit den einzelnen, serverseitig geschützten Lagerartikeln.
-            onSnapshot(collection(db, "lager_artikel"), snap => {
-                if (!istLagerist()) return;
-                const artikel = [];
-                snap.forEach(s => { const d = s.data() || {}; artikel.push({id:s.id, ...d}); });
-                if (artikel.length) {
-                    globalDaten.lagerbestand = artikel;
-                    try { lagerAnzeigen(); } catch(e) {}
-                    try { lagerMaschinenAnzeigen(); } catch(e) {}
-                    try { lagerAusgabenAnzeigen(); } catch(e) {}
+        let schritt8MigrationGestartet = false;
+        onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
+            if (docSnap.exists()) {
+                const cloudDaten = docSnap.data();
+                if (!schritt8MigrationGestartet) {
+                    schritt8MigrationGestartet = true;
+                    portalGlobalNachGetrenntMigrieren(cloudDaten);
                 }
-            }, err => console.warn("Lagerartikel konnten nicht geladen werden:", err));
-            listener("portal_data", "assignments", {zuweisungen:"zuweisungen"});
-            listener("portal_data", "absence", {abwesenheiten:"abwesenheiten"});
-            listener("portal_data", "problems", {probleme:"probleme"});
-            listener("portal_data", "vacation", {urlaubsantraege:"urlaubsantraege", resturlaub:"resturlaub"});
-            listener("portal_data", "time", {zeiterfassung:"zeiterfassung"});
-        }
-        getrenntePortalListenerStarten();
+                if (Array.isArray(cloudDaten.mitarbeiterListe) && cloudDaten.mitarbeiterListe.length > 0) {
+                    globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
+                } else if (!Array.isArray(globalDaten.mitarbeiterListe) || globalDaten.mitarbeiterListe.length === 0) {
+                    globalDaten.mitarbeiterListe = basisMitarbeiter.slice();
+                }
+                globalDaten.passwoerter = cloudDaten.passwoerter || {};
+                globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || {};
 
-        window.globalGlobalSpeichern = globalGlobalSpeichern;
+                // Patrick Magiera bleibt ausschließlich Verleger.
+                // Falls ein alter Datenstand noch ein Admin-Flag enthält, wird nur dieses Flag entfernt.
+                const patrickName = "Patrick Magiera";
+                const patrickBasis = basisMitarbeiter.find(m => m.name === patrickName);
+                const patrickIndex = globalDaten.mitarbeiterListe.findIndex(m => m.name === patrickName);
+                let patrickKorrekturNoetig = false;
+                if (patrickBasis) {
+                    if (patrickIndex === -1) {
+                        globalDaten.mitarbeiterListe.push({...patrickBasis, rolle: "Verleger"});
+                        patrickKorrekturNoetig = true;
+                    } else {
+                        if (globalDaten.mitarbeiterListe[patrickIndex].rolle !== "Verleger" || Object.prototype.hasOwnProperty.call(globalDaten.mitarbeiterListe[patrickIndex], "admin")) patrickKorrekturNoetig = true;
+                        globalDaten.mitarbeiterListe[patrickIndex].rolle = "Verleger";
+                        delete globalDaten.mitarbeiterListe[patrickIndex].admin;
+                    }
+                    globalDaten.passwoerter[patrickName] = globalDaten.passwoerter[patrickName] || "start123";
+                    globalDaten.mitarbeiterProfil[patrickName] = globalDaten.mitarbeiterProfil[patrickName] || {tel: patrickBasis.tel, email: patrickBasis.email};
+                    if (patrickKorrekturNoetig) {
+                        try { await globalGlobalSpeichern(); } catch(e) { console.warn("Patrick-Rollenbereinigung konnte nicht sofort gespeichert werden:", e); }
+                    }
+                }
+                const neueBenachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen || [];
+                const vorherigerBenachrichtigungsStand = letzterBenachrichtigungsStand;
+                letzterBenachrichtigungsStand = JSON.stringify(neueBenachrichtigungen);
+                globalDaten.benachrichtigungen = neueBenachrichtigungen;
+
+                if (vorherigerBenachrichtigungsStand !== null && vorherigerBenachrichtigungsStand !== letzterBenachrichtigungsStand && eingeloggterMitarbeiter) {
+                    const vorherigeListe = (() => { try { return JSON.parse(vorherigerBenachrichtigungsStand) || []; } catch(e) { return []; } })();
+                    const vorherigeIds = new Set(vorherigeListe.map((item, i) => item.id || (String(item.datum || '') + '|' + String(item.von || '') + '|' + String(item.text || '') + '|' + i)));
+                    const neueFuerMich = neueBenachrichtigungen.filter((item, i) => {
+                        const emp = String(item.empfaenger || '');
+                        const sichtbar = emp === 'Alle' || emp === eingeloggterMitarbeiter || String(item.von || '').startsWith(eingeloggterMitarbeiter);
+                        const id = item.id || (String(item.datum || '') + '|' + String(item.von || '') + '|' + String(item.text || '') + '|' + i);
+                        return sichtbar && !vorherigeIds.has(id);
+                    });
+                    if (neueFuerMich.length > 0) {
+                        benachrichtigungstonAbspielen();
+                    }
+                }
+                // Alten Demo-Hinweis entfernen, falls er bereits in Firebase gespeichert wurde.
+                const benachrichtigungenVorher = JSON.stringify(globalDaten.benachrichtigungen || []);
+                globalDaten.benachrichtigungen = (globalDaten.benachrichtigungen || []).filter(item =>
+                    !(String(item.von || '') === "Jeff Brisbois (Chef)" &&
+                      String(item.text || '') === "Wichtige Anweisung: Materialanlieferung für alle Luxemburger Baustellen am Dienstag ab 07:00 Uhr beachten!" &&
+                      String(item.datum || '') === "Heute, 08:30 Uhr")
+                );
+                if (JSON.stringify(globalDaten.benachrichtigungen || []) !== benachrichtigungenVorher) {
+                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Alter Demo-Hinweis konnte nicht bereinigt werden:", e); }
+                }
+                globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
+                globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
+                globalDaten.lagerbestand = Array.isArray(cloudDaten.lagerbestand) ? cloudDaten.lagerbestand : (globalDaten.lagerbestand || []);
+                globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
+                if (!wochenplanungSeparatGeladen) {
+                    globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
+                }
+                globalDaten.abwesenheiten = cloudDaten.abwesenheiten || {};
+                // Gemeldete Baustellen-Probleme immer direkt aus Firebase übernehmen.
+                globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : [];
+                // Alte Wochenplan-/Zeiterfassungsreste von bereits gelöschten Baustellen entfernen.
+                if (veralteteBaustellenBereinigen()) {
+                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Bereinigung alter Baustellen fehlgeschlagen", e); }
+                }
+                globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
+                // Krankmeldungen werden ausschließlich über die separate Firestore-Sammlung geladen.
+                // So kann ein Foto/PDF niemals das Größenlimit des globalen Portal-Dokuments sprengen.
+                globalDaten.zeiterfassung = cloudDaten.zeiterfassung || {};
+                globalDaten.resturlaub = cloudDaten.resturlaub || {};
+
+                // Nach dem vollständigen Laden der Firebase-Daten den letzten
+                // Login auf diesem Gerät wiederherstellen.
+                try { dauerhaftenLoginWiederherstellen(); } catch(e) {
+                    console.warn("Dauerhafter Login nach Firebase-Laden übersprungen:", e);
+                }
+
+                // Nachrichten sofort aktualisieren und neue eingehende Nachrichten als Popup anzeigen.
+                const aktuelleNachrichten = Array.isArray(globalDaten.benachrichtigungen) ? globalDaten.benachrichtigungen : [];
+                const aktuelleSignaturen = new Set(aktuelleNachrichten.map(item => JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || ''])));
+                if (benachrichtigungenEchtzeitInitialisiert && eingeloggterMitarbeiter) {
+                    aktuelleNachrichten.slice(0, 20).forEach(item => {
+                        const signatur = JSON.stringify([item.von || '', item.empfaenger || '', item.text || '', item.datum || '']);
+                        if (!bekannteBenachrichtigungenSignaturen.has(signatur) &&
+                            !String(item.von || '').startsWith(eingeloggterMitarbeiter) &&
+                            !benachrichtigungIstFuerAktuellenMitarbeiterGeloescht(item) &&
+                            benachrichtigungIstFuerAktuellenMitarbeiter(item)) {
+                            neueNachrichtPopupAnzeigen(item);
+                        }
+                    });
+                }
+                bekannteBenachrichtigungenSignaturen = aktuelleSignaturen;
+                benachrichtigungenEchtzeitInitialisiert = true;
+                allesAktualisieren();
+            } else {
+                globalGlobalSpeichern();
+            }
+        });
 
         // Wochenplanung separat speichern/laden, damit Tageszuweisungen nicht durch
         // parallele globale Speichervorgänge überschrieben werden.
@@ -2605,9 +2679,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         });
 
-        // SCHRITT 9: Getrennte Speicherung.
-        // Dieser Speicher schreibt ausschließlich in die neuen, getrennten Bereiche.
-        // portal/global wird nicht mehr beschrieben.
+        // SCHRITT 8: Getrennte Speicherung statt portal/global.
+        // Die alten Daten bleiben unangetastet; dieser Speicher schreibt nur die
+        // neuen Bereiche. Die endgültige Sperre von portal/global erfolgt erst,
+        // wenn die Migration abgeschlossen und geprüft ist.
         async function globalGlobalSpeichern() {
             try {
                 const writes = [
@@ -2661,9 +2736,29 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         }
 
-        // SCHRITT 9: Keine laufende Migration aus portal/global mehr.
-        // Die getrennten Dokumente sind die alleinigen aktiven Datenquellen.
-        // Die alte Sammlung bleibt unangetastet, wird aber nicht mehr gelesen.
+        // Einmalige Migration des bestehenden portal/global-Dokuments.
+        // Nichts wird aus portal/global gelöscht oder überschrieben.
+        async function portalGlobalNachGetrenntMigrieren(cloudDaten) {
+            if (!cloudDaten || cloudDaten.__schritt8Migriert === true) return;
+            try {
+                if (Array.isArray(cloudDaten.mitarbeiterListe)) globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
+                globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || globalDaten.mitarbeiterProfil || {};
+                globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen || [];
+                globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog || {};
+                globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
+                globalDaten.lagerbestand = Array.isArray(cloudDaten.lagerbestand) ? cloudDaten.lagerbestand : (globalDaten.lagerbestand || []);
+                globalDaten.zuweisungen = cloudDaten.zuweisungen || globalDaten.zuweisungen || {};
+                globalDaten.abwesenheiten = cloudDaten.abwesenheiten || globalDaten.abwesenheiten || {};
+                globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : (globalDaten.probleme || []);
+                globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
+                globalDaten.zeiterfassung = cloudDaten.zeiterfassung || globalDaten.zeiterfassung || {};
+                globalDaten.resturlaub = cloudDaten.resturlaub || globalDaten.resturlaub || {};
+                await globalGlobalSpeichern();
+                console.info("Brisbois Portal: Schritt-8-Migration abgeschlossen.");
+            } catch(e) {
+                console.error("Schritt-8-Migration fehlgeschlagen:", e);
+            }
+        }
 
         // Getrennte Echtzeitquellen. Sie überschreiben lokale Daten nur mit den
         // jeweils zugehörigen Dokumenten und lassen alle anderen Portalbereiche unangetastet.
@@ -2675,10 +2770,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     Object.entries(feldMap).forEach(([quelle, ziel]) => {
                         if (Object.prototype.hasOwnProperty.call(d, quelle)) globalDaten[ziel] = d[quelle];
                     });
-                    if (sammlung === "portal_meta" && dokument === "team" && Array.isArray(globalDaten.mitarbeiterListe)) {
-                        const p = globalDaten.mitarbeiterListe.find(m => m.name === "Patrick Magiera");
-                        if (p) { p.rolle = "Verleger"; delete p.admin; }
-                    }
                     try { allesAktualisieren(); } catch(e) {}
                 }, err => console.warn(`Getrennter Portalbereich ${sammlung}/${dokument} nicht lesbar:`, err));
             };
@@ -2787,78 +2878,29 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         function loginDropdownBefuellen() {
             const select = document.getElementById('login-name-select');
-            if (!select) return;
-
+            if(!select) return;
             const aktuellerWert = select.value;
-            const cloudListe = Array.isArray(globalDaten.mitarbeiterListe) ? globalDaten.mitarbeiterListe : [];
-            const basisListe = Array.isArray(basisMitarbeiter) ? basisMitarbeiter : [];
+            select.innerHTML = '';
 
-            // LOGIN-SICHERHEIT/FUNKTIONS-SCHUTZ:
-            // Die Auswahl darf niemals leer werden, nur weil die getrennte
-            // Firestore-Teamliste noch nicht geladen, unvollständig oder
-            // vorübergehend nicht lesbar ist. Cloud-Daten werden bevorzugt,
-            // die eingebaute Teamliste bleibt als Fallback erhalten.
-            const zusammengefuehrt = [];
-            const gesehen = new Set();
-            [...cloudListe, ...basisListe].forEach(m => {
-                if (!m || !m.name) return;
-                const key = String(m.name).trim().toLowerCase();
-                if (gesehen.has(key)) return;
-                gesehen.add(key);
-                zusammengefuehrt.push({
-                    name: String(m.name),
-                    tel: m.tel || '',
-                    email: m.email || '',
-                    rolle: m.rolle || 'Verleger'
-                });
-            });
+            // Beim ersten Laden kann Firestore noch keine Mitarbeiterliste geliefert haben.
+            // In diesem Fall immer die eingebauten Teamdaten als sichere Fallback-Liste verwenden.
+            const mitarbeiterQuelle = Array.isArray(globalDaten.mitarbeiterListe) && globalDaten.mitarbeiterListe.length
+                ? globalDaten.mitarbeiterListe
+                : basisMitarbeiter;
 
-            // Patrick bleibt dauerhaft Verleger; ein altes Admin-Feld darf
-            // seine Login-Auswahl nicht wieder in eine höhere Rolle ändern.
-            zusammengefuehrt.forEach(m => {
-                if (m.name === 'Patrick Magiera') m.rolle = 'Verleger';
-            });
+            const chefs = mitarbeiterQuelle.filter(m => m.rolle && (m.rolle.includes('Chef') || m.rolle.includes('Admin') || m.rolle.includes('Sekretariat') || m.rolle.includes('Techniker') || m.rolle.includes('Lagerist')) || m.name === 'Jeff Brisbois' || m.name === 'Didier Michel' || m.name === 'Tania Thill' || m.name === 'Dagmar Stejskalova' || m.name === 'Marie-Christine Mathieu' || m.name === 'Christian Leppin' || m.name === 'Sylvain Zuliani' || m.name === 'Claude Gaita');
+            const verleger = mitarbeiterQuelle.filter(m => !chefs.includes(m));
 
-            const bueroRollen = ['Chef', '2. Chef', 'Admin', 'Sekretariat', 'Techniker', 'Lagerist'];
-            const chefs = zusammengefuehrt.filter(m =>
-                bueroRollen.includes(String(m.rolle || '')) ||
-                ['Jeff Brisbois', 'Didier Michel', 'Tania Thill', 'Dagmar Stejskalova',
-                 'Marie-Christine Mathieu', 'Christian Leppin', 'Sylvain Zuliani', 'Claude Gaita']
-                    .includes(m.name)
-            );
-            const verleger = zusammengefuehrt.filter(m => !chefs.includes(m));
+            let chefHtml = `<optgroup label="👑 Chefs, Verwaltung, Technik & Lager">`;
+            chefs.forEach(c => { chefHtml += `<option value="${c.name}">${c.name} (${c.rolle || 'Chef/Admin'})</option>`; });
+            chefHtml += `</optgroup>`;
 
-            let html = '';
-            if (chefs.length) {
-                html += '<optgroup label="👑 Chefs, Verwaltung, Technik & Lager">';
-                chefs.forEach(c => {
-                    const value = String(c.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    const label = `${value} (${String(c.rolle || 'Chef/Admin').replace(/</g, '&lt;').replace(/>/g, '&gt;')})`;
-                    html += `<option value="${value}">${label}</option>`;
-                });
-                html += '</optgroup>';
-            }
-            if (verleger.length) {
-                html += '<optgroup label="👷 Verleger">';
-                verleger.forEach(v => {
-                    const value = String(v.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    html += `<option value="${value}">${value}</option>`;
-                });
-                html += '</optgroup>';
-            }
+            let verlegerHtml = `<optgroup label="👷 Verleger">`;
+            verleger.forEach(v => { verlegerHtml += `<option value="${v.name}">${v.name}</option>`; });
+            verlegerHtml += `</optgroup>`;
 
-            // Niemals eine leere Auswahl anzeigen: Bei Firebase-/Regelfehlern
-            // bleiben die statisch eingebauten Mitarbeiter auswählbar.
-            if (html) {
-                select.innerHTML = html;
-            } else if (!select.options.length) {
-                select.innerHTML = basisListe.map(m => `<option value="${String(m.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}">${String(m.name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')} (${String(m.rolle || 'Verleger').replace(/</g, '&lt;').replace(/>/g, '&gt;')})</option>`).join('');
-            }
-            if (aktuellerWert && [...select.options].some(o => o.value === aktuellerWert)) {
-                select.value = aktuellerWert;
-            } else if (select.options.length) {
-                select.selectedIndex = 0;
-            }
+            select.innerHTML = chefHtml + verlegerHtml;
+            if(aktuellerWert) select.value = aktuellerWert;
         }
 
         // Login-Auswahl sofort mit den eingebauten Teamdaten füllen, auch wenn Firebase noch lädt.
@@ -2867,9 +2909,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const select = document.getElementById('login-name-select');
             if (select) select.innerHTML = basisMitarbeiter.map(m => `<option value="${String(m.name).replace(/"/g, '&quot;')}">${m.name} (${m.rolle || 'Verleger'})</option>`).join('');
         }
-
-        document.addEventListener('DOMContentLoaded', () => { try { loginDropdownBefuellen(); } catch(e) {} });
-        window.addEventListener('load', () => { try { loginDropdownBefuellen(); } catch(e) {} });
 
         // Dauerhaften Login speichern: localStorage + Cookie + IndexedDB.
         // Der Cookie/IndexedDB-Fallback hilft besonders bei Safari/iPhone,
@@ -3015,50 +3054,68 @@ SECURITY MIGRATION MARKER (06.10.2026):
             alert("Der Schnell-Login ist aus Sicherheitsgründen deaktiviert. Bitte mit Name und Passwort anmelden.");
         }
 
+        window.passwortZuruecksetzenAusLogin = async function() {
+            const name = document.getElementById('login-name-select')?.value || '';
+            const kennung = brisboisAuthKennung(name);
+            if (!name || !kennung || !brisboisLoginFreigeschaltet(name)) {
+                alert("Für diesen Mitarbeiter ist noch kein sicherer Firebase-Zugang eingerichtet.");
+                return;
+            }
+            try {
+                await sendPasswordResetEmail(auth, kennung);
+            } catch (e) {
+                console.error("Passwort-Reset fehlgeschlagen:", e);
+                // Keine Information darüber preisgeben, ob ein Konto existiert.
+            } finally {
+                const pass = document.getElementById('login-passwort');
+                if (pass) pass.value = '';
+            }
+            alert("Falls für diesen Mitarbeiter ein Konto hinterlegt ist, wurde eine E-Mail zum Zurücksetzen des Passworts angefordert. Bitte auch den Spam-Ordner prüfen.");
+        };
+
         window.anmeldenMitTeam = async function(event) {
             event.preventDefault();
-            const name = document.getElementById('login-name-select').value;
-            const eingegebenesPasswort = document.getElementById('login-passwort').value;
+            const name = document.getElementById('login-name-select')?.value || '';
+            const eingegebenesPasswort = document.getElementById('login-passwort')?.value || '';
             if (!name || !eingegebenesPasswort) {
                 alert("Bitte Name und Passwort eingeben.");
                 return;
             }
-
-            // Der Mitarbeiter gibt weiterhin nur Name + Passwort ein.
-            // Firebase erhält im Hintergrund eine technische interne Kennung.
-            let angemeldeteKennung = "";
-            let letzterFehler = null;
-            const kennungen = brisboisAuthKennungen(name);
-            for (const kennung of kennungen) {
-                try {
-                    await signInWithEmailAndPassword(auth, kennung, eingegebenesPasswort);
-                    angemeldeteKennung = kennung;
-                    break;
-                } catch (e) {
-                    letzterFehler = e;
-                    try { await signOut(auth); } catch(ignore) {}
-                }
-            }
-            if (!angemeldeteKennung) {
-                console.error("Firebase-Anmeldung fehlgeschlagen:", letzterFehler);
-                const code = String(letzterFehler?.code || "");
-                if (code.includes("user-not-found") || code.includes("invalid-credential")) {
-                    alert("Für diesen Mitarbeiter konnte Firebase die Anmeldung nicht bestätigen. Das Portal-Passwort aus der alten Liste ist nicht automatisch das Firebase-Passwort.");
-                } else if (code.includes("wrong-password") || code.includes("invalid-login-credentials")) {
-                    alert("Das eingegebene Passwort stimmt nicht mit dem Firebase-Passwort dieses Kontos überein.");
-                } else {
-                    alert("Anmeldung momentan nicht möglich. Bitte Internetverbindung und Firebase prüfen.");
-                }
+            if (!brisboisLoginFreigeschaltet(name)) {
+                const feld = document.getElementById('login-passwort');
+                if (feld) feld.value = '';
+                alert("Für diesen Mitarbeiter ist noch kein sicherer Firebase-Zugang eingerichtet.");
                 return;
             }
 
-            // Firebase Authentication ist jetzt die einzige technische
-            // Login-Quelle. Ein lokaler Name/Passwort-Vergleich findet nicht statt.
+            // SCHRITT-7 LOGIN-TEST: Wir verwenden ausschließlich Firebase Authentication.
+            // Die alten Passwoerter werden NICHT aus Firestore geladen und NICHT im HTML gespeichert.
+            // Dadurch bleibt die aktuelle Firebase-Sicherheitsregel unverändert.
+            const kennung = brisboisAuthKennung(name);
+            if (!kennung) {
+                alert("Für diesen Mitarbeiter ist noch keine sichere Firebase-Anmeldung hinterlegt.");
+                return;
+            }
+
+            try {
+                await signInWithEmailAndPassword(auth, kennung, eingegebenesPasswort);
+            } catch (e) {
+                console.error("Firebase-Anmeldung fehlgeschlagen:", e);
+                const code = String(e?.code || '');
+                if (code.includes('wrong-password') || code.includes('invalid-credential') || code.includes('invalid-login-credentials') || code.includes('user-not-found')) {
+                    alert("Name oder Passwort sind nicht korrekt.");
+                } else {
+                    alert("Anmeldung momentan nicht möglich. Bitte später erneut versuchen.");
+                }
+                const feld = document.getElementById('login-passwort');
+                if (feld) feld.value = '';
+                return;
+            }
+
             const firebaseUser = auth.currentUser;
-            const erlaubteKennungen = brisboisAuthKennungen(name).map(e => String(e || '').toLowerCase());
-            if (!firebaseUser || !erlaubteKennungen.includes(String(firebaseUser.email || '').toLowerCase())) {
+            if (!firebaseUser || String(firebaseUser.email || '').toLowerCase() !== String(kennung).toLowerCase()) {
                 try { await signOut(auth); } catch(e) {}
-                alert("Die Firebase-Anmeldung konnte nicht eindeutig dem ausgewählten Mitarbeiter zugeordnet werden.");
+                alert("Die Firebase-Anmeldung konnte dem ausgewählten Mitarbeiter nicht eindeutig zugeordnet werden.");
                 return;
             }
 
@@ -3066,13 +3123,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === name);
             if (!maObjekt) {
                 try { await signOut(auth); } catch(e) {}
-                alert("Für diesen Firebase-Benutzer ist im Portal noch keine Mitarbeiterrolle hinterlegt.");
+                alert("Für diesen Firebase-Benutzer ist im Portal keine Mitarbeiterrolle hinterlegt.");
                 return;
             }
             eingeloggteRolle = maObjekt.rolle || "Verleger";
 
-            // Login dauerhaft auf diesem Gerät merken. Dabei wird niemals
-            // das Passwort und niemals eine Rolle als Sicherheitsnachweis gespeichert.
             try {
                 await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
             } catch(e) {
@@ -3080,7 +3135,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
 
             setTimeout(() => { try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {} }, 50);
-            
             oeffneAppNachLogin();
         }
 
@@ -4641,6 +4695,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
             document.getElementById('profil-telefon').value = prof.tel || "";
             document.getElementById('profil-email').value = prof.email || "";
             document.getElementById('profil-passwort').value = "";
+            const bestaetigungFeld = document.getElementById('profil-passwort-bestaetigung');
+            if (bestaetigungFeld) bestaetigungFeld.value = "";
         }
 
         window.eigenesProfilSpeichern = async function(event) {
@@ -4648,17 +4704,22 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const telNeu = document.getElementById('profil-telefon').value;
             const emailNeu = document.getElementById('profil-email').value;
             const passNeu = document.getElementById('profil-passwort').value;
+            const passBestaetigung = document.getElementById('profil-passwort-bestaetigung')?.value || "";
 
-            if (passNeu && passNeu.length < 4) {
-                alert("Das Passwort muss mindestens 4 Zeichen lang sein!");
+            if (passNeu && passNeu.length < 8) {
+                alert("Das neue Passwort muss mindestens 8 Zeichen lang sein!");
+                return;
+            }
+            if (passNeu && passNeu !== passBestaetigung) {
+                alert("Die beiden neuen Passwörter stimmen nicht überein.");
                 return;
             }
 
-            // Profildaten speichern. Das Passwort wird NICHT mehr in Firestore/globalDaten gespeichert.
-            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
-            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
-
             // Neues Passwort direkt in Firebase Authentication ändern.
+            // Erst wenn die Passwortänderung erfolgreich war, werden die übrigen
+            // Profildaten gespeichert. So bleibt bei einem Firebase-Fehler nichts
+            // halb gespeichert.
+
             if (passNeu) {
                 const user = auth.currentUser;
                 if (!user) {
@@ -4679,11 +4740,38 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 }
             }
 
+            // Profildaten speichern. Das Passwort wird NICHT in Firestore/globalDaten gespeichert.
+            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
+            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
+
             globalGlobalSpeichern();
             telefonlistenTabelleFüllen();
             document.getElementById('profil-passwort').value = "";
+            const bestaetigungFeld = document.getElementById('profil-passwort-bestaetigung');
+            if (bestaetigungFeld) bestaetigungFeld.value = "";
             alert(passNeu ? "Deine Profildaten wurden gespeichert und dein Firebase-Passwort wurde geändert." : "Deine Profildaten wurden in der Cloud aktualisiert!");
         }
+
+        // SECURITY WATCHDOG: Falls die Firebase-Sitzung verloren geht oder
+        // nicht mehr zum ausgewählten Mitarbeiter passt, wird das Portal sofort
+        // wieder geschlossen. Lokale Speicherwerte können diesen Check niemals
+        // umgehen.
+        setInterval(async () => {
+            try {
+                if (!eingeloggterMitarbeiter) return;
+                const user = auth.currentUser;
+                const expected = brisboisAuthKennung(eingeloggterMitarbeiter);
+                if (!user || !expected || String(user.email || '').toLowerCase() !== String(expected).toLowerCase()) {
+                    try { await signOut(auth); } catch(e) {}
+                    eingeloggterMitarbeiter = '';
+                    eingeloggteRolle = '';
+                    const app = document.getElementById('app-container');
+                    const login = document.getElementById('login-modal');
+                    if (app) app.classList.add('hidden');
+                    if (login) login.classList.remove('hidden');
+                }
+            } catch(e) {}
+        }, 60000);
 
         function telefonlistenTabelleFüllen() {
             const tbody = document.querySelector('#telefonlisten-tabelle tbody');
@@ -6809,19 +6897,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             return true;
         }
 
-        async function lagerArtikelAusBestandSynchronisieren(){
-            if (!lagerVerwaltenBerechtigt()) return;
-            lagerNormalisieren();
-            const arr = Array.isArray(globalDaten.lagerbestand) ? globalDaten.lagerbestand : [];
-            try {
-                await Promise.all(arr.filter(x => x && x.id).map(x =>
-                    setDoc(doc(db, "lager_artikel", String(x.id)), { ...x }, { merge: false })
-                ));
-            } catch(e) {
-                console.warn("Lagerartikel konnten nicht synchronisiert werden:", e);
-            }
-        }
-
         function lagerNormalisieren(){
             if(!Array.isArray(globalDaten.lagerbestand)) globalDaten.lagerbestand=[];
             globalDaten.lagerbestand=globalDaten.lagerbestand.map((x,i)=>({
@@ -6945,61 +7020,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const n=Number(menge?.value);
             if(!x||!mitarbeiter)return alert('Bitte einen Mitarbeiter auswählen.');
             if(!Number.isFinite(n)||n<=0)return alert('Bitte eine gültige Menge eingeben.');
-
-            // Lageristen schreiben NICHT mehr in das gemeinsame Lager-Dokument.
-            // Die Ausgabe wird atomar am einzelnen Lagerartikel gebucht.
-            if (istLagerist()) {
-                if (!x.id) return alert('Dieser Lagerartikel hat noch keine sichere ID. Bitte das Lager einmal durch Chef/Büro synchronisieren lassen.');
-                try {
-                    const artikelRef = doc(db, 'lager_artikel', String(x.id));
-                    await runTransaction(db, async (tx) => {
-                        const snap = await tx.get(artikelRef);
-                        if (!snap.exists()) throw new Error('LAGER_ARTIKEL_NICHT_GEFUNDEN');
-                        const aktuell = snap.data() || {};
-                        const bestand = Number(aktuell.bestand) || 0;
-                        if (n > bestand) throw new Error('NICHT_GENUG_BESTAND');
-                        const ausgaben = Array.isArray(aktuell.ausgaben) ? [...aktuell.ausgaben] : [];
-                        const datum = new Date().toISOString();
-                        ausgaben.unshift({
-                            id:'AUS_'+Date.now(),
-                            mitarbeiter,
-                            mitarbeiterEmail: (globalDaten.mitarbeiterListe||[]).find(m=>m&&m.name===mitarbeiter)?.email || '',
-                            menge:n,
-                            datum,
-                            ausgegebenVon:eingeloggterMitarbeiter,
-                            ausgegebenVonEmail:String(auth.currentUser?.email||'').toLowerCase()
-                        });
-                        const update = { bestand: bestand - n, ausgaben };
-                        if (aktuell.kategorie === 'Maschine') {
-                            if (aktuell.maschineBei) throw new Error('MASCHINE_BEREITS_AUSGEGEBEN');
-                            update.maschineBei = mitarbeiter;
-                            update.maschineSeit = datum;
-                            update.maschinenHistorie = Array.isArray(aktuell.maschinenHistorie) ? [{aktion:'Ausgabe',mitarbeiter,datum,von:eingeloggterMitarbeiter,menge:n}, ...aktuell.maschinenHistorie] : [{aktion:'Ausgabe',mitarbeiter,datum,von:eingeloggterMitarbeiter,menge:n}];
-                        }
-                        tx.update(artikelRef, update);
-                    });
-                    const lokal = globalDaten.lagerbestand[i];
-                    if (lokal) {
-                        lokal.bestand = Math.max(0, Number(lokal.bestand||0) - n);
-                        lokal.ausgaben = lokal.ausgaben || [];
-                        lokal.ausgaben.unshift({id:'AUS_'+Date.now(),mitarbeiter,menge:n,datum:new Date().toISOString(),ausgegebenVon:eingeloggterMitarbeiter});
-                        if (lokal.kategorie === 'Maschine') { lokal.maschineBei=mitarbeiter; lokal.maschineSeit=new Date().toISOString(); }
-                    }
-                    lagerAusgabeSchliessen();
-                    lagerAnzeigen();
-                    lagerMaschinenAnzeigen();
-                    lagerAusgabenAnzeigen();
-                } catch(e) {
-                    console.error('Sichere Lagerausgabe fehlgeschlagen:', e);
-                    if (e?.message === 'NICHT_GENUG_BESTAND') return alert('Nicht genügend Bestand.');
-                    if (e?.message === 'MASCHINE_BEREITS_AUSGEGEBEN') return alert('Diese Maschine ist bereits ausgegeben.');
-                    if (e?.message === 'LAGER_ARTIKEL_NICHT_GEFUNDEN') return alert('Der Lagerartikel ist noch nicht sicher synchronisiert. Bitte einmal mit Chef/Büro das Lager öffnen.');
-                    alert('🔐 Die Lagerausgabe konnte nicht sicher gespeichert werden.');
-                }
-                return;
-            }
-
-            // Chef/Büro/Techniker: bestehender Verwaltungsweg bleibt unverändert.
             if(n>x.bestand)return alert(`Nicht genügend Bestand. Aktuell: ${x.bestand} ${x.einheit}.`);
             x.bestand-=n;
             x.ausgaben=x.ausgaben||[];
