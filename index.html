@@ -721,7 +721,49 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mitarbeiter / Chef auswählen</label>
                     <select id="login-name-select" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-semibold">
-                        <!-- Wird dynamisch befüllt -->
+                        <optgroup label="👑 Chefs, Verwaltung, Technik & Lager">
+                            <option value="Jeff Brisbois">Jeff Brisbois (Chef)</option>
+                            <option value="Didier Michel">Didier Michel (2. Chef)</option>
+                            <option value="Tania Thill">Tania Thill (Sekretariat)</option>
+                            <option value="Dagmar Stejskalova">Dagmar Stejskalova (Sekretariat)</option>
+                            <option value="Marie-Christine Mathieu">Marie-Christine Mathieu (Sekretariat)</option>
+                            <option value="Christian Leppin">Christian Leppin (Techniker)</option>
+                            <option value="Sylvain Zuliani">Sylvain Zuliani (Lagerist)</option>
+                            <option value="Claude Gaita">Claude Gaita (Lagerist)</option>
+                        </optgroup>
+                        <optgroup label="👷 Verleger">
+                            <option value="Patrick Magiera">Patrick Magiera</option>
+                            <option value="Waldemar Magiera">Waldemar Magiera</option>
+                            <option value="Wolfgang Seimetz">Wolfgang Seimetz</option>
+                            <option value="Christophe Becker">Christophe Becker</option>
+                            <option value="Christophe Biagioli">Christophe Biagioli</option>
+                            <option value="Stéphane Bouillon">Stéphane Bouillon</option>
+                            <option value="Pedro Da Cruz Fortes">Pedro Da Cruz Fortes</option>
+                            <option value="Pavel Dimitrov">Pavel Dimitrov</option>
+                            <option value="Ednei Dos Santos">Ednei Dos Santos</option>
+                            <option value="Gérard Franck">Gérard Franck</option>
+                            <option value="Paul Fritz">Paul Fritz</option>
+                            <option value="Kévin Ghuel">Kévin Ghuel</option>
+                            <option value="Marco Goncalves">Marco Goncalves</option>
+                            <option value="Johannes Harth">Johannes Harth</option>
+                            <option value="Max Heiderscheid">Max Heiderscheid</option>
+                            <option value="Sacha Heiderscheid">Sacha Heiderscheid</option>
+                            <option value="Laurent Izzi">Laurent Izzi</option>
+                            <option value="Aleksandar Jovanovic">Aleksandar Jovanovic</option>
+                            <option value="Raphael Klein">Raphael Klein</option>
+                            <option value="Dora Morais">Dora Morais</option>
+                            <option value="Tristan Novali">Tristan Novali</option>
+                            <option value="Biagio Panarello">Biagio Panarello</option>
+                            <option value="Wjatscheslaw Panfilow">Wjatscheslaw Panfilow</option>
+                            <option value="Hervé Poline">Hervé Poline</option>
+                            <option value="Nicolas Sanitate">Nicolas Sanitate</option>
+                            <option value="Christophe Sartor">Christophe Sartor</option>
+                            <option value="Jacky Schneider">Jacky Schneider</option>
+                            <option value="Nicolas Sourlier">Nicolas Sourlier</option>
+                            <option value="Jorge Teixeira">Jorge Teixeira</option>
+                            <option value="Paolo Zangari">Paolo Zangari</option>
+                            <option value="Nino Zenzola">Nino Zenzola</option>
+                        </optgroup>
                     </select>
                 </div>
                 <div>
@@ -1978,7 +2020,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app, "(default)");
-        const messaging = getMessaging(app);
+        let messaging = null;
+        try { messaging = getMessaging(app); } catch (e) {
+            console.warn("Firebase Messaging ist in diesem Browser nicht verfügbar. Das Portal bleibt trotzdem vollständig nutzbar:", e);
+        }
 
         // Sichere technische Identität: Im Portal wird weiterhin ausschließlich
         // der Mitarbeitername angezeigt. Die interne Firebase-Adresse wird
@@ -2110,7 +2155,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         window.brisboisPushAktivieren = brisboisPushAktivieren;
 
-        onMessage(messaging, (payload) => {
+        if (messaging) onMessage(messaging, (payload) => {
             try {
                 const title = payload?.notification?.title || "Brisbois Portal";
                 const body = payload?.notification?.body || "Neue Nachricht";
