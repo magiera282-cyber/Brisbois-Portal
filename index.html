@@ -2011,23 +2011,15 @@ SECURITY MIGRATION MARKER (06.10.2026):
             window.__brisboisFirebaseUser = user || null;
             window.__brisboisAuthUid = user ? user.uid : "";
             window.__brisboisAuthReady = true;
+            // LOGIN-TEST: Der Portal-Login verwendet wieder das bereits
+            // hinterlegte Passwort aus portal/global. Eine fehlende Firebase-
+            // Sitzung darf den erfolgreichen Portal-Login nicht sofort wieder
+            // schließen. Bestehende Firebase-Sitzungen werden weiterhin normal
+            // erkannt und können den dauerhaften Login wiederherstellen.
             try { if (user) setTimeout(() => sensibleListenerStarten(), 0); else sensibleListenerStoppen(); } catch(e) {}
-
-            // Ohne Firebase-Sitzung darf das Portal niemals sichtbar bleiben.
-            if (!user) {
-                try {
-                    const appContainer = document.getElementById("app-container");
-                    const loginModal = document.getElementById("login-modal");
-                    if (appContainer) appContainer.classList.add("hidden");
-                    if (loginModal) loginModal.classList.remove("hidden");
-                } catch(e) {}
-                return;
+            if (user) {
+                setTimeout(() => { try { dauerhaftenLoginWiederherstellen(); } catch(e) {} }, 0);
             }
-
-            // Eine echte Firebase-Sitzung darf nach einem Browser-/App-Neustart
-            // wiederhergestellt werden. Die Wiederherstellung prüft zusätzlich
-            // die Identität gegen die technische Firebase-Kennung.
-            setTimeout(() => { try { dauerhaftenLoginWiederherstellen(); } catch(e) {} }, 0);
         });
         let brisboisPushRegistration = null;
 
@@ -3002,53 +2994,56 @@ SECURITY MIGRATION MARKER (06.10.2026):
             alert("Der Schnell-Login ist aus Sicherheitsgründen deaktiviert. Bitte mit Name und Passwort anmelden.");
         }
 
+        // LOGIN-TEST AUF BASIS VON SCHRITT 7:
+        // Die bereits vergebenen Portal-Passwörter aus portal/global werden wieder
+        // direkt geprüft. Firebase-Passwörter werden dabei NICHT geändert.
+        async function vorhandenePortalPasswoerterLaden() {
+            try {
+                const snap = await getDoc(doc(db, "portal", "global"));
+                if (snap.exists()) {
+                    const d = snap.data() || {};
+                    if (d.passwoerter && typeof d.passwoerter === "object") {
+                        globalDaten.passwoerter = d.passwoerter;
+                        return true;
+                    }
+                }
+            } catch (e) {
+                console.warn("Vorhandene Portal-Passwörter konnten nicht geladen werden:", e);
+            }
+            return false;
+        }
+
         window.anmeldenMitTeam = async function(event) {
             event.preventDefault();
-            const name = document.getElementById('login-name-select').value;
-            const eingegebenesPasswort = document.getElementById('login-passwort').value;
+            const name = document.getElementById('login-name-select')?.value || '';
+            const eingegebenesPasswort = document.getElementById('login-passwort')?.value || '';
             if (!name || !eingegebenesPasswort) {
                 alert("Bitte Name und Passwort eingeben.");
                 return;
             }
 
-            // Der Mitarbeiter gibt weiterhin nur Name + Passwort ein.
-            // Firebase erhält im Hintergrund eine technische interne Kennung.
-            try {
-                await signInWithEmailAndPassword(auth, brisboisAuthKennung(name), eingegebenesPasswort);
-            } catch (e) {
-                console.error("Firebase-Anmeldung fehlgeschlagen:", e);
-                const code = String(e?.code || "");
-                if (code.includes("user-not-found") || code.includes("invalid-credential")) {
-                    alert("Die sichere Anmeldung für diesen Mitarbeiter ist noch nicht eingerichtet. Bitte den Benutzer zuerst in Firebase Authentication anlegen.");
-                } else if (code.includes("wrong-password") || code.includes("invalid-login-credentials")) {
-                    alert("Falsches Passwort.");
-                } else {
-                    alert("Anmeldung momentan nicht möglich. Bitte Internetverbindung und Firebase prüfen.");
-                }
+            // Genau der bisherige Portal-Login: vorhandenes Passwort laden und prüfen.
+            const geladen = await vorhandenePortalPasswoerterLaden();
+            const passwoerter = globalDaten.passwoerter || {};
+            const gespeichertesPasswort = passwoerter[name];
+
+            if (!geladen && !gespeichertesPasswort) {
+                alert("Die bisherigen Portal-Passwörter konnten aus Firebase nicht geladen werden. Bitte Firebase-Regeln prüfen.");
                 return;
             }
-
-            // Firebase Authentication ist jetzt die einzige technische
-            // Login-Quelle. Ein lokaler Name/Passwort-Vergleich findet nicht statt.
-            const firebaseUser = auth.currentUser;
-            const erwarteteKennung = brisboisAuthKennung(name);
-            if (!firebaseUser || String(firebaseUser.email || '').toLowerCase() !== String(erwarteteKennung || '').toLowerCase()) {
-                try { await signOut(auth); } catch(e) {}
-                alert("Die Firebase-Anmeldung konnte nicht eindeutig dem ausgewählten Mitarbeiter zugeordnet werden.");
+            if (!gespeichertesPasswort) {
+                alert("Für diesen Mitarbeiter ist noch kein Portal-Passwort hinterlegt.");
+                return;
+            }
+            if (String(eingegebenesPasswort) !== String(gespeichertesPasswort)) {
+                alert("Falsches Passwort.");
                 return;
             }
 
             eingeloggterMitarbeiter = name;
             const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === name);
-            if (!maObjekt) {
-                try { await signOut(auth); } catch(e) {}
-                alert("Für diesen Firebase-Benutzer ist im Portal noch keine Mitarbeiterrolle hinterlegt.");
-                return;
-            }
-            eingeloggteRolle = maObjekt.rolle || "Verleger";
+            eingeloggteRolle = maObjekt?.rolle || "Verleger";
 
-            // Login dauerhaft auf diesem Gerät merken. Dabei wird niemals
-            // das Passwort und niemals eine Rolle als Sicherheitsnachweis gespeichert.
             try {
                 await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
             } catch(e) {
@@ -3056,7 +3051,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
 
             setTimeout(() => { try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {} }, 50);
-            
             oeffneAppNachLogin();
         }
 
