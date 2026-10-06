@@ -2072,7 +2072,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 }
 
                 const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter || "unbekannt") + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
-                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, token, updatedAt: serverTimestamp() });
+                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, email: String(auth.currentUser?.email || "").toLowerCase(), token, updatedAt: serverTimestamp() });
                 localStorage.setItem("brisbois_push_aktiv", "1");
                 const btn = document.getElementById("push-aktivieren-btn");
                 if (btn) btn.innerText = "🔔 Push aktiviert";
@@ -2103,7 +2103,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 });
                 if (loeschungen.length) await Promise.all(loeschungen);
                 const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter) + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
-                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, token, updatedAt: serverTimestamp() });
+                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, email: String(auth.currentUser?.email || "").toLowerCase(), token, updatedAt: serverTimestamp() });
             } catch (e) {
                 console.warn("Push-Duplikate konnten nicht bereinigt werden:", e);
             }
