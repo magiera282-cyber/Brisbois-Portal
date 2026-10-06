@@ -1950,7 +1950,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
     <!-- Firebase SDK & Cloud Logik -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
@@ -4428,25 +4428,46 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
             document.getElementById('profil-passwort').value = "";
         }
 
-        window.eigenesProfilSpeichern = function(event) {
+        window.eigenesProfilSpeichern = async function(event) {
             event.preventDefault();
             const telNeu = document.getElementById('profil-telefon').value;
             const emailNeu = document.getElementById('profil-email').value;
             const passNeu = document.getElementById('profil-passwort').value;
 
-            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
-            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
-
-            if (passNeu && passNeu.length >= 4) {
-                globalDaten.passwoerter[eingeloggterMitarbeiter] = passNeu;
-            } else if (passNeu && passNeu.length < 4) {
+            if (passNeu && passNeu.length < 4) {
                 alert("Das Passwort muss mindestens 4 Zeichen lang sein!");
                 return;
             }
 
+            // Profildaten speichern. Das Passwort wird NICHT mehr in Firestore/globalDaten gespeichert.
+            if (!globalDaten.mitarbeiterProfil) globalDaten.mitarbeiterProfil = {};
+            globalDaten.mitarbeiterProfil[eingeloggterMitarbeiter] = { tel: telNeu, email: emailNeu };
+
+            // Neues Passwort direkt in Firebase Authentication ändern.
+            if (passNeu) {
+                const user = auth.currentUser;
+                if (!user) {
+                    alert("Deine sichere Anmeldung ist nicht mehr aktiv. Bitte einmal abmelden und erneut anmelden.");
+                    return;
+                }
+                try {
+                    await updatePassword(user, passNeu);
+                } catch (e) {
+                    console.error("Passwortänderung in Firebase fehlgeschlagen:", e);
+                    const code = String(e?.code || "");
+                    if (code.includes("requires-recent-login")) {
+                        alert("Aus Sicherheitsgründen musst du dich zuerst einmal abmelden und erneut anmelden. Danach kannst du das Passwort ändern.");
+                    } else {
+                        alert("Das Passwort konnte nicht geändert werden. Bitte versuche es erneut.");
+                    }
+                    return;
+                }
+            }
+
             globalGlobalSpeichern();
             telefonlistenTabelleFüllen();
-            alert("Deine Profildaten wurden in der Cloud aktualisiert!");
+            document.getElementById('profil-passwort').value = "";
+            alert(passNeu ? "Deine Profildaten wurden gespeichert und dein Firebase-Passwort wurde geändert." : "Deine Profildaten wurden in der Cloud aktualisiert!");
         }
 
         function telefonlistenTabelleFüllen() {
