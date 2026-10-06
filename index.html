@@ -2072,7 +2072,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 }
 
                 const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter || "unbekannt") + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
-                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, email: String(auth.currentUser?.email || "").toLowerCase(), token, updatedAt: serverTimestamp() });
+                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, employeeEmail: String(auth.currentUser?.email || "").toLowerCase(), token, updatedAt: serverTimestamp() });
                 localStorage.setItem("brisbois_push_aktiv", "1");
                 const btn = document.getElementById("push-aktivieren-btn");
                 if (btn) btn.innerText = "🔔 Push aktiviert";
@@ -2103,7 +2103,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 });
                 if (loeschungen.length) await Promise.all(loeschungen);
                 const key = btoa(unescape(encodeURIComponent(String(eingeloggterMitarbeiter) + "|" + token))).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 450);
-                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, email: String(auth.currentUser?.email || "").toLowerCase(), token, updatedAt: serverTimestamp() });
+                await setDoc(doc(db, "pushTokens", key), { employeeName: eingeloggterMitarbeiter, employeeEmail: String(auth.currentUser?.email || "").toLowerCase(), token, updatedAt: serverTimestamp() });
             } catch (e) {
                 console.warn("Push-Duplikate konnten nicht bereinigt werden:", e);
             }
@@ -2446,9 +2446,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
             document.head.appendChild(style);
         }
 
+        let schritt8MigrationGestartet = false;
         onSnapshot(doc(db, "portal", "global"), async (docSnap) => {
             if (docSnap.exists()) {
                 const cloudDaten = docSnap.data();
+                if (!schritt8MigrationGestartet) {
+                    schritt8MigrationGestartet = true;
+                    portalGlobalNachGetrenntMigrieren(cloudDaten);
+                }
                 if (Array.isArray(cloudDaten.mitarbeiterListe) && cloudDaten.mitarbeiterListe.length > 0) {
                     globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
                 } else if (!Array.isArray(globalDaten.mitarbeiterListe) || globalDaten.mitarbeiterListe.length === 0) {
@@ -2622,31 +2627,112 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         });
 
+        // SCHRITT 8: Getrennte Speicherung statt portal/global.
+        // Die alten Daten bleiben unangetastet; dieser Speicher schreibt nur die
+        // neuen Bereiche. Die endgültige Sperre von portal/global erfolgt erst,
+        // wenn die Migration abgeschlossen und geprüft ist.
         async function globalGlobalSpeichern() {
             try {
-                await setDoc(doc(db, "portal", "global"), {
-                    mitarbeiterListe: globalDaten.mitarbeiterListe,
-                    // LEGACY: passwoerter bleibt vorerst nur für die Übergangsphase erhalten.
-                    // Sobald alle Mitarbeiter eigene Firebase-Auth-Konten haben, wird dieses Feld entfernt.
-                    passwoerter: globalDaten.passwoerter,
-                    mitarbeiterProfil: globalDaten.mitarbeiterProfil,
-                    benachrichtigungen: globalDaten.benachrichtigungen,
-                    uzinKatalog: globalDaten.uzinKatalog,
-                    materialliste: globalDaten.materialliste || [],
-                    lagerbestand: globalDaten.lagerbestand || [],
-                    zuweisungen: globalDaten.zuweisungen,
-                    wochenplanung: globalDaten.wochenplanung,
-                    abwesenheiten: globalDaten.abwesenheiten,
-                    probleme: globalDaten.probleme || [],
-                    urlaubsantraege: globalDaten.urlaubsantraege || [],
-                    zeiterfassung: globalDaten.zeiterfassung,
-                    resturlaub: globalDaten.resturlaub
-                });
+                const writes = [
+                    setDoc(doc(db, "portal_meta", "team"), {
+                        mitarbeiterListe: globalDaten.mitarbeiterListe || [],
+                        aktualisiertAm: new Date().toISOString()
+                    }),
+                    setDoc(doc(db, "portal_meta", "profile"), {
+                        mitarbeiterProfil: globalDaten.mitarbeiterProfil || {},
+                        aktualisiertAm: new Date().toISOString()
+                    }),
+                    setDoc(doc(db, "portal_data", "notifications"), {
+                        benachrichtigungen: globalDaten.benachrichtigungen || [],
+                        aktualisiertAm: new Date().toISOString()
+                    }),
+                    setDoc(doc(db, "portal_data", "material"), {
+                        uzinKatalog: globalDaten.uzinKatalog || {},
+                        materialliste: globalDaten.materialliste || [],
+                        aktualisiertAm: new Date().toISOString()
+                    }),
+                    setDoc(doc(db, "portal_data", "warehouse"), {
+                        lagerbestand: globalDaten.lagerbestand || [],
+                        aktualisiertAm: new Date().toISOString()
+                    }),
+                    setDoc(doc(db, "portal_data", "assignments"), {
+                        zuweisungen: globalDaten.zuweisungen || {},
+                        aktualisiertAm: new Date().toISOString()
+                    }),
+                    setDoc(doc(db, "portal_data", "absence"), {
+                        abwesenheiten: globalDaten.abwesenheiten || {},
+                        aktualisiertAm: new Date().toISOString()
+                    }),
+                    setDoc(doc(db, "portal_data", "problems"), {
+                        probleme: globalDaten.probleme || [],
+                        aktualisiertAm: new Date().toISOString()
+                    }),
+                    setDoc(doc(db, "portal_data", "vacation"), {
+                        urlaubsantraege: globalDaten.urlaubsantraege || [],
+                        resturlaub: globalDaten.resturlaub || {},
+                        aktualisiertAm: new Date().toISOString()
+                    }),
+                    setDoc(doc(db, "portal_data", "time"), {
+                        zeiterfassung: globalDaten.zeiterfassung || {},
+                        aktualisiertAm: new Date().toISOString()
+                    })
+                ];
+                await Promise.all(writes);
             } catch(e) {
-                console.error("Fehler beim Speichern global:", e);
+                console.error("Fehler beim Speichern der getrennten Portalbereiche:", e);
                 throw e;
             }
         }
+
+        // Einmalige Migration des bestehenden portal/global-Dokuments.
+        // Nichts wird aus portal/global gelöscht oder überschrieben.
+        async function portalGlobalNachGetrenntMigrieren(cloudDaten) {
+            if (!cloudDaten || cloudDaten.__schritt8Migriert === true) return;
+            try {
+                if (Array.isArray(cloudDaten.mitarbeiterListe)) globalDaten.mitarbeiterListe = cloudDaten.mitarbeiterListe;
+                globalDaten.mitarbeiterProfil = cloudDaten.mitarbeiterProfil || globalDaten.mitarbeiterProfil || {};
+                globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen || [];
+                globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog || {};
+                globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
+                globalDaten.lagerbestand = Array.isArray(cloudDaten.lagerbestand) ? cloudDaten.lagerbestand : (globalDaten.lagerbestand || []);
+                globalDaten.zuweisungen = cloudDaten.zuweisungen || globalDaten.zuweisungen || {};
+                globalDaten.abwesenheiten = cloudDaten.abwesenheiten || globalDaten.abwesenheiten || {};
+                globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : (globalDaten.probleme || []);
+                globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
+                globalDaten.zeiterfassung = cloudDaten.zeiterfassung || globalDaten.zeiterfassung || {};
+                globalDaten.resturlaub = cloudDaten.resturlaub || globalDaten.resturlaub || {};
+                await globalGlobalSpeichern();
+                console.info("Brisbois Portal: Schritt-8-Migration abgeschlossen.");
+            } catch(e) {
+                console.error("Schritt-8-Migration fehlgeschlagen:", e);
+            }
+        }
+
+        // Getrennte Echtzeitquellen. Sie überschreiben lokale Daten nur mit den
+        // jeweils zugehörigen Dokumenten und lassen alle anderen Portalbereiche unangetastet.
+        function getrenntePortalListenerStarten() {
+            const listener = (sammlung, dokument, feldMap) => {
+                onSnapshot(doc(db, sammlung, dokument), snap => {
+                    if (!snap.exists()) return;
+                    const d = snap.data() || {};
+                    Object.entries(feldMap).forEach(([quelle, ziel]) => {
+                        if (Object.prototype.hasOwnProperty.call(d, quelle)) globalDaten[ziel] = d[quelle];
+                    });
+                    try { allesAktualisieren(); } catch(e) {}
+                }, err => console.warn(`Getrennter Portalbereich ${sammlung}/${dokument} nicht lesbar:`, err));
+            };
+            listener("portal_meta", "team", {mitarbeiterListe:"mitarbeiterListe"});
+            listener("portal_meta", "profile", {mitarbeiterProfil:"mitarbeiterProfil"});
+            listener("portal_data", "notifications", {benachrichtigungen:"benachrichtigungen"});
+            listener("portal_data", "material", {uzinKatalog:"uzinKatalog", materialliste:"materialliste"});
+            listener("portal_data", "warehouse", {lagerbestand:"lagerbestand"});
+            listener("portal_data", "assignments", {zuweisungen:"zuweisungen"});
+            listener("portal_data", "absence", {abwesenheiten:"abwesenheiten"});
+            listener("portal_data", "problems", {probleme:"probleme"});
+            listener("portal_data", "vacation", {urlaubsantraege:"urlaubsantraege", resturlaub:"resturlaub"});
+            listener("portal_data", "time", {zeiterfassung:"zeiterfassung"});
+        }
+        getrenntePortalListenerStarten();
 
         window.globalGlobalSpeichern = globalGlobalSpeichern;
 
