@@ -6859,7 +6859,19 @@ SECURITY MIGRATION MARKER (06.10.2026):
             x.bestand-=n;
             x.ausgaben=x.ausgaben||[];
             const ausDatum=new Date().toISOString();
-            x.ausgaben.unshift({id:'AUS_'+Date.now(),mitarbeiter,menge:n,datum:ausDatum,ausgegebenVon:eingeloggterMitarbeiter});
+            const ausgabeId='AUS_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+            const lagerAusgabeDokument={id:ausgabeId,artikelId:String(x.id||''),artikel:String(x.name||''),einheit:String(x.einheit||''),mitarbeiter,menge:n,datum:ausDatum,ausgegebenVon:eingeloggterMitarbeiter||'',kategorie:String(x.kategorie||'')};
+            x.ausgaben.unshift(lagerAusgabeDokument);
+            // Sicherheitsvorbereitung: Jede Ausgabe wird zusätzlich als eigenes
+            // Firestore-Dokument protokolliert. Der bestehende globale Lagerstand
+            // bleibt vorerst unverändert, damit keine vorhandenen Funktionen oder
+            // Daten durch die Migration verloren gehen.
+            try {
+                await setDoc(doc(db, 'lagerausgaben', ausgabeId), lagerAusgabeDokument);
+            } catch (e) {
+                console.error('Lagerausgabe konnte separat nicht protokolliert werden:', e);
+                // Die bestehende Ausgabe darf weiterhin funktionieren.
+            }
             if(x.kategorie==='Maschine'){
                 x.maschineBei=mitarbeiter; x.maschineSeit=ausDatum; x.maschinenHistorie=x.maschinenHistorie||[];
                 x.maschinenHistorie.unshift({aktion:'Ausgabe',mitarbeiter,datum:ausDatum,von:eingeloggterMitarbeiter,menge:n});
