@@ -1952,6 +1952,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
 - Firebase Authentication is the real login authority.
 - Legacy passwoerter field remains temporarily for compatibility and must not be used as an authentication source.
 - Final Firestore rules must be deployed only after collection reads are split by role; current portal/global contains mixed role data.
+- Step 1+2: UI access and session restoration require Firebase Authentication; localStorage/cookie/IndexedDB values are never accepted as authentication.
+- Role display remains compatible with the existing employee list during migration; server-side role enforcement belongs in the final Firestore rules.
 - Do not replace these rules with allow read, write: if request.auth != null.
 -->
 <!-- Firebase SDK & Cloud Logik -->
@@ -2000,11 +2002,24 @@ SECURITY MIGRATION MARKER (06.10.2026):
         window.__brisboisFirebaseUser = null;
         onAuthStateChanged(auth, (user) => {
             window.__brisboisFirebaseUser = user || null;
+            window.__brisboisAuthUid = user ? user.uid : "";
+            window.__brisboisAuthReady = true;
+
+            // Ohne Firebase-Sitzung darf das Portal niemals sichtbar bleiben.
             if (!user) {
-                window.__brisboisAuthUid = "";
+                try {
+                    const appContainer = document.getElementById("app-container");
+                    const loginModal = document.getElementById("login-modal");
+                    if (appContainer) appContainer.classList.add("hidden");
+                    if (loginModal) loginModal.classList.remove("hidden");
+                } catch(e) {}
                 return;
             }
-            window.__brisboisAuthUid = user.uid;
+
+            // Eine echte Firebase-Sitzung darf nach einem Browser-/App-Neustart
+            // wiederhergestellt werden. Die Wiederherstellung prüft zusätzlich
+            // die Identität gegen die technische Firebase-Kennung.
+            setTimeout(() => { try { dauerhaftenLoginWiederherstellen(); } catch(e) {} }, 0);
         });
         let brisboisPushRegistration = null;
 
@@ -2800,20 +2815,39 @@ SECURITY MIGRATION MARKER (06.10.2026):
         // ein echter Klick auf "Abmelden" entfernt diese Daten.
         async function dauerhaftenLoginWiederherstellen() {
             try {
+                // SICHERHEIT: Ein gespeicherter Name/Role-Wert allein ist KEIN Login.
+                // Das Portal darf nur wieder geöffnet werden, wenn Firebase
+                // Authentication bereits eine gültige Sitzung besitzt.
+                const firebaseUser = auth.currentUser;
+                if (!firebaseUser) {
+                    return false;
+                }
+
                 const data = await brisboisLoginDauerhaftLesen();
                 if (!data || !data.name) return false;
 
-                // Die gespeicherte Rolle verwenden, wenn Firebase die
-                // Mitarbeiterliste beim Start noch nicht fertig geladen hat.
+                // Der gespeicherte Mitarbeitername muss zur bereits
+                // authentifizierten Firebase-Identität passen.
+                const erwarteteKennung = brisboisAuthKennung(data.name);
+                if (String(firebaseUser.email || '').toLowerCase() !== String(erwarteteKennung || '').toLowerCase()) {
+                    console.warn("Gespeicherter Login passt nicht zur Firebase-Identität.");
+                    return false;
+                }
+
+                // Rolle ausschließlich aus der Mitarbeiterliste übernehmen.
+                // Der gespeicherte localStorage-/Cookie-Rollenwert wird niemals
+                // als Berechtigungsquelle verwendet.
                 const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === data.name);
-                const rolle = maObjekt?.rolle || data.rolle || "Verleger";
+                const rolle = maObjekt?.rolle || "Verleger";
+                if (!maObjekt) {
+                    console.warn("Firebase-Benutzer ist noch keiner Mitarbeiterrolle im Portal zugeordnet.");
+                    return false;
+                }
 
                 eingeloggterMitarbeiter = data.name;
                 eingeloggteRolle = rolle;
 
-                // Speicher beim Wiederherstellen erneut auffrischen.
                 await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
-
                 oeffneAppNachLogin();
                 return true;
             } catch(e) {
@@ -2862,12 +2896,27 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 return;
             }
 
-            eingeloggterMitarbeiter = name;
-            const maObjekt = globalDaten.mitarbeiterListe.find(m => m.name === name);
-            eingeloggteRolle = maObjekt ? maObjekt.rolle : "Verleger";
+            // Firebase Authentication ist jetzt die einzige technische
+            // Login-Quelle. Ein lokaler Name/Passwort-Vergleich findet nicht statt.
+            const firebaseUser = auth.currentUser;
+            const erwarteteKennung = brisboisAuthKennung(name);
+            if (!firebaseUser || String(firebaseUser.email || '').toLowerCase() !== String(erwarteteKennung || '').toLowerCase()) {
+                try { await signOut(auth); } catch(e) {}
+                alert("Die Firebase-Anmeldung konnte nicht eindeutig dem ausgewählten Mitarbeiter zugeordnet werden.");
+                return;
+            }
 
-            // Login dauerhaft auf diesem Gerät merken. Dadurch bleibt die
-            // Anmeldung auch nach dem Schließen des Safari-Tabs erhalten.
+            eingeloggterMitarbeiter = name;
+            const maObjekt = (globalDaten.mitarbeiterListe || []).find(m => m.name === name);
+            if (!maObjekt) {
+                try { await signOut(auth); } catch(e) {}
+                alert("Für diesen Firebase-Benutzer ist im Portal noch keine Mitarbeiterrolle hinterlegt.");
+                return;
+            }
+            eingeloggteRolle = maObjekt.rolle || "Verleger";
+
+            // Login dauerhaft auf diesem Gerät merken. Dabei wird niemals
+            // das Passwort und niemals eine Rolle als Sicherheitsnachweis gespeichert.
             try {
                 await brisboisLoginDauerhaftSpeichern(eingeloggterMitarbeiter, eingeloggteRolle);
             } catch(e) {
