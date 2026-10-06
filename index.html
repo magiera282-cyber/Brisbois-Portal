@@ -721,7 +721,45 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mitarbeiter / Chef auswählen</label>
                     <select id="login-name-select" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-600 focus:outline-none font-semibold">
-                        <!-- Wird dynamisch befüllt -->
+                        <option value="Jeff Brisbois">Jeff Brisbois (Chef)</option>
+                        <option value="Patrick Magiera">Patrick Magiera (Verleger)</option>
+                        <option value="Didier Michel">Didier Michel (2. Chef)</option>
+                        <option value="Tania Thill">Tania Thill (Sekretariat)</option>
+                        <option value="Dagmar Stejskalova">Dagmar Stejskalova (Sekretariat)</option>
+                        <option value="Marie-Christine Mathieu">Marie-Christine Mathieu (Sekretariat)</option>
+                        <option value="Christian Leppin">Christian Leppin (Techniker)</option>
+                        <option value="Sylvain Zuliani">Sylvain Zuliani (Lagerist)</option>
+                        <option value="Claude Gaita">Claude Gaita (Lagerist)</option>
+                        <option value="Wolfgang Seimetz">Wolfgang Seimetz (Verleger)</option>
+                        <option value="Waldemar Magiera">Waldemar Magiera (Verleger)</option>
+                        <option value="Christophe Becker">Christophe Becker (Verleger)</option>
+                        <option value="Christophe Biagioli">Christophe Biagioli (Verleger)</option>
+                        <option value="Stéphane Bouillon">Stéphane Bouillon (Verleger)</option>
+                        <option value="Pedro Da Cruz Fortes">Pedro Da Cruz Fortes (Verleger)</option>
+                        <option value="Pavel Dimitrov">Pavel Dimitrov (Verleger)</option>
+                        <option value="Ednei Dos Santos">Ednei Dos Santos (Verleger)</option>
+                        <option value="Gérard Franck">Gérard Franck (Verleger)</option>
+                        <option value="Paul Fritz">Paul Fritz (Verleger)</option>
+                        <option value="Kévin Ghuel">Kévin Ghuel (Verleger)</option>
+                        <option value="Marco Goncalves">Marco Goncalves (Verleger)</option>
+                        <option value="Johannes Harth">Johannes Harth (Verleger)</option>
+                        <option value="Max Heiderscheid">Max Heiderscheid (Verleger)</option>
+                        <option value="Sacha Heiderscheid">Sacha Heiderscheid (Verleger)</option>
+                        <option value="Laurent Izzi">Laurent Izzi (Verleger)</option>
+                        <option value="Aleksandar Jovanovic">Aleksandar Jovanovic (Verleger)</option>
+                        <option value="Raphael Klein">Raphael Klein (Verleger)</option>
+                        <option value="Dora Morais">Dora Morais (Verleger)</option>
+                        <option value="Tristan Novali">Tristan Novali (Verleger)</option>
+                        <option value="Biagio Panarello">Biagio Panarello (Verleger)</option>
+                        <option value="Wjatscheslaw Panfilow">Wjatscheslaw Panfilow (Verleger)</option>
+                        <option value="Hervé Poline">Hervé Poline (Verleger)</option>
+                        <option value="Nicolas Sanitate">Nicolas Sanitate (Verleger)</option>
+                        <option value="Christophe Sartor">Christophe Sartor (Verleger)</option>
+                        <option value="Jacky Schneider">Jacky Schneider (Verleger)</option>
+                        <option value="Nicolas Sourlier">Nicolas Sourlier (Verleger)</option>
+                        <option value="Jorge Teixeira">Jorge Teixeira (Verleger)</option>
+                        <option value="Paolo Zangari">Paolo Zangari (Verleger)</option>
+                        <option value="Nino Zenzola">Nino Zenzola (Verleger)</option>
                     </select>
                 </div>
                 <div>
@@ -2795,7 +2833,13 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 html += '</optgroup>';
             }
 
-            select.innerHTML = html || '<option value="">Mitarbeiter werden geladen …</option>';
+            // Niemals eine leere Auswahl anzeigen: Bei Firebase-/Regelfehlern
+            // bleiben die statisch eingebauten Mitarbeiter auswählbar.
+            if (html) {
+                select.innerHTML = html;
+            } else if (!select.options.length) {
+                select.innerHTML = basisListe.map(m => `<option value="${String(m.name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}">${String(m.name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')} (${String(m.rolle || 'Verleger').replace(/</g, '&lt;').replace(/>/g, '&gt;')})</option>`).join('');
+            }
             if (aktuellerWert && [...select.options].some(o => o.value === aktuellerWert)) {
                 select.value = aktuellerWert;
             } else if (select.options.length) {
@@ -2809,6 +2853,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const select = document.getElementById('login-name-select');
             if (select) select.innerHTML = basisMitarbeiter.map(m => `<option value="${String(m.name).replace(/"/g, '&quot;')}">${m.name} (${m.rolle || 'Verleger'})</option>`).join('');
         }
+
+        document.addEventListener('DOMContentLoaded', () => { try { loginDropdownBefuellen(); } catch(e) {} });
+        window.addEventListener('load', () => { try { loginDropdownBefuellen(); } catch(e) {} });
 
         // Dauerhaften Login speichern: localStorage + Cookie + IndexedDB.
         // Der Cookie/IndexedDB-Fallback hilft besonders bei Safari/iPhone,
