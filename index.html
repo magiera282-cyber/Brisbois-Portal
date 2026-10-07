@@ -6863,7 +6863,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             lagerNormalisieren(); const tbody=document.getElementById('lager-tbody'),leer=document.getElementById('lager-leer'); if(!tbody)return;
             const q=(document.getElementById('lager-suche')?.value||'').toLowerCase(), f=document.getElementById('lager-filter')?.value||'';
             const arr=globalDaten.lagerbestand.filter(x=>(!q||[x.name,x.kategorie,x.ort,x.hersteller,x.artikelnummer].join(' ').toLowerCase().includes(q))&&(!f||x.kategorie===f));
-            tbody.innerHTML=''; arr.forEach((x)=>{const i=globalDaten.lagerbestand.indexOf(x),krit=x.bestand<=x.mindestbestand; tbody.innerHTML+=`<tr class="border-b border-slate-100 align-top"><td class="p-3"><div class="flex items-start gap-3"><div class="shrink-0"><div class="w-20 h-20 rounded-lg border bg-slate-50 overflow-hidden flex items-center justify-center">${x.bildUrl?`<img src="${lagerEsc(x.bildUrl)}" class="w-full h-full object-contain" alt="${lagerEsc(x.name)}" onerror="this.style.display='none';this.parentElement.textContent='🖼️';">`:'<span class="text-slate-300 text-lg">🖼️</span>'}</div><div class="text-[11px] text-slate-500 mt-1 max-w-20 leading-tight" title="${lagerEsc(x.beschreibung)}">${lagerEsc(x.beschreibung||'')}</div></div><div class="min-w-0">${istLagerist()?`<div class="w-52 px-2 py-2.5 text-sm font-semibold">${lagerEsc(x.name)}</div>`:`<input id="lag-n-${i}" value="${lagerEsc(x.name)}" class="w-52 px-2 py-2.5 border rounded-lg text-sm font-semibold">`}</div></div></td><td class="p-2">${istLagerist()?`<div class="w-32 px-2 py-2 text-xs">${lagerEsc(x.kategorie)}</div>`:`<select id="lag-k-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['Werkzeug','Material','Verbrauchsmaterial','Maschine','Arbeitsschutz','Schleifmittel','Sonstiges'].map(c=>`<option ${x.kategorie===c?'selected':''}>${c}</option>`).join('')}</select>`}</td><td class="p-2">${istLagerist()?`<div class="w-24 px-2 py-2 text-xs font-semibold">${x.bestand}</div>`:`<input id="lag-b-${i}" type="number" min="0" step="0.01" value="${x.bestand}" class="w-24 px-2 py-2 border rounded-lg text-xs font-semibold">`}</td><td class="p-2">${istLagerist()?`<div class="w-24 px-2 py-2 text-xs">${x.mindestbestand}</div>`:`<input id="lag-m-${i}" type="number" min="0" step="0.01" value="${x.mindestbestand}" class="w-24 px-2 py-2 border rounded-lg text-xs">`}</td><td class="p-2">${istLagerist()?`<div class="w-24 px-2 py-2 text-xs">${x.bestellmenge}</div>`:`<input id="lag-o-${i}" type="number" min="0" step="0.01" value="${x.bestellmenge}" class="w-24 px-2 py-2 border rounded-lg text-xs">`}</td><td class="p-2">${istLagerist()?`<div class="w-28 px-2 py-2 text-xs">${lagerEsc(x.ort)}</div>`:`<input id="lag-r-${i}" value="${lagerEsc(x.ort)}" class="w-28 px-2 py-2 border rounded-lg text-xs">`}</td><td class="p-2">${krit?'<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-[10px] font-bold">🔴 Bestellen</span>':'<span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-[10px] font-bold">🟢 OK</span>'}</td><td class="p-2 text-right whitespace-nowrap">${istLagerist()?`<button type="button" onclick="lagerSucheErgebnisSchliessen(); setTimeout(()=>lagerAusgabe(${i}),0)" class="bg-blue-100 text-blue-800 px-3 py-2 rounded-lg text-xs font-bold">👷 Ausgabe</button>`:`<button type="button" onclick="lagerWareneingang(${i})" class="bg-emerald-100 text-emerald-800 px-2 py-2 rounded-lg text-xs font-bold">＋ Eingang</button> <button type="button" onclick="lagerSucheErgebnisSchliessen(); setTimeout(()=>lagerAusgabe(${i}),0)" class="bg-blue-100 text-blue-800 px-2 py-2 rounded-lg text-xs font-bold">👷 Ausgabe</button> <button type="button" onclick="lagerZeileSpeichern(${i})" class="bg-slate-900 text-white px-2 py-2 rounded-lg text-xs font-bold">💾</button> <button type="button" onclick="lagerLoeschen(${i})" class="bg-red-100 text-red-700 px-2 py-2 rounded-lg text-xs font-bold">✕</button>`}</td></tr>`;});
+            tbody.innerHTML=''; arr.forEach((x)=>{const i=globalDaten.lagerbestand.indexOf(x),krit=x.bestand<=x.mindestbestand; tbody.innerHTML+=`<tr class="border-b border-slate-100 align-top"><td class="p-3"><div class="flex items-start gap-3"><div class="shrink-0"><div class="w-20 h-20 rounded-lg border bg-slate-50 overflow-hidden flex items-center justify-center">${x.bildUrl?`<img src="${lagerEsc(x.bildUrl)}" class="w-full h-full object-contain" alt="${lagerEsc(x.name)}" onerror="this.style.display='none';this.parentElement.textContent='🖼️';">`:'<span class="text-slate-300 text-lg">🖼️</span>'}</div><div class="text-[11px] text-slate-500 mt-1 max-w-20 leading-tight" title="${lagerEsc(x.beschreibung)}">${lagerEsc(x.beschreibung||'')}</div></div><div class="min-w-0">${istLagerist()?`<div class="w-52 px-2 py-2.5 text-sm font-semibold">${lagerEsc(x.name)}</div>`:`<input id="lag-n-${i}" value="${lagerEsc(x.name)}" class="w-52 px-2 py-2.5 border rounded-lg text-sm font-semibold">`}</div></div></td><td class="p-2">${istLagerist()?`<div class="w-32 px-2 py-2 text-xs">${lagerEsc(x.kategorie)}</div>`:`<select id="lag-k-${i}" class="w-32 px-2 py-2 border rounded-lg text-xs">${['Werkzeug','Material','Verbrauchsmaterial','Maschine','Arbeitsschutz','Schleifmittel','Sonstiges'].map(c=>`<option ${x.kategorie===c?'selected':''}>${c}</option>`).join('')}</select>`}</td><td class="p-2">${istLagerist()?`<div class="w-24 px-2 py-2 text-xs font-semibold">${x.bestand}</div>`:`<input id="lag-b-${i}" type="number" min="0" step="0.01" value="${x.bestand}" class="w-24 px-2 py-2 border rounded-lg text-xs font-semibold">`}</td><td class="p-2">${istLagerist()?`<div class="w-24 px-2 py-2 text-xs">${x.mindestbestand}</div>`:`<input id="lag-m-${i}" type="number" min="0" step="0.01" value="${x.mindestbestand}" class="w-24 px-2 py-2 border rounded-lg text-xs">`}</td><td class="p-2">${istLagerist()?`<div class="w-24 px-2 py-2 text-xs">${x.bestellmenge}</div>`:`<input id="lag-o-${i}" type="number" min="0" step="0.01" value="${x.bestellmenge}" class="w-24 px-2 py-2 border rounded-lg text-xs">`}</td><td class="p-2">${istLagerist()?`<div class="w-28 px-2 py-2 text-xs">${lagerEsc(x.ort)}</div>`:`<input id="lag-r-${i}" value="${lagerEsc(x.ort)}" class="w-28 px-2 py-2 border rounded-lg text-xs">`}</td><td class="p-2">${krit?'<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-[10px] font-bold">🔴 Bestellen</span>':'<span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-[10px] font-bold">🟢 OK</span>'}</td><td class="p-2 text-right whitespace-nowrap">${istLagerist()?`<button type="button" onclick="lagerSucheErgebnisSchliessen(); setTimeout(()=>lagerAusgabe(${i}),0)" class="bg-blue-100 text-blue-800 px-3 py-2 rounded-lg text-xs font-bold">👷 Ausgabe</button>`:`<button type="button" onclick="lagerWareneingang(${i})" class="bg-emerald-100 text-emerald-800 px-2 py-2 rounded-lg text-xs font-bold">＋ Eingang</button> <button type="button" onclick="lagerSucheErgebnisSchliessen(); setTimeout(()=>lagerAusgabe(${i}),0)" class="bg-blue-100 text-blue-800 px-2 py-2 rounded-lg text-xs font-bold">👷 Ausgabe</button> <button type="button" onclick="lagerZeileSpeichern(${i})" class="bg-slate-900 text-white px-2 py-2 rounded-lg text-xs font-bold">💾</button> <button type="button" onclick="lagerArtikelBearbeiten(${i})" class="bg-amber-100 text-amber-800 px-2 py-2 rounded-lg text-xs font-bold">✏️ Bearbeiten</button> <button type="button" onclick="lagerLoeschen(${i})" class="bg-red-100 text-red-700 px-2 py-2 rounded-lg text-xs font-bold">✕</button>`}</td></tr>`;});
             leer?.classList.toggle('hidden',arr.length>0); const best=globalDaten.lagerbestand.filter(x=>x.bestand<=x.mindestbestand || String(x.bestellstatus||'')==='offen').length; document.getElementById('lager-stat-artikel').textContent=globalDaten.lagerbestand.length; document.getElementById('lager-stat-ok').textContent=globalDaten.lagerbestand.filter(x=>x.bestand>x.mindestbestand).length; document.getElementById('lager-stat-bestellen').textContent=best; document.getElementById('lager-bestell-badge').textContent=best?`(${best})`:''; const heute=new Date().toISOString().slice(0,10); document.getElementById('lager-stat-ausgaben').textContent=lagerAusgabenAlle().filter(x=>String(x.datum||'').startsWith(heute)).length; lagerAusgabenAnzeigen(); lagerMaschinenAnzeigen();
         }
         window.lagerSucheEnter=function(){
@@ -6906,35 +6906,50 @@ SECURITY MIGRATION MARKER (06.10.2026):
         };
         window.lagerNeuerArtikel=function(){ if(!lagerAdminMutationSicher())return;
             if(!lagerBerechtigt()) return alert('Keine Berechtigung.');
-            ['lager-neu-name','lager-neu-beschreibung','lager-neu-hersteller','lager-neu-artikelnummer','lager-neu-bild-url','lager-neu-bestand','lager-neu-mindest','lager-neu-bestell','lager-neu-ort','lager-neu-inventar'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';}); const bildVorschau=document.getElementById('lager-neu-bild-vorschau'); if(bildVorschau)bildVorschau.classList.add('hidden'); const bildImg=document.getElementById('lager-neu-bild-img'); if(bildImg)bildImg.removeAttribute('src');
+            document.getElementById('lager-neu-artikel-modal')?.removeAttribute('data-edit-index');
+            ['lager-neu-name','lager-neu-beschreibung','lager-neu-hersteller','lager-neu-artikelnummer','lager-neu-bild-url','lager-neu-bestand','lager-neu-mindest','lager-neu-bestell','lager-neu-ort','lager-neu-inventar'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+            const bildVorschau=document.getElementById('lager-neu-bild-vorschau'); if(bildVorschau)bildVorschau.classList.add('hidden'); const bildImg=document.getElementById('lager-neu-bild-img'); if(bildImg)bildImg.removeAttribute('src');
             const k=document.getElementById('lager-neu-kategorie'); if(k) { k.value='Werkzeug'; k.onchange=lagerMaschinenFelderAktualisieren; } lagerMaschinenFelderAktualisieren();
             const e=document.getElementById('lager-neu-einheit'); if(e) e.value='Stk';
+            const titel=document.getElementById('lager-neu-artikel-titel'); if(titel)titel.textContent='＋ Artikel anlegen';
+            const save=document.getElementById('lager-neu-speichern-btn'); if(save)save.textContent='💾 Artikel speichern';
             document.getElementById('lager-neu-artikel-modal')?.classList.remove('hidden');
         };
+        window.lagerArtikelBearbeiten=function(i){
+            if(!lagerAdminMutationSicher())return;
+            lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return;
+            const modal=document.getElementById('lager-neu-artikel-modal'); if(!modal)return;
+            modal.dataset.editIndex=String(i);
+            const vals={
+              'lager-neu-name':x.name||'', 'lager-neu-beschreibung':x.beschreibung||'', 'lager-neu-hersteller':x.hersteller||'', 'lager-neu-artikelnummer':x.artikelnummer||'', 'lager-neu-bild-url':x.bildUrl||'',
+              'lager-neu-bestand':x.bestand??0, 'lager-neu-mindest':x.mindestbestand??0, 'lager-neu-bestell':x.bestellmenge??0, 'lager-neu-ort':x.ort||'', 'lager-neu-inventar':x.inventarnr||''
+            };
+            Object.entries(vals).forEach(([id,v])=>{const e=document.getElementById(id);if(e)e.value=v;});
+            const k=document.getElementById('lager-neu-kategorie'); if(k){k.value=x.kategorie||'Sonstiges';k.onchange=lagerMaschinenFelderAktualisieren;} const e=document.getElementById('lager-neu-einheit'); if(e)e.value=x.einheit||'Stk';
+            lagerMaschinenFelderAktualisieren(); lagerArtikelBildVorschau();
+            const titel=document.getElementById('lager-neu-artikel-titel'); if(titel)titel.textContent='✏️ Artikel bearbeiten';
+            const save=document.getElementById('lager-neu-speichern-btn'); if(save)save.textContent='💾 Änderungen speichern';
+            modal.classList.remove('hidden');
+        };
         window.lagerMaschinenFelderAktualisieren=function(){ const k=document.getElementById('lager-neu-kategorie'); const w=document.getElementById('lager-neu-inventar-wrap'); if(w) w.classList.toggle('hidden',k?.value!=='Maschine'); };
-        window.lagerNeuerArtikelSchliessen=function(){document.getElementById('lager-neu-artikel-modal')?.classList.add('hidden');};
+        window.lagerNeuerArtikelSchliessen=function(){const m=document.getElementById('lager-neu-artikel-modal'); if(m){m.classList.add('hidden');m.removeAttribute('data-edit-index');} };
         window.lagerNeuenArtikelSpeichern=async function(){
             if(!lagerAdminMutationSicher())return;
             const name=String(document.getElementById('lager-neu-name')?.value||'').trim();
             if(!name) return alert('Bitte einen Artikelnamen eintragen.');
             lagerNormalisieren();
-            globalDaten.lagerbestand.push({
-                id:'LAG_'+Date.now(), name,
-                beschreibung:String(document.getElementById('lager-neu-beschreibung')?.value||'').trim(),
-                hersteller:String(document.getElementById('lager-neu-hersteller')?.value||'').trim(),
-                artikelnummer:String(document.getElementById('lager-neu-artikelnummer')?.value||'').trim(),
-                bildUrl:String(document.getElementById('lager-neu-bild-url')?.value||'').trim(),
-                kategorie:document.getElementById('lager-neu-kategorie')?.value||'Sonstiges',
-                bestand:Number(document.getElementById('lager-neu-bestand')?.value)||0,
-                mindestbestand:Number(document.getElementById('lager-neu-mindest')?.value)||0,
-                bestellmenge:Number(document.getElementById('lager-neu-bestell')?.value)||0,
-                einheit:document.getElementById('lager-neu-einheit')?.value||'Stk',
-                ort:String(document.getElementById('lager-neu-ort')?.value||'').trim(),
-                ausgaben:[], maschinenHistorie:[], maschineBei:'', maschineSeit:'', inventarnr:String(document.getElementById('lager-neu-inventar')?.value||'').trim(), bestellstatus:''
-            });
-            await globalGlobalSpeichern();
-            lagerNeuerArtikelSchliessen();
-            lagerAnzeigen();
+            const modal=document.getElementById('lager-neu-artikel-modal');
+            const editIndex=modal?.dataset.editIndex!==undefined ? Number(modal.dataset.editIndex) : -1;
+            const daten={
+                name, beschreibung:String(document.getElementById('lager-neu-beschreibung')?.value||'').trim(), hersteller:String(document.getElementById('lager-neu-hersteller')?.value||'').trim(), artikelnummer:String(document.getElementById('lager-neu-artikelnummer')?.value||'').trim(), bildUrl:String(document.getElementById('lager-neu-bild-url')?.value||'').trim(),
+                kategorie:document.getElementById('lager-neu-kategorie')?.value||'Sonstiges', bestand:Number(document.getElementById('lager-neu-bestand')?.value)||0, mindestbestand:Number(document.getElementById('lager-neu-mindest')?.value)||0, bestellmenge:Number(document.getElementById('lager-neu-bestell')?.value)||0, einheit:document.getElementById('lager-neu-einheit')?.value||'Stk', ort:String(document.getElementById('lager-neu-ort')?.value||'').trim(), inventarnr:String(document.getElementById('lager-neu-inventar')?.value||'').trim()
+            };
+            if(editIndex>=0 && globalDaten.lagerbestand[editIndex]){
+                const x=globalDaten.lagerbestand[editIndex]; Object.assign(x,daten);
+            } else {
+                globalDaten.lagerbestand.push({id:'LAG_'+Date.now(), ...daten, ausgaben:[], maschinenHistorie:[], maschineBei:'', maschineSeit:'', bestellstatus:''});
+            }
+            await globalGlobalSpeichern(); lagerNeuerArtikelSchliessen(); lagerAnzeigen();
         };
         window.lagerZeileSpeichern=async function(i){if(!lagerAdminMutationSicher())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; x.name=document.getElementById('lag-n-'+i)?.value.trim()||''; x.kategorie=document.getElementById('lag-k-'+i)?.value||'Sonstiges'; x.bestand=Number(document.getElementById('lag-b-'+i)?.value)||0; x.mindestbestand=Number(document.getElementById('lag-m-'+i)?.value)||0; x.bestellmenge=Number(document.getElementById('lag-o-'+i)?.value)||0; x.ort=document.getElementById('lag-r-'+i)?.value.trim()||''; if(!x.name)return alert('Bitte Artikelname eintragen.'); await globalGlobalSpeichern(); lagerAnzeigen();};
         window.lagerLoeschen=async function(i){if(!lagerAdminMutationSicher())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; if(!confirm(`„${x.name}“ wirklich aus dem Lager löschen?`))return; globalDaten.lagerbestand.splice(i,1); await globalGlobalSpeichern(); lagerAnzeigen();};
@@ -8101,7 +8116,7 @@ body{top:0!important}
 <div id="lager-neu-artikel-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[75] flex items-center justify-center p-4 hidden">
   <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 space-y-4">
     <div class="flex justify-between items-center border-b pb-3">
-      <div><h3 class="text-lg font-black text-slate-900">＋ Artikel anlegen</h3><p class="text-xs text-slate-500 mt-1">Artikel, Beschreibung, Hersteller, Artikelnummer und Bild für das Lager hinterlegen.</p></div>
+      <div><h3 id="lager-neu-artikel-titel" class="text-lg font-black text-slate-900">＋ Artikel anlegen</h3><p class="text-xs text-slate-500 mt-1">Artikel, Beschreibung, Hersteller, Artikelnummer und Bild für das Lager hinterlegen.</p></div>
       <button type="button" onclick="lagerNeuerArtikelSchliessen()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -8123,7 +8138,7 @@ body{top:0!important}
       <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Lagerort</label><input id="lager-neu-ort" type="text" placeholder="z.B. Regal A1" class="w-full px-3 py-2.5 border rounded-lg text-sm"></div>
     </div>
     <div class="flex gap-2 pt-2">
-      <button type="button" onclick="lagerNeuenArtikelSpeichern()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg">💾 Artikel speichern</button>
+      <button id="lager-neu-speichern-btn" type="button" onclick="lagerNeuenArtikelSpeichern()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg">💾 Artikel speichern</button>
       <button type="button" onclick="lagerNeuerArtikelSchliessen()" class="bg-slate-200 px-4 py-2.5 rounded-lg font-semibold">Abbrechen</button>
     </div>
   </div>
