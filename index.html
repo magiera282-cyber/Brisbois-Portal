@@ -3138,6 +3138,15 @@ SECURITY MIGRATION MARKER (06.10.2026):
             document.querySelectorAll('.lager-only').forEach(el => el.classList.toggle('hidden', !darfLager));
             // Lagerist sieht das Lager, aber keine Verwaltungs-/Bestellfunktionen.
             document.querySelectorAll('[data-lager-admin=\"1\"]').forEach(el => el.classList.toggle('hidden', rolleNormalisiert === 'lagerist'));
+            // Lagerist sieht nur die Lagerfunktion; diese Bereiche werden ausgeblendet.
+            const lageristAusblenden = [
+                '#btn-benachrichtigungen', '#btn-auftraege', '#btn-kollegen',
+                '#btn-belege', '#btn-urlaub', '#btn-mitarbeiter-liste',
+                "[onclick=\"wechselnTab('abrechnungen')\"]"
+            ];
+            lageristAusblenden.forEach(sel => {
+                document.querySelectorAll(sel).forEach(el => el.classList.toggle('hidden', rolleNormalisiert === 'lagerist'));
+            });
             lagerUIRolleAnwenden();
             try { abrechnungenAnzeigen(); } catch(e) { console.warn('Abrechnungen beim Login übersprungen:', e); }
             materiallisteAnzeigen();
