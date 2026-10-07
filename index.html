@@ -3130,7 +3130,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const darfWochenplanung = istVerwaltungsRolle;
             const darfMaterialliste = istVerwaltungsRolle;
-            const darfLager = istVerwaltungsRolle || istMitarbeiterRolle;
+            const darfLager = istVerwaltungsRolle || rolleNormalisiert === 'lagerist';
             const darfUrlaubBuero = urlaubIstBuero();
             document.querySelectorAll('.wochenplanung-only').forEach(el => el.classList.toggle('hidden', !darfWochenplanung));
             document.querySelectorAll('.dashboard-only').forEach(el => el.classList.toggle('hidden', !dashboardIstBerechtigt()));
