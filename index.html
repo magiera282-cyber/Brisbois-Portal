@@ -3149,6 +3149,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
             lageristAusblenden.forEach(sel => {
                 document.querySelectorAll(sel).forEach(el => el.classList.toggle('hidden', rolleNormalisiert === 'lagerist'));
             });
+            // Sicherheitsnetz: Diese beiden Kopfbuttons bleiben beim Lageristen auch nach allen Aktualisierungen ausgeblendet.
+            if (rolleNormalisiert === 'lagerist') {
+                document.getElementById('btn-benachrichtigungen-top')?.classList.add('hidden');
+                document.getElementById('btn-abrechnungen-top')?.classList.add('hidden');
+            };
             lagerUIRolleAnwenden();
             try { abrechnungenAnzeigen(); } catch(e) { console.warn('Abrechnungen beim Login übersprungen:', e); }
             materiallisteAnzeigen();
@@ -6728,7 +6733,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const topBtn = document.getElementById('btn-abrechnungen-top');
             if (!tbody || !eingeloggterMitarbeiter) return;
             const buero = darfAbrechnungenVerwalten();
-            if (topBtn) topBtn.classList.toggle('hidden', !eingeloggterMitarbeiter);
+            if (topBtn) topBtn.classList.toggle('hidden', !eingeloggterMitarbeiter || String(eingeloggteRolle || '').trim().toLowerCase() === 'lagerist');
             if (form) form.classList.toggle('hidden', !buero);
             if (badge) { badge.textContent = buero ? 'Alle Abrechnungen sichtbar' : 'Nur eigene Abrechnungen'; badge.className = buero ? 'inline-flex w-fit bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1.5 rounded-full' : 'inline-flex w-fit bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-full'; }
             if (buero) abrechnungenVerlegerBefuellen();
