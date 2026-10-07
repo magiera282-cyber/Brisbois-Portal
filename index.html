@@ -3109,8 +3109,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const chefUrlaubsBereich = document.getElementById('chef-urlaubs-bereich');
             const mitarbeiterZeiterfassungBereich = document.getElementById('mitarbeiter-zeiterfassung-bereich');
 
-            const isChefOrTech = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin';
-            const isSekretariat = eingeloggteRolle.includes('Sekretariat');
+            // Zentrale, einfache Rollenverteilung:
+            // Chef / 2. Chef / Techniker / Sekretariat = Verwaltung
+            // Verleger / Lagerist = Mitarbeiter-Ansicht
+            const rolleNormalisiert = String(eingeloggteRolle || '').trim().toLowerCase();
+            const istVerwaltungsRolle = istDauerhafterAdmin() || ['chef','2. chef','2.chef','techniker','sekretariat','admin'].includes(rolleNormalisiert) || eingeloggterMitarbeiter === 'Christian Leppin';
+            const istMitarbeiterRolle = ['verleger','lagerist'].includes(rolleNormalisiert);
+            const isChefOrTech = istVerwaltungsRolle;
+            const isSekretariat = rolleNormalisiert === 'sekretariat';
 
             // Didier Michel und Jeff Brisbois sind Chefs und sollen auf der
             // Startseite keine Krankmeldung einreichen können.
@@ -3122,14 +3128,17 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 startKrankmeldungButton.classList.toggle('hidden', istChefOhneKrankmeldung);
             }
 
-            const darfWochenplanung = isChefOrTech || isSekretariat;
-            const darfMaterialliste = isChefOrTech || isSekretariat;
-            const darfLager = isChefOrTech || isSekretariat || String(eingeloggteRolle||'').toLowerCase().includes('lagerist');
+            const darfWochenplanung = istVerwaltungsRolle;
+            const darfMaterialliste = istVerwaltungsRolle;
+            const darfLager = istVerwaltungsRolle || istMitarbeiterRolle;
             const darfUrlaubBuero = urlaubIstBuero();
             document.querySelectorAll('.wochenplanung-only').forEach(el => el.classList.toggle('hidden', !darfWochenplanung));
             document.querySelectorAll('.dashboard-only').forEach(el => el.classList.toggle('hidden', !dashboardIstBerechtigt()));
             document.querySelectorAll('.materialliste-only').forEach(el => el.classList.toggle('hidden', !darfMaterialliste));
             document.querySelectorAll('.lager-only').forEach(el => el.classList.toggle('hidden', !darfLager));
+            // Lagerist sieht das Lager, aber keine Verwaltungs-/Bestellfunktionen.
+            document.querySelectorAll('[data-lager-admin=\"1\"]').forEach(el => el.classList.toggle('hidden', rolleNormalisiert === 'lagerist'));
+            lagerUIRolleAnwenden();
             try { abrechnungenAnzeigen(); } catch(e) { console.warn('Abrechnungen beim Login übersprungen:', e); }
             materiallisteAnzeigen();
             urlaubsantraegeAnzeigen();
@@ -6810,6 +6819,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
         function lagerBerechtigt(){
             return lagerAusgabeBerechtigt();
         }
+        function lagerUIRolleAnwenden(){
+            const lagerist = String(eingeloggteRolle||'').trim().toLowerCase() === 'lagerist';
+            document.querySelectorAll('[data-lager-admin=\"1\"]').forEach(el=>el.classList.toggle('hidden', lagerist));
+        }
+
         function lagerAdminMutationSicher(){
             if (!lagerVerwaltenBerechtigt()) {
                 alert('🔐 Keine Berechtigung. Als Lagerist darfst du nur Lagerausgaben buchen.');
