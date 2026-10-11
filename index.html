@@ -2643,7 +2643,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 } else {
                     globalDaten.lagerbestand = globalDaten.lagerbestand || [];
                 }
-                globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
+                // Projekt-/Mitarbeiter-Zuweisungen nicht durch fehlende oder leere
+                // Altdaten aus portal/global löschen. Die separate Firebase-Quelle
+                // portal_data/assignments ist maßgeblich.
+                if (cloudDaten.zuweisungen && typeof cloudDaten.zuweisungen === "object" && Object.keys(cloudDaten.zuweisungen).length > 0) {
+                    globalDaten.zuweisungen = cloudDaten.zuweisungen;
+                } else {
+                    globalDaten.zuweisungen = globalDaten.zuweisungen || {};
+                }
                 if (!wochenplanungSeparatGeladen) {
                     globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
                 }
@@ -2844,7 +2851,12 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 } else {
                     globalDaten.lagerbestand = globalDaten.lagerbestand || [];
                 }
-                globalDaten.zuweisungen = cloudDaten.zuweisungen || globalDaten.zuweisungen || {};
+                // Bei Migration ebenfalls vorhandene Zuweisungen schützen.
+                if (cloudDaten.zuweisungen && typeof cloudDaten.zuweisungen === "object" && Object.keys(cloudDaten.zuweisungen).length > 0) {
+                    globalDaten.zuweisungen = cloudDaten.zuweisungen;
+                } else {
+                    globalDaten.zuweisungen = globalDaten.zuweisungen || {};
+                }
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || globalDaten.abwesenheiten || {};
                 globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : (globalDaten.probleme || []);
                 globalDaten.urlaubsantraege = Array.isArray(cloudDaten.urlaubsantraege) ? cloudDaten.urlaubsantraege : (globalDaten.urlaubsantraege || []);
@@ -2873,6 +2885,12 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     }
                     Object.entries(feldMap).forEach(([quelle, ziel]) => {
                         if (!Object.prototype.hasOwnProperty.call(d, quelle)) return;
+                        // Leere Zuweisungsdaten dürfen bestehende Projektzuweisungen
+                        // nicht durch einen verspäteten/alten Snapshot entfernen.
+                        if (quelle === "zuweisungen" && d[quelle] && typeof d[quelle] === "object" && Object.keys(d[quelle]).length === 0 && globalDaten[ziel] && Object.keys(globalDaten[ziel]).length > 0) {
+                            console.warn("Leere Zuweisungen ignoriert, um Projekt-Mitarbeiter-Zuordnungen zu erhalten.");
+                            return;
+                        }
                         if (quelle === "lagerbestand" && Array.isArray(d[quelle]) && d[quelle].length === 0 && Array.isArray(globalDaten[ziel]) && globalDaten[ziel].length > 0) {
                             console.warn("Leere separate Lagerliste ignoriert, um vorhandene Lagerartikel nicht zu verlieren.");
                             return;
