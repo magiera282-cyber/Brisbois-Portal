@@ -336,6 +336,40 @@ window.__kiMateriallisteBereit=true;
   backdrop-filter: blur(1px);
   -webkit-backdrop-filter: blur(1px);
 }
+
+/* iPhone: Hauptnavigation unter der Kopfzeile sauber umbrechen, nie Text überlagern. */
+@media (max-width: 640px) {
+  #haupt-navigation {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px !important;
+    padding: 8px 10px !important;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: visible !important;
+    align-items: stretch;
+  }
+  #haupt-navigation > .tab-btn {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0 !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    line-height: 1.25;
+    font-size: 12px;
+    padding: 8px 6px !important;
+    margin: 0 !important;
+    border-bottom-width: 2px;
+  }
+  #haupt-navigation > .tab-btn span {
+    min-width: 0;
+    white-space: normal !important;
+  }
+}
 </style>
 </style>
 <link rel="manifest" href="./manifest.webmanifest">
