@@ -1967,7 +1967,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 <!-- Firebase SDK & Cloud Logik -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
@@ -1985,6 +1985,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
+        // Firebase-Sitzung ausdrücklich lokal persistieren, damit ein normales
+        // Aktualisieren der Seite nicht erneut den Login verlangt.
+        const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch(e => {
+            console.warn("Firebase-Sitzungsspeicherung konnte nicht explizit gesetzt werden:", e);
+        });
         const db = getFirestore(app, "(default)");
         const messaging = getMessaging(app);
 
@@ -2728,6 +2733,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
                         if (Object.prototype.hasOwnProperty.call(d, quelle)) globalDaten[ziel] = d[quelle];
                     });
                     try { allesAktualisieren(); } catch(e) {}
+                    // Lagerdaten kommen separat und können nach dem Login eintreffen.
+                    // Deshalb die Lageransicht nach genau diesem Daten-Update neu zeichnen.
+                    if (Object.prototype.hasOwnProperty.call(feldMap, "lagerbestand")) {
+                        try { if (eingeloggterMitarbeiter && typeof lagerAnzeigen === "function") lagerAnzeigen(); } catch(e) { console.warn("Lagerliste nach separatem Laden konnte nicht aktualisiert werden:", e); }
+                    }
                 }, err => console.warn(`Getrennter Portalbereich ${sammlung}/${dokument} nicht lesbar:`, err));
             };
             listener("portal_meta", "team", {mitarbeiterListe:"mitarbeiterListe"});
@@ -2988,6 +2998,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (loginModal) loginModal.classList.add('hidden');
             if (appContainer) appContainer.classList.remove('hidden');
             try { if (typeof lagerAnzeigen === 'function') lagerAnzeigen(); } catch(e) {}
+            // Nach dem Öffnen erneut zeichnen, falls die getrennten Lagerdaten
+            // bereits geladen wurden, aber die Ansicht vorher noch verborgen war.
+            requestAnimationFrame(() => { try { if (typeof lagerAnzeigen === 'function') lagerAnzeigen(); } catch(e) {} });
             try { if (typeof window.portalLanguageAfterLogin === 'function') window.portalLanguageAfterLogin(); } catch(e) { console.warn('Sprachumschaltung nach Login übersprungen:', e); }
             // Erstellungsrechte sofort nach dem Login anwenden.
             neueAuftragButtonsAktualisieren();
