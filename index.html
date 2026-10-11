@@ -239,11 +239,38 @@ window.__kiMateriallisteBereit=true;
 
 <style>
 @media (max-width: 640px){
-  /* Nur die mobile Kopfzeile: keine horizontale Verschiebung/kein
-     Überlappen. Die Desktop-Ansicht bleibt unverändert. */
+  /* iPhone: Kopfzeile darf auf zwei Zeilen umbrechen, damit die oberen
+     Schaltflächen nicht übereinanderliegen. Desktop bleibt unverändert. */
   #app-container > header{
     position:relative;
+    display:flex;
+    flex-wrap:wrap;
     align-items:center;
+    justify-content:space-between;
+    gap:.65rem;
+    padding:.75rem !important;
+    box-sizing:border-box;
+  }
+
+  #app-container > header > div:first-child{
+    display:flex;
+    flex:1 1 100%;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:.5rem;
+    min-width:0;
+  }
+
+  #app-container > header > div:last-child{
+    width:100%;
+    flex:1 1 100%;
+    display:flex;
+    align-items:center;
+    justify-content:flex-start;
+    flex-wrap:wrap;
+    gap:.45rem;
+    max-width:100%;
+    min-width:0;
   }
 
   #app-container > header > div:last-child{
@@ -251,15 +278,15 @@ window.__kiMateriallisteBereit=true;
     align-items:center;
     justify-content:flex-end;
     flex-wrap:wrap;
-    gap:.3rem;
-    max-width:58%;
+    gap:.45rem;
+    max-width:100%;
     min-width:0;
   }
 
   #app-container > header > div:last-child #user-badge{
     flex:0 0 100%;
     width:100%;
-    text-align:right;
+    text-align:left;
     overflow:hidden;
     text-overflow:ellipsis;
     white-space:nowrap;
