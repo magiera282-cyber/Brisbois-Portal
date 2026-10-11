@@ -2250,6 +2250,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         };
 
+        // Schutz vor versehentlichem Überschreiben des Lager-Dokuments, bevor dessen Daten geladen wurden.
+        let lagerDatenSeparatGeladen = false;
+
         let globalDaten = {
             mitarbeiterListe: basisMitarbeiter,
             passwoerter: {},
@@ -2526,7 +2529,16 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 }
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
                 globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
-                globalDaten.lagerbestand = Array.isArray(cloudDaten.lagerbestand) ? cloudDaten.lagerbestand : (globalDaten.lagerbestand || []);
+                if (Array.isArray(cloudDaten.lagerbestand)) {
+                    if (cloudDaten.lagerbestand.length > 0 || !Array.isArray(globalDaten.lagerbestand) || globalDaten.lagerbestand.length === 0) {
+                        globalDaten.lagerbestand = cloudDaten.lagerbestand;
+                    } else {
+                        console.warn("Leere Lagerliste aus portal/global ignoriert, weil bereits Lagerartikel im Speicher vorhanden sind.");
+                    }
+                    if (cloudDaten.lagerbestand.length > 0) lagerDatenSeparatGeladen = true;
+                } else {
+                    globalDaten.lagerbestand = globalDaten.lagerbestand || [];
+                }
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || {};
                 if (!wochenplanungSeparatGeladen) {
                     globalDaten.wochenplanung = cloudDaten.wochenplanung || {};
@@ -2665,10 +2677,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
                         materialliste: globalDaten.materialliste || [],
                         aktualisiertAm: new Date().toISOString()
                     }),
-                    setDoc(doc(db, "portal_data", "warehouse"), {
+                    // Lager niemals mit [] überschreiben, solange die getrennte Lagerquelle noch nicht geladen wurde.
+                    ...(lagerDatenSeparatGeladen ? [setDoc(doc(db, "portal_data", "warehouse"), {
                         lagerbestand: globalDaten.lagerbestand || [],
                         aktualisiertAm: new Date().toISOString()
-                    }),
+                    })] : []),
                     setDoc(doc(db, "portal_data", "assignments"), {
                         zuweisungen: globalDaten.zuweisungen || {},
                         aktualisiertAm: new Date().toISOString()
@@ -2708,7 +2721,16 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 globalDaten.benachrichtigungen = cloudDaten.benachrichtigungen || globalDaten.benachrichtigungen || [];
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog || {};
                 globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
-                globalDaten.lagerbestand = Array.isArray(cloudDaten.lagerbestand) ? cloudDaten.lagerbestand : (globalDaten.lagerbestand || []);
+                if (Array.isArray(cloudDaten.lagerbestand)) {
+                    if (cloudDaten.lagerbestand.length > 0 || !Array.isArray(globalDaten.lagerbestand) || globalDaten.lagerbestand.length === 0) {
+                        globalDaten.lagerbestand = cloudDaten.lagerbestand;
+                    } else {
+                        console.warn("Leere Lagerliste aus portal/global ignoriert, weil bereits Lagerartikel im Speicher vorhanden sind.");
+                    }
+                    if (cloudDaten.lagerbestand.length > 0) lagerDatenSeparatGeladen = true;
+                } else {
+                    globalDaten.lagerbestand = globalDaten.lagerbestand || [];
+                }
                 globalDaten.zuweisungen = cloudDaten.zuweisungen || globalDaten.zuweisungen || {};
                 globalDaten.abwesenheiten = cloudDaten.abwesenheiten || globalDaten.abwesenheiten || {};
                 globalDaten.probleme = Array.isArray(cloudDaten.probleme) ? cloudDaten.probleme : (globalDaten.probleme || []);
@@ -2727,10 +2749,22 @@ SECURITY MIGRATION MARKER (06.10.2026):
         function getrenntePortalListenerStarten() {
             const listener = (sammlung, dokument, feldMap) => {
                 onSnapshot(doc(db, sammlung, dokument), snap => {
-                    if (!snap.exists()) return;
+                    if (!snap.exists()) {
+                        // Ein fehlendes Lager-Dokument gilt NICHT als geladene leere Liste.
+                        // Erst ein explizites Anlegen eines Artikels darf dann die Quelle erstellen.
+                        return;
+                    }
                     const d = snap.data() || {};
+                    if (sammlung === "portal_data" && dokument === "warehouse") {
+                        lagerDatenSeparatGeladen = true;
+                    }
                     Object.entries(feldMap).forEach(([quelle, ziel]) => {
-                        if (Object.prototype.hasOwnProperty.call(d, quelle)) globalDaten[ziel] = d[quelle];
+                        if (!Object.prototype.hasOwnProperty.call(d, quelle)) return;
+                        if (quelle === "lagerbestand" && Array.isArray(d[quelle]) && d[quelle].length === 0 && Array.isArray(globalDaten[ziel]) && globalDaten[ziel].length > 0) {
+                            console.warn("Leere separate Lagerliste ignoriert, um vorhandene Lagerartikel nicht zu verlieren.");
+                            return;
+                        }
+                        globalDaten[ziel] = d[quelle];
                     });
                     try { allesAktualisieren(); } catch(e) {}
                     // Lagerdaten kommen separat und können nach dem Login eintreffen.
@@ -6859,6 +6893,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
             } else {
                 globalDaten.lagerbestand.push({id:'LAG_'+Date.now(), ...daten, ausgaben:[], maschinenHistorie:[], maschineBei:'', maschineSeit:'', bestellstatus:''});
             }
+            // Nur diese bewusste Lageraktion darf bei einer bisher fehlenden Lagerquelle ein Dokument erstellen.
+            lagerDatenSeparatGeladen = true;
             await globalGlobalSpeichern(); lagerNeuerArtikelSchliessen(); lagerAnzeigen();
         };
         window.lagerZeileSpeichern=async function(i){if(!lagerAdminMutationSicher())return; lagerNormalisieren(); const x=globalDaten.lagerbestand[i]; if(!x)return; x.name=document.getElementById('lag-n-'+i)?.value.trim()||''; x.kategorie=document.getElementById('lag-k-'+i)?.value||'Sonstiges'; x.bestand=Number(document.getElementById('lag-b-'+i)?.value)||0; x.mindestbestand=Number(document.getElementById('lag-m-'+i)?.value)||0; x.bestellmenge=Number(document.getElementById('lag-o-'+i)?.value)||0; x.ort=document.getElementById('lag-r-'+i)?.value.trim()||''; if(!x.name)return alert('Bitte Artikelname eintragen.'); await globalGlobalSpeichern(); lagerAnzeigen();};
