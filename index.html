@@ -2032,13 +2032,18 @@ SECURITY MIGRATION MARKER (06.10.2026):
         window.__brisboisAuth = auth;
         window.__brisboisAuthKennung = brisboisAuthKennung;
         window.__brisboisFirebaseUser = null;
-        onAuthStateChanged(auth, (user) => {
-            window.__brisboisFirebaseUser = user || null;
+        onAuthStateChanged(auth, async (callbackUser) => {
+            // Erst die Firebase-Persistenz fertig initialisieren. Sonst kann ein
+            // zu früher Null-Callback das Login-Fenster beim Neuladen einblenden.
+            try { await authPersistenceReady; } catch (e) {}
+            const user = auth.currentUser || callbackUser || null;
+            window.__brisboisFirebaseUser = user;
             window.__brisboisAuthUid = user ? user.uid : "";
             window.__brisboisAuthReady = true;
             try { if (user) setTimeout(() => sensibleListenerStarten(), 0); else sensibleListenerStoppen(); } catch(e) {}
 
-            // Ohne Firebase-Sitzung darf das Portal niemals sichtbar bleiben.
+            // Nur wenn Firebase nach abgeschlossener Initialisierung wirklich
+            // keine Sitzung hat, wird der Login angezeigt.
             if (!user) {
                 try {
                     const appContainer = document.getElementById("app-container");
@@ -2049,9 +2054,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 return;
             }
 
-            // Eine echte Firebase-Sitzung darf nach einem Browser-/App-Neustart
-            // wiederhergestellt werden. Die Wiederherstellung prüft zusätzlich
-            // die Identität gegen die technische Firebase-Kennung.
+            // Firebase stellt die Sitzung automatisch wieder her; kein separates
+            // „Angemeldet bleiben“-Kontrollkästchen oder lokales Login-Merkmal nötig.
             setTimeout(() => { try { dauerhaftenLoginWiederherstellen(); } catch(e) {} }, 0);
         });
         let brisboisPushRegistration = null;
@@ -2923,14 +2927,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (select) select.innerHTML = basisMitarbeiter.map(m => `<option value="${String(m.name).replace(/"/g, '&quot;')}">${m.name} (${m.rolle || 'Verleger'})</option>`).join('');
         }
 
-        // Keine separate Funktion „Angemeldet bleiben“ mehr.
-        // Die Sitzung kommt ausschließlich von Firebase Authentication; lokale Namen/Rollen
-        // werden nicht als Login gespeichert oder zur Anmeldung verwendet.
-        const BRISBOIS_LOGIN_KEY = "brisbois_login_data_v2";
-        async function brisboisLoginDauerhaftSpeichern(name, rolle) {
-            // Absichtlich keine Speicherung von Login-Namen oder Rollen.
-            return true;
-        }
+        // Keine separate „Angemeldet bleiben“-Option und keine lokalen Login-Daten.
+        // Die Sitzung wird ausschließlich durch Firebase Authentication verwaltet.
         async function dauerhaftenLoginWiederherstellen() {
             try {
                 const firebaseUser = auth.currentUser;
@@ -2998,6 +2996,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
 
             try {
+                // Die Sitzungsart muss vor dem Login fertig gesetzt sein.
+                await authPersistenceReady;
                 await signInWithEmailAndPassword(auth, kennung, eingegebenesPasswort);
             } catch (e) {
                 console.error("Firebase-Anmeldung fehlgeschlagen:", e);
