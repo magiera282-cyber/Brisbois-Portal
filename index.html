@@ -697,7 +697,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
 <body class="bg-slate-100 text-slate-800 font-sans">
 
     <!-- LOGIN-OVERLAY -->
-    <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 md:p-8 space-y-6 border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div class="text-center space-y-2">
                 <h2 class="text-4xl md:text-5xl font-medium tracking-tight leading-none text-slate-900 lowercase">brisbois; bembé</h2>
@@ -2002,6 +2002,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
         const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch(e => {
             console.warn("Firebase-Sitzungsspeicherung konnte nicht explizit gesetzt werden:", e);
         });
+        // WICHTIG: Erst die Persistenz initialisieren, dann den Auth-Listener starten.
+        // So kann ein früher Null-Status nicht fälschlich den Login-Bildschirm anzeigen.
+        await authPersistenceReady;
         const db = getFirestore(app, "(default)");
         const messaging = getMessaging(app);
 
@@ -2032,31 +2035,49 @@ SECURITY MIGRATION MARKER (06.10.2026):
         window.__brisboisAuth = auth;
         window.__brisboisAuthKennung = brisboisAuthKennung;
         window.__brisboisFirebaseUser = null;
-        onAuthStateChanged(auth, async (callbackUser) => {
-            // Erst die Firebase-Persistenz fertig initialisieren. Sonst kann ein
-            // zu früher Null-Callback das Login-Fenster beim Neuladen einblenden.
-            try { await authPersistenceReady; } catch (e) {}
+        onAuthStateChanged(auth, (callbackUser) => {
             const user = auth.currentUser || callbackUser || null;
             window.__brisboisFirebaseUser = user;
             window.__brisboisAuthUid = user ? user.uid : "";
             window.__brisboisAuthReady = true;
             try { if (user) setTimeout(() => sensibleListenerStarten(), 0); else sensibleListenerStoppen(); } catch(e) {}
 
-            // Nur wenn Firebase nach abgeschlossener Initialisierung wirklich
-            // keine Sitzung hat, wird der Login angezeigt.
+            const appContainer = document.getElementById("app-container");
+            const loginModal = document.getElementById("login-modal");
+
             if (!user) {
-                try {
-                    const appContainer = document.getElementById("app-container");
-                    const loginModal = document.getElementById("login-modal");
-                    if (appContainer) appContainer.classList.add("hidden");
-                    if (loginModal) loginModal.classList.remove("hidden");
-                } catch(e) {}
+                // Login erst zeigen, nachdem Firebase bestätigt hat, dass wirklich
+                // keine gespeicherte Sitzung existiert.
+                if (appContainer) appContainer.classList.add("hidden");
+                if (loginModal) loginModal.classList.remove("hidden");
                 return;
             }
 
-            // Firebase stellt die Sitzung automatisch wieder her; kein separates
-            // „Angemeldet bleiben“-Kontrollkästchen oder lokales Login-Merkmal nötig.
-            setTimeout(() => { try { dauerhaftenLoginWiederherstellen(); } catch(e) {} }, 0);
+            // Eine vorhandene Firebase-Sitzung bleibt aktiv. Der Login bleibt
+            // verborgen, während die Mitarbeiterliste aus Firestore geladen wird.
+            if (loginModal) loginModal.classList.add("hidden");
+            setTimeout(() => {
+                try {
+                    const wiederhergestellt = dauerhaftenLoginWiederherstellen();
+                    Promise.resolve(wiederhergestellt).then(ok => {
+                        if (!ok && !Array.isArray(globalDaten.mitarbeiterListe)) {
+                            console.warn("Mitarbeiterliste wird noch geladen; Login bleibt vorerst verborgen.");
+                        }
+                    });
+                } catch(e) {
+                    console.warn("Sitzungswiederherstellung wird erneut versucht:", e);
+                }
+            }, 0);
+
+            // Sicherheitsnetz für den Fall, dass das Mitarbeiterprofil erst verzögert
+            // eintrifft. Normalerweise öffnet der Firestore-Listener das Portal vorher.
+            setTimeout(() => {
+                const app = document.getElementById("app-container");
+                const login = document.getElementById("login-modal");
+                if (auth.currentUser && app && app.classList.contains("hidden") && login) {
+                    login.classList.remove("hidden");
+                }
+            }, 15000);
         });
         let brisboisPushRegistration = null;
 
