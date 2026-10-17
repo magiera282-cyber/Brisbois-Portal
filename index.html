@@ -1380,7 +1380,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 <div id="verleger-ueberstunden-startseite" class="mt-4"></div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div id="start-dashboard-kartenleiste" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div id="start-aktuelle-baustelle-card" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-4 flex flex-col justify-between hover:shadow-md transition">
                     <div class="space-y-2">
                         <div class="flex justify-between items-center">
@@ -3261,6 +3261,13 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // Chef / 2. Chef / Techniker / Sekretariat = Verwaltung
             // Verleger / Lagerist = Mitarbeiter-Ansicht
             const rolleNormalisiert = String(eingeloggteRolle || '').trim().toLowerCase();
+            // Die persönliche Kartenleiste wird nur für Chef 1 und Chef 2 ausgeblendet.
+            // Andere Rollen und alle dahinterliegenden Daten/Funktionen bleiben unverändert.
+            const istChef1OderChef2 = ['chef', '2. chef', '2.chef'].includes(rolleNormalisiert) ||
+                ['Jeff Brisbois', 'Didier Michel'].includes(String(eingeloggterMitarbeiter || '').trim());
+            const startKartenleiste = document.getElementById('start-dashboard-kartenleiste');
+            if (startKartenleiste) startKartenleiste.classList.toggle('hidden', istChef1OderChef2);
+
             const istVerwaltungsRolle = istDauerhafterAdmin() || ['chef','2. chef','2.chef','techniker','sekretariat','admin'].includes(rolleNormalisiert) || eingeloggterMitarbeiter === 'Christian Leppin';
             const istMitarbeiterRolle = ['verleger','lagerist'].includes(rolleNormalisiert);
             const isChefOrTech = istVerwaltungsRolle;
