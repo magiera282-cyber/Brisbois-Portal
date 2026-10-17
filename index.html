@@ -5370,12 +5370,29 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (!modal) {
                 modal = document.createElement('div');
                 modal.id = 'baustellen-bild-vorschau-modal';
-                modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:16px;';
-                modal.innerHTML = '<button type="button" aria-label="Schließen" style="position:absolute;top:14px;right:16px;background:#fff;color:#111;border:0;border-radius:999px;padding:9px 14px;font-weight:800;cursor:pointer;">✕ Schließen</button><img alt="Baustellenbild in Großansicht" style="max-width:96vw;max-height:88vh;object-fit:contain;border-radius:8px;box-shadow:0 8px 35px rgba(0,0,0,.5);">';
-                modal.addEventListener('click', function(e) { if (e.target === modal || e.target.tagName === 'BUTTON') modal.remove(); });
+                modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;padding:16px;overflow:hidden;touch-action:none;';
+                modal.innerHTML = '<button type="button" data-action="close" aria-label="Schließen" style="position:absolute;top:14px;right:16px;z-index:3;background:#fff;color:#111;border:0;border-radius:999px;padding:9px 14px;font-weight:800;cursor:pointer;touch-action:manipulation;">✕ Schließen</button><div style="position:absolute;top:14px;left:16px;z-index:3;display:flex;gap:8px;align-items:center;"><button type="button" data-action="out" aria-label="Verkleinern" style="background:#fff;color:#111;border:0;border-radius:999px;width:42px;height:42px;font-size:24px;font-weight:900;cursor:pointer;touch-action:manipulation;">−</button><button type="button" data-action="reset" style="background:#fff;color:#111;border:0;border-radius:999px;padding:9px 12px;font-weight:800;cursor:pointer;touch-action:manipulation;">100%</button><button type="button" data-action="in" aria-label="Vergrößern" style="background:#fff;color:#111;border:0;border-radius:999px;width:42px;height:42px;font-size:24px;font-weight:900;cursor:pointer;touch-action:manipulation;">+</button></div><div data-image-stage style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;"><img alt="Baustellenbild in Großansicht" draggable="false" style="max-width:96vw;max-height:88vh;object-fit:contain;border-radius:8px;box-shadow:0 8px 35px rgba(0,0,0,.5);transform:scale(1);transform-origin:center center;user-select:none;-webkit-user-drag:none;touch-action:none;"></div>';
+                let zoom = 1, startDistance = 0, startZoom = 1;
+                const image = modal.querySelector('img');
+                const stage = modal.querySelector('[data-image-stage]');
+                const resetZoom = () => { zoom = 1; image.style.transform = 'scale(1)'; const b=modal.querySelector('[data-action="reset"]'); if(b)b.textContent='100%'; };
+                const setZoom = value => { zoom = Math.max(0.5, Math.min(5, value)); image.style.transform = 'scale(' + zoom + ')'; const b=modal.querySelector('[data-action="reset"]'); if(b)b.textContent=Math.round(zoom*100)+'%'; };
+                modal._setSource = src => { image.src=src; resetZoom(); stage.scrollLeft=0; stage.scrollTop=0; };
+                modal.addEventListener('click', function(e) {
+                    const action=e.target.closest?.('[data-action]')?.getAttribute('data-action');
+                    if(action==='close' || e.target===modal) { modal.remove(); return; }
+                    if(action==='in') setZoom(zoom+0.25);
+                    if(action==='out') setZoom(zoom-0.25);
+                    if(action==='reset') resetZoom();
+                });
+                modal.addEventListener('wheel', function(e) { e.preventDefault(); setZoom(zoom + (e.deltaY < 0 ? 0.15 : -0.15)); }, {passive:false});
+                stage.addEventListener('touchstart', function(e) { if(e.touches.length===2) { startDistance=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); startZoom=zoom; } }, {passive:false});
+                stage.addEventListener('touchmove', function(e) { if(e.touches.length===2 && startDistance>0) { e.preventDefault(); const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); setZoom(startZoom*d/startDistance); } }, {passive:false});
+                stage.addEventListener('touchend', function(e) { if(e.touches.length<2) startDistance=0; }, {passive:true});
                 document.body.appendChild(modal);
             }
-            modal.querySelector('img').src = source.src;
+            if (typeof modal._setSource === 'function') modal._setSource(source.src);
+            else modal.querySelector('img').src = source.src;
         };
 
         window.baustellenbeschreibungBildSpeichern = async function(){
