@@ -5256,42 +5256,88 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const p = globalDaten.projekte[titel];
             if (!titel || !p) { alert('Bitte zuerst eine Baustelle auswählen.'); return; }
             const button = document.querySelector('#private-anweisung-editor button[onclick*="privateAnweisungDirektSpeichern"]');
-            const originalText = button ? button.textContent : '';
+            const originalText = button ? button.textContent : '💾 Anweisung speichern';
             if (button) { button.disabled = true; button.textContent = '⏳ Wird gespeichert …'; }
+            let gespeichert = false;
             try {
                 const text = document.getElementById('private-anweisung-eingabe')?.value.trim() || '';
                 const bildDatei = document.getElementById('private-anweisung-bild-datei')?.files?.[0] || null;
-                // Vorhandene Projektdaten werden beibehalten; nur die Felder der
-                // privaten Anweisung werden ergänzt/aktualisiert.
                 const vorher = {
                     privateAnweisung: p.privateAnweisung,
                     privateAnweisungVon: p.privateAnweisungVon,
                     privateAnweisungAm: p.privateAnweisungAm,
                     privateAnweisungBild: p.privateAnweisungBild
                 };
+                let bildDataUrl = p.privateAnweisungBild || '';
+                if (bildDatei) {
+                    if (!String(bildDatei.type || '').startsWith('image/')) throw new Error('Bitte eine Bilddatei auswählen.');
+                    if (bildDatei.size > 12 * 1024 * 1024) throw new Error('Das Bild darf maximal 12 MB groß sein.');
+                    // Wie bei den Baustellen-Pins wird das komprimierte Bild direkt gespeichert.
+                    // So hängt die Anzeige beim Verleger nicht von einer separaten Storage-URL ab.
+                    const komprimiert = await planBildKomprimieren(bildDatei, 1000, 0.68);
+                    bildDataUrl = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onerror = () => reject(new Error('Das Bild konnte nicht gelesen werden.'));
+                        reader.onload = () => resolve(String(reader.result || ''));
+                        reader.readAsDataURL(komprimiert);
+                    });
+                    if (!bildDataUrl || bildDataUrl.length > 650000) throw new Error('Das Bild ist nach der Komprimierung noch zu groß. Bitte ein kleineres Bild auswählen.');
+                }
                 p.privateAnweisung = text;
                 p.privateAnweisungVon = eingeloggterMitarbeiter || 'Unbekannt';
+                p.privateAnweisungRolle = eingeloggteRolle || '';
                 p.privateAnweisungAm = new Date().toISOString();
-                if (bildDatei) {
-                    try {
-                        p.privateAnweisungBild = await uploadBaustellenDatei(bildDatei, 'anweisungen', titel);
-                    } catch (e) {
-                        Object.assign(p, vorher);
-                        throw new Error('Bild-Upload fehlgeschlagen: ' + (e.message || e));
-                    }
-                }
-                const erfolgreich = await projektSpeichern(titel);
-                if (!erfolgreich) {
-                    Object.assign(p, vorher);
-                    return;
+                p.privateAnweisungBild = bildDataUrl;
+                const ok = await projektSpeichern(titel);
+                if (!ok) { Object.assign(p, vorher); return; }
+                gespeichert = true;
+
+                // Nachricht an die Mitarbeiter, denen genau diese Baustelle zugewiesen ist.
+                const empfaengerListe = Object.entries(globalDaten.zuweisungen || {})
+                    .filter(([name, projekte]) => name !== eingeloggterMitarbeiter && Array.isArray(projekte) && projekte.includes(titel))
+                    .map(([name]) => name);
+                if (!Array.isArray(globalDaten.benachrichtigungen)) globalDaten.benachrichtigungen = [];
+                const datum = new Date().toLocaleString('de-DE');
+                const rollenSuffix = /techniker/i.test(String(eingeloggteRolle)) ? ' (Techniker)' : ' (Chef)';
+                const neueNachrichten = (empfaengerListe.length ? empfaengerListe : ['Alle']) .map(empfaenger => ({
+                    von: `${eingeloggterMitarbeiter || 'Büro'}${rollenSuffix}`,
+                    empfaenger,
+                    text: `Neue private Anweisung für Baustelle „${titel}“: ${text || 'Es wurde ein Bild zur Anweisung hinzugefügt.'}`,
+                    datum,
+                    gelesenVon: [],
+                    geloeschtVon: [],
+                    projekt: titel,
+                    typ: 'private-anweisung'
+                }));
+                globalDaten.benachrichtigungen.unshift(...neueNachrichten);
+                // Benachrichtigungen getrennt synchronisieren; ein langsamer Sync darf
+                // die Rückmeldung des Speichern-Buttons nicht dauerhaft blockieren.
+                try {
+                    await Promise.race([
+                        globalGlobalSpeichern(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Benachrichtigungs-Synchronisierung dauert zu lange')), 6000))
+                    ]);
+                } catch (syncError) {
+                    console.warn('Anweisung gespeichert; Benachrichtigung konnte nicht sicher synchronisiert werden:', syncError);
+                    alert('Die Anweisung wurde gespeichert. Die Benachrichtigung konnte noch nicht bestätigt werden; bitte Verbindung prüfen.');
                 }
                 const dateiInput = document.getElementById('private-anweisung-bild-datei');
                 if (dateiInput) dateiInput.value = '';
-                await projektLaden(titel);
-                alert('Private Anweisung wurde erfolgreich gespeichert.');
+                // Anzeige lokal aktualisieren, ohne auf einen erneuten Projekt-Ladevorgang zu warten.
+                const anweisungEl = document.getElementById('anweisung-text');
+                if (anweisungEl) anweisungEl.textContent = p.privateAnweisung || 'Noch keine private Anweisung hinterlegt.';
+                const autorEl = document.getElementById('anweisung-autor');
+                if (autorEl) { autorEl.textContent = `Anweisung von: ${p.privateAnweisungVon}${p.privateAnweisungAm ? ' · ' + new Date(p.privateAnweisungAm).toLocaleString('de-DE') : ''}`; autorEl.classList.remove('hidden'); }
+                const bildBox = document.getElementById('anweisung-bild-container');
+                const bild = document.getElementById('anweisung-bild');
+                const bildLink = document.getElementById('anweisung-bild-link');
+                if (p.privateAnweisungBild && bild && bildLink && bildBox) { bild.src = p.privateAnweisungBild; bildLink.href = p.privateAnweisungBild; bildBox.classList.remove('hidden'); }
+                else if (bildBox) bildBox.classList.add('hidden');
+                if (typeof benachrichtigungenAnzeigen === 'function') benachrichtigungenAnzeigen();
+                alert('Private Anweisung wurde gespeichert. Zugewiesene Verleger wurden benachrichtigt.');
             } catch (e) {
                 console.error('Private Anweisung konnte nicht gespeichert werden:', e);
-                alert('⚠️ Private Anweisung konnte nicht gespeichert werden.\n' + (e.message || e));
+                alert((gespeichert ? 'Die Anweisung wurde gespeichert, aber ein Folgeschritt ist fehlgeschlagen.\n' : 'Private Anweisung konnte nicht gespeichert werden.\n') + (e.message || e));
             } finally {
                 if (button) { button.disabled = false; button.textContent = originalText || '💾 Anweisung speichern'; }
             }
