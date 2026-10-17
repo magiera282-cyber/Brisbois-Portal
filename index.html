@@ -1459,6 +1459,10 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <span class="absolute left-3 top-2.5 text-slate-400">🔎</span>
                     <input id="projekt-suche" oninput="projektSucheAktualisieren(this.value)" placeholder="Baustelle, Adresse oder Status suchen..." class="w-full pl-9 pr-3 py-2 border rounded-lg text-xs bg-slate-50 focus:ring-2 focus:ring-blue-500 focus:outline-none">
                 </div>
+                <div class="flex items-center justify-between gap-2">
+                    <p id="projekt-liste-hinweis" class="text-[11px] text-slate-500">Aktive und anstehende Baustellen</p>
+                    <button type="button" id="projekt-archiv-btn" onclick="projektArchivUmschalten()" class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 whitespace-nowrap">📁 Erledigte anzeigen</button>
+                </div>
                 <div id="projekt-liste" class="space-y-3"></div>
             </div>
 
@@ -5270,7 +5274,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         };
         window.aufgabeStatusAendern = async function(i,checked){ const p=globalDaten.projekte[aktuellesProjekt]; if(!p?.aufgaben?.[i]) return; p.aufgaben[i].erledigt=checked; p.aufgaben[i].erledigtVon=checked?eingeloggterMitarbeiter:''; p.aufgaben[i].erledigtAm=checked?new Date().toISOString():''; await projektSpeichern(aktuellesProjekt); projektModuleAktualisieren(); };
         window.tagesberichtSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; const text=document.getElementById('tagesbericht-text')?.value.trim(); const st=document.getElementById('tagesbericht-stunden')?.value; if(!p||!text) return alert('Bitte einen Tagesbericht eingeben.'); p.tagesberichte=p.tagesberichte||[]; p.tagesberichte.push({datum:new Date().toLocaleDateString('de-DE'),mitarbeiter:eingeloggterMitarbeiter,text,stunden:st||'',erstelltAm:new Date().toISOString()}); document.getElementById('tagesbericht-text').value=''; document.getElementById('tagesbericht-stunden').value=''; await projektSpeichern(aktuellesProjekt); projektModuleAktualisieren(); };
-        window.abnahmeSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; if(!p) return; const verantwortlicher=document.getElementById('abnahme-verantwortlicher')?.value.trim(); const notiz=document.getElementById('abnahme-notiz')?.value.trim(); if(!verantwortlicher) return alert('Bitte Kunde / Verantwortlichen eintragen.'); p.abnahme={verantwortlicher,notiz,datum:new Date().toLocaleDateString('de-DE'),durch:eingeloggterMitarbeiter}; p.status='Fertig'; await projektSpeichern(aktuellesProjekt); projektLaden(aktuellesProjekt); alert('Abnahme gespeichert und Baustelle auf Fertig gesetzt.'); };
+        window.abnahmeSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; if(!p) return; const verantwortlicher=document.getElementById('abnahme-verantwortlicher')?.value.trim(); const notiz=document.getElementById('abnahme-notiz')?.value.trim(); if(!verantwortlicher) return alert('Bitte Kunde / Verantwortlichen eintragen.'); p.abnahme={verantwortlicher,notiz,datum:new Date().toLocaleDateString('de-DE'),durch:eingeloggterMitarbeiter}; p.status='Fertig'; await projektSpeichern(aktuellesProjekt); projektListeAktualisieren(); projektLaden(aktuellesProjekt); alert('Abnahme gespeichert und Baustelle auf Fertig gesetzt.'); };
 
         function darfPrivateAnweisungBearbeiten(){
             const rolle = String(eingeloggteRolle || '').toLowerCase();
@@ -5457,50 +5461,76 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if(ki) ki.classList.toggle('hidden', !erlaubt);
         }
 
+        // Erledigte Baustellen werden nur aus der Hauptliste ausgeblendet,
+        // nicht gelöscht oder aus den gespeicherten Projekt-/Zuweisungsdaten entfernt.
+        let projektArchivAnzeigen = false;
+        window.projektArchivUmschalten = function() {
+            projektArchivAnzeigen = !projektArchivAnzeigen;
+            const btn = document.getElementById('projekt-archiv-btn');
+            const hinweis = document.getElementById('projekt-liste-hinweis');
+            if (btn) btn.textContent = projektArchivAnzeigen ? '↩ Aktive anzeigen' : '📁 Erledigte anzeigen';
+            if (hinweis) hinweis.textContent = projektArchivAnzeigen ? 'Archiv: fertiggestellte Baustellen' : 'Aktive und anstehende Baustellen';
+            projektListeAktualisieren();
+        };
+
         function projektListeAktualisieren() {
             const liste = document.getElementById('projekt-liste');
             if(!liste) return;
             liste.innerHTML = '';
 
             const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
-
             let anzahlAnzuigenderProjekte = 0;
+            let anzahlArchivProjekte = 0;
 
-            Object.keys(globalDaten.projekte).forEach(titel => {
+            Object.keys(globalDaten.projekte || {}).forEach(titel => {
                 if (!isChefOrTechOrSekr) {
                     const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
                     if (!zugewieseneProjekte.includes(titel)) return;
                 }
 
+                const p = globalDaten.projekte[titel] || {};
+                const statusNorm = String(p.status || '').trim().toLocaleLowerCase('de-DE');
+                const istFertig = ['fertig', 'fertiggestellt', 'abgeschlossen', 'erledigt'].includes(statusNorm);
+                if (istFertig) anzahlArchivProjekte++;
+                // Standardliste zeigt offene/aktive Baustellen; das Archiv zeigt nur fertige.
+                if (istFertig !== projektArchivAnzeigen) return;
+
                 anzahlAnzuigenderProjekte++;
-                const p = globalDaten.projekte[titel];
                 let statusFarbe = "bg-blue-50 border-blue-600 text-blue-900";
-                if (p.status === 'Fertig') statusFarbe = "bg-slate-100 border-slate-400 text-slate-500 opacity-75";
+                if (istFertig) statusFarbe = "bg-slate-100 border-slate-400 text-slate-600";
                 else if (p.status === 'Anstehend') statusFarbe = "bg-amber-50 border-amber-500 text-amber-900";
                 else if (p.status === 'Unterbrochen') statusFarbe = "bg-orange-50 border-orange-500 text-orange-900";
                 else if (p.status === 'Problem') statusFarbe = "bg-red-50 border-red-500 text-red-900";
 
                 const istAktivMarkiert = titel === aktuellesProjekt ? "ring-2 ring-blue-600 shadow-md" : "";
-
                 const div = document.createElement('div');
                 div.className = `projekt-karte p-3 border-l-4 rounded cursor-pointer transition hover:brightness-95 ${statusFarbe} ${istAktivMarkiert}`;
                 div.onclick = function() { projektLaden(titel); };
                 div.innerHTML = `
-                    <div class="font-bold flex justify-between items-center">
+                    <div class="font-bold flex justify-between items-center gap-2">
                         <span>${titel}</span>
                         ${titel === aktuellesProjekt ? '<span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded">Aktiv</span>' : ''}
                     </div>
-                    <div class="text-xs mt-1">Status: <strong>${p.status}</strong></div>
+                    <div class="text-xs mt-1">Status: <strong>${p.status || 'Unbekannt'}</strong></div>
                 `;
                 liste.appendChild(div);
             });
 
-            if (anzahlAnzuigenderProjekte === 0) {
-                liste.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-4">Dir sind derzeit noch keine Baustellen zugewiesen.</p>`;
-                // Wichtig: Bei Verlegern/Lageristen darf keine zuvor geöffnete
-                // Baustelle im Detailbereich sichtbar bleiben.
-                if (!isChefOrTechOrSekr) projektDetailsLeeren();
+            const btn = document.getElementById('projekt-archiv-btn');
+            if (btn) {
+                btn.textContent = projektArchivAnzeigen ? '↩ Aktive anzeigen' : `📁 Erledigte anzeigen (${anzahlArchivProjekte})`;
+                btn.classList.toggle('hidden', anzahlArchivProjekte === 0 && !projektArchivAnzeigen);
             }
+            if (anzahlAnzuigenderProjekte === 0) {
+                liste.innerHTML = projektArchivAnzeigen
+                    ? `<p class="text-xs text-slate-400 italic text-center py-4">Keine erledigten Baustellen im Archiv.</p>`
+                    : `<p class="text-xs text-slate-400 italic text-center py-4">${isChefOrTechOrSekr ? 'Keine aktiven oder anstehenden Baustellen vorhanden.' : 'Dir sind derzeit keine aktiven Baustellen zugewiesen.'}</p>`;
+                // Eine zuvor geöffnete Baustelle bleibt im Detailbereich erhalten;
+                // bei Mitarbeitern ohne Zuordnung wird der Detailbereich wie bisher geleert.
+                if (!isChefOrTechOrSekr && anzahlAnzuigenderProjekte === 0 && !projektArchivAnzeigen) projektDetailsLeeren();
+            }
+            const suchfeld = document.getElementById('projekt-suche');
+            if (suchfeld && suchfeld.value) projektSucheAktualisieren(suchfeld.value);
         }
 
         async function ladePlaeneFuerProjekt(titel) {
@@ -5990,6 +6020,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             globalDaten.projekte[aktuellesProjekt].status = neuerStatus;
             projektSpeichern(aktuellesProjekt);
+            projektListeAktualisieren();
         }
 
         window.vollbildPinModusUmschalten = function() {
