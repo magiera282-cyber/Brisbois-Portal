@@ -1507,7 +1507,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                                 <textarea id="private-anweisung-eingabe" rows="3" class="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Anweisung für das Baustellen-Team eingeben …"></textarea>
                                 <label for="private-anweisung-bild-datei" class="block text-xs font-bold mt-2 mb-1">Bild zur Anweisung (optional)</label>
                                 <input id="private-anweisung-bild-datei" type="file" accept="image/*" class="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs text-slate-800">
-                                <div class="flex justify-end mt-2"><button type="button" onclick="privateAnweisungDirektSpeichern()" class="rounded-lg bg-amber-600 hover:bg-amber-700 px-4 py-2 text-sm font-bold text-white">💾 Anweisung speichern</button></div>
+                                <div class="flex flex-wrap justify-end gap-2 mt-2"><button type="button" onclick="privateAnweisungLoeschen()" class="rounded-lg border border-red-300 bg-red-50 hover:bg-red-100 px-4 py-2 text-sm font-bold text-red-700">🗑️ Anweisung löschen</button><button type="button" onclick="privateAnweisungDirektSpeichern()" class="rounded-lg bg-amber-600 hover:bg-amber-700 px-4 py-2 text-sm font-bold text-white">💾 Anweisung speichern</button></div>
                             </div>
                         </div>
                     </div>
@@ -5371,6 +5371,88 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 alert((gespeichert ? 'Die Anweisung wurde gespeichert, aber ein Folgeschritt ist fehlgeschlagen.\n' : 'Private Anweisung konnte nicht gespeichert werden.\n') + (e.message || e));
             } finally {
                 if (button) { button.disabled = false; button.textContent = originalText || '💾 Anweisung speichern'; }
+            }
+        };
+
+        window.privateAnweisungLoeschen = async function(){
+            if (!darfPrivateAnweisungBearbeiten()) { alert('Nur Chef, 2. Chef und Techniker dürfen private Anweisungen löschen.'); return; }
+            const titel = aktuellesProjekt;
+            const p = globalDaten.projekte[titel];
+            if (!titel || !p) { alert('Bitte zuerst eine Baustelle auswählen.'); return; }
+            if (!String(p.privateAnweisung || '').trim() && !p.privateAnweisungBild) {
+                alert('Für diese Baustelle ist keine private Anweisung zum Löschen vorhanden.');
+                return;
+            }
+            if (!confirm('Möchtest du die private Anweisung einschließlich des zugehörigen Bildes wirklich löschen? Die Baustellenbeschreibung und alle anderen Baustellendaten bleiben erhalten.')) return;
+            const button = document.querySelector('#private-anweisung-editor button[onclick*="privateAnweisungLoeschen"]');
+            const originalText = button ? button.textContent : '🗑️ Anweisung löschen';
+            if (button) { button.disabled = true; button.textContent = '⏳ Wird gelöscht …'; }
+            const vorher = {
+                privateAnweisung: p.privateAnweisung,
+                privateAnweisungVon: p.privateAnweisungVon,
+                privateAnweisungRolle: p.privateAnweisungRolle,
+                privateAnweisungAm: p.privateAnweisungAm,
+                privateAnweisungBild: p.privateAnweisungBild
+            };
+            try {
+                p.privateAnweisung = '';
+                p.privateAnweisungVon = '';
+                p.privateAnweisungRolle = '';
+                p.privateAnweisungAm = '';
+                p.privateAnweisungBild = '';
+                const ok = await projektSpeichern(titel);
+                if (!ok) {
+                    Object.assign(p, vorher);
+                    alert('Die Anweisung konnte nicht gelöscht werden. Die bisherigen Daten wurden beibehalten.');
+                    return;
+                }
+                const textEl = document.getElementById('anweisung-text');
+                if (textEl) textEl.textContent = 'Noch keine private Anweisung hinterlegt.';
+                const autorEl = document.getElementById('anweisung-autor');
+                if (autorEl) { autorEl.textContent = ''; autorEl.classList.add('hidden'); }
+                const box = document.getElementById('anweisung-bild-container');
+                const img = document.getElementById('anweisung-bild');
+                const link = document.getElementById('anweisung-bild-link');
+                if (box) box.classList.add('hidden');
+                if (img) img.removeAttribute('src');
+                if (link) link.removeAttribute('href');
+                const input = document.getElementById('private-anweisung-eingabe');
+                if (input) input.value = '';
+                const fileInput = document.getElementById('private-anweisung-bild-datei');
+                if (fileInput) fileInput.value = '';
+                if (Array.isArray(globalDaten.benachrichtigungen)) {
+                    const empfaengerListe = Object.entries(globalDaten.zuweisungen || {})
+                        .filter(([name, projekte]) => name !== eingeloggterMitarbeiter && Array.isArray(projekte) && projekte.includes(titel))
+                        .map(([name]) => name);
+                    const datum = new Date().toLocaleString('de-DE');
+                    const rollenSuffix = /techniker/i.test(String(eingeloggteRolle)) ? ' (Techniker)' : ' (Chef)';
+                    globalDaten.benachrichtigungen.unshift(...(empfaengerListe.length ? empfaengerListe : ['Alle']).map(empfaenger => ({
+                        von: `${eingeloggterMitarbeiter || 'Büro'}${rollenSuffix}`,
+                        empfaenger,
+                        text: `Die private Anweisung für Baustelle „${titel}“ wurde gelöscht.`,
+                        datum,
+                        gelesenVon: [],
+                        geloeschtVon: [],
+                        projekt: titel,
+                        typ: 'private-anweisung-geloescht'
+                    })));
+                    try {
+                        await Promise.race([
+                            globalGlobalSpeichern(),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Benachrichtigungs-Synchronisierung dauert zu lange')), 6000))
+                        ]);
+                    } catch (syncError) {
+                        console.warn('Anweisung gelöscht; Benachrichtigung konnte nicht sicher synchronisiert werden:', syncError);
+                    }
+                    if (typeof benachrichtigungenAnzeigen === 'function') benachrichtigungenAnzeigen();
+                }
+                alert('Die private Anweisung und das zugehörige Bild wurden gelöscht. Andere Baustellendaten bleiben erhalten.');
+            } catch (e) {
+                Object.assign(p, vorher);
+                console.error('Private Anweisung konnte nicht gelöscht werden:', e);
+                alert('Die private Anweisung konnte nicht gelöscht werden.\n' + (e.message || e));
+            } finally {
+                if (button) { button.disabled = false; button.textContent = originalText; }
             }
         };
 
