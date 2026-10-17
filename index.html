@@ -2984,14 +2984,16 @@ SECURITY MIGRATION MARKER (06.10.2026):
         async function projektSpeichern(titel) {
             try {
                 const projDaten = globalDaten.projekte[titel];
-                if (!projDaten) return;
+                if (!projDaten) throw new Error('Baustelle nicht im geladenen Datenbestand gefunden.');
                 // Planbilder werden separat gespeichert und dürfen nie wieder
                 // in das grosse Baustellen-Dokument geschrieben werden.
                 const speicherDaten = {...projDaten, plaene: []};
                 await setDoc(doc(db, "projekte", titel), speicherDaten);
+                return true;
             } catch(e) {
                 console.error("Fehler beim Speichern des Projekts:", e);
-                alert(`⚠️ Baustelle konnte nicht gespeichert werden. ${e.message || "Bitte prüfe deine Firebase-Verbindung und Regeln."}`);
+                alert(`⚠️ Baustelle konnte nicht gespeichert werden.\n${e.code ? '[' + e.code + '] ' : ''}${e.message || "Bitte prüfe deine Firebase-Verbindung und Regeln."}`);
+                return false;
             }
         }
 
@@ -5250,20 +5252,49 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         window.privateAnweisungDirektSpeichern = async function(){
             if (!darfPrivateAnweisungBearbeiten()) { alert('Nur Chef, 2. Chef und Techniker dürfen private Anweisungen schreiben.'); return; }
-            const p = globalDaten.projekte[aktuellesProjekt];
-            if (!aktuellesProjekt || !p) { alert('Bitte zuerst eine Baustelle auswählen.'); return; }
-            const text = document.getElementById('private-anweisung-eingabe')?.value.trim() || '';
-            const bildDatei = document.getElementById('private-anweisung-bild-datei')?.files?.[0] || null;
-            p.privateAnweisung = text;
-            p.privateAnweisungVon = eingeloggterMitarbeiter || 'Unbekannt';
-            p.privateAnweisungAm = new Date().toISOString();
-            if (bildDatei) {
-                try { p.privateAnweisungBild = await uploadBaustellenDatei(bildDatei, 'anweisungen', aktuellesProjekt); }
-                catch (e) { alert('Das Bild konnte nicht hochgeladen werden. Die Textanweisung wird gespeichert. Fehler: ' + (e.message || e)); }
+            const titel = aktuellesProjekt;
+            const p = globalDaten.projekte[titel];
+            if (!titel || !p) { alert('Bitte zuerst eine Baustelle auswählen.'); return; }
+            const button = document.querySelector('#private-anweisung-editor button[onclick*="privateAnweisungDirektSpeichern"]');
+            const originalText = button ? button.textContent : '';
+            if (button) { button.disabled = true; button.textContent = '⏳ Wird gespeichert …'; }
+            try {
+                const text = document.getElementById('private-anweisung-eingabe')?.value.trim() || '';
+                const bildDatei = document.getElementById('private-anweisung-bild-datei')?.files?.[0] || null;
+                // Vorhandene Projektdaten werden beibehalten; nur die Felder der
+                // privaten Anweisung werden ergänzt/aktualisiert.
+                const vorher = {
+                    privateAnweisung: p.privateAnweisung,
+                    privateAnweisungVon: p.privateAnweisungVon,
+                    privateAnweisungAm: p.privateAnweisungAm,
+                    privateAnweisungBild: p.privateAnweisungBild
+                };
+                p.privateAnweisung = text;
+                p.privateAnweisungVon = eingeloggterMitarbeiter || 'Unbekannt';
+                p.privateAnweisungAm = new Date().toISOString();
+                if (bildDatei) {
+                    try {
+                        p.privateAnweisungBild = await uploadBaustellenDatei(bildDatei, 'anweisungen', titel);
+                    } catch (e) {
+                        Object.assign(p, vorher);
+                        throw new Error('Bild-Upload fehlgeschlagen: ' + (e.message || e));
+                    }
+                }
+                const erfolgreich = await projektSpeichern(titel);
+                if (!erfolgreich) {
+                    Object.assign(p, vorher);
+                    return;
+                }
+                const dateiInput = document.getElementById('private-anweisung-bild-datei');
+                if (dateiInput) dateiInput.value = '';
+                await projektLaden(titel);
+                alert('Private Anweisung wurde erfolgreich gespeichert.');
+            } catch (e) {
+                console.error('Private Anweisung konnte nicht gespeichert werden:', e);
+                alert('⚠️ Private Anweisung konnte nicht gespeichert werden.\n' + (e.message || e));
+            } finally {
+                if (button) { button.disabled = false; button.textContent = originalText || '💾 Anweisung speichern'; }
             }
-            await projektSpeichern(aktuellesProjekt);
-            projektLaden(aktuellesProjekt);
-            alert('Private Anweisung gespeichert.');
         };
 
         function isChefOrPrivileged(){ return istDauerhafterAdmin() || eingeloggteRolle.includes('Chef')||eingeloggteRolle.includes('Techniker')||eingeloggteRolle.includes('Admin')||eingeloggteRolle.includes('Sekretariat')||eingeloggterMitarbeiter==='Christian Leppin'; }
