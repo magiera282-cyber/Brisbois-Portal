@@ -1495,7 +1495,15 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         <div class="min-w-0 flex-1">
                             <span class="font-bold">Anweisung vom Chef:</span>
                             <div id="anweisung-text" class="mt-1 whitespace-pre-wrap">Noch keine private Anweisung hinterlegt.</div>
+                            <div id="anweisung-autor" class="mt-2 text-xs font-semibold text-amber-800 hidden"></div>
                             <div id="anweisung-bild-container" class="mt-3 hidden"><a id="anweisung-bild-link" href="#" target="_blank" rel="noopener noreferrer"><img id="anweisung-bild" alt="Bild zur privaten Anweisung" class="max-w-full max-h-80 rounded-lg border border-amber-200 object-contain"></a></div>
+                            <div id="private-anweisung-editor" class="mt-4 pt-3 border-t border-amber-200 hidden">
+                                <label for="private-anweisung-eingabe" class="block text-xs font-bold mb-1">Private Anweisung schreiben / aktualisieren</label>
+                                <textarea id="private-anweisung-eingabe" rows="3" class="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Anweisung für das Baustellen-Team eingeben …"></textarea>
+                                <label for="private-anweisung-bild-datei" class="block text-xs font-bold mt-2 mb-1">Bild zur Anweisung (optional)</label>
+                                <input id="private-anweisung-bild-datei" type="file" accept="image/*" class="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs text-slate-800">
+                                <div class="flex justify-end mt-2"><button type="button" onclick="privateAnweisungDirektSpeichern()" class="rounded-lg bg-amber-600 hover:bg-amber-700 px-4 py-2 text-sm font-bold text-white">💾 Anweisung speichern</button></div>
+                            </div>
                         </div>
                     </div>
                     <div id="projekt-info-panel-beschreibung" class="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 hidden">
@@ -5235,6 +5243,29 @@ SECURITY MIGRATION MARKER (06.10.2026):
         window.tagesberichtSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; const text=document.getElementById('tagesbericht-text')?.value.trim(); const st=document.getElementById('tagesbericht-stunden')?.value; if(!p||!text) return alert('Bitte einen Tagesbericht eingeben.'); p.tagesberichte=p.tagesberichte||[]; p.tagesberichte.push({datum:new Date().toLocaleDateString('de-DE'),mitarbeiter:eingeloggterMitarbeiter,text,stunden:st||'',erstelltAm:new Date().toISOString()}); document.getElementById('tagesbericht-text').value=''; document.getElementById('tagesbericht-stunden').value=''; await projektSpeichern(aktuellesProjekt); projektModuleAktualisieren(); };
         window.abnahmeSpeichern = async function(){ const p=globalDaten.projekte[aktuellesProjekt]; if(!p) return; const verantwortlicher=document.getElementById('abnahme-verantwortlicher')?.value.trim(); const notiz=document.getElementById('abnahme-notiz')?.value.trim(); if(!verantwortlicher) return alert('Bitte Kunde / Verantwortlichen eintragen.'); p.abnahme={verantwortlicher,notiz,datum:new Date().toLocaleDateString('de-DE'),durch:eingeloggterMitarbeiter}; p.status='Fertig'; await projektSpeichern(aktuellesProjekt); projektLaden(aktuellesProjekt); alert('Abnahme gespeichert und Baustelle auf Fertig gesetzt.'); };
 
+        function darfPrivateAnweisungBearbeiten(){
+            const rolle = String(eingeloggteRolle || '').toLowerCase();
+            return istDauerhafterAdmin() || rolle.includes('chef') || rolle.includes('techniker') || rolle.includes('admin') || eingeloggterMitarbeiter === 'Christian Leppin';
+        }
+
+        window.privateAnweisungDirektSpeichern = async function(){
+            if (!darfPrivateAnweisungBearbeiten()) { alert('Nur Chef, 2. Chef und Techniker dürfen private Anweisungen schreiben.'); return; }
+            const p = globalDaten.projekte[aktuellesProjekt];
+            if (!aktuellesProjekt || !p) { alert('Bitte zuerst eine Baustelle auswählen.'); return; }
+            const text = document.getElementById('private-anweisung-eingabe')?.value.trim() || '';
+            const bildDatei = document.getElementById('private-anweisung-bild-datei')?.files?.[0] || null;
+            p.privateAnweisung = text;
+            p.privateAnweisungVon = eingeloggterMitarbeiter || 'Unbekannt';
+            p.privateAnweisungAm = new Date().toISOString();
+            if (bildDatei) {
+                try { p.privateAnweisungBild = await uploadBaustellenDatei(bildDatei, 'anweisungen', aktuellesProjekt); }
+                catch (e) { alert('Das Bild konnte nicht hochgeladen werden. Die Textanweisung wird gespeichert. Fehler: ' + (e.message || e)); }
+            }
+            await projektSpeichern(aktuellesProjekt);
+            projektLaden(aktuellesProjekt);
+            alert('Private Anweisung gespeichert.');
+        };
+
         function isChefOrPrivileged(){ return istDauerhafterAdmin() || eingeloggteRolle.includes('Chef')||eingeloggteRolle.includes('Techniker')||eingeloggteRolle.includes('Admin')||eingeloggteRolle.includes('Sekretariat')||eingeloggterMitarbeiter==='Christian Leppin'; }
 
         // Neue Aufträge/Baustellen dürfen ausschließlich Sekretariat, Techniker
@@ -5372,6 +5403,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (titel) titel.innerText = 'Keine Baustelle ausgewählt';
             if (adresse) adresse.innerText = 'Dir ist derzeit keine Baustelle zugewiesen.';
             if (anweisung) anweisung.innerText = 'Noch keine private Anweisung hinterlegt.';
+            const autorEl = document.getElementById('anweisung-autor'); if (autorEl) { autorEl.textContent = ''; autorEl.classList.add('hidden'); }
+            const editorEl = document.getElementById('private-anweisung-editor'); if (editorEl) editorEl.classList.add('hidden');
+            const eingabeEl = document.getElementById('private-anweisung-eingabe'); if (eingabeEl) eingabeEl.value = '';
+            const bildDateiEl = document.getElementById('private-anweisung-bild-datei'); if (bildDateiEl) bildDateiEl.value = '';
             const beschreibungEl = document.getElementById('baustellenbeschreibung-text'); if (beschreibungEl) beschreibungEl.innerText = 'Keine Baustellenbeschreibung hinterlegt.';
             const bildBox = document.getElementById('anweisung-bild-container'); if (bildBox) bildBox.classList.add('hidden');
             window.projektInfoReiterWechseln('anweisung');
@@ -5408,7 +5443,17 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             document.getElementById('projekt-titel').innerText = titel;
             document.getElementById('projekt-adresse').innerText = `Adresse: ${p.adresse}`;
-            document.getElementById('anweisung-text').innerText = p.privateAnweisung || '';
+            document.getElementById('anweisung-text').innerText = p.privateAnweisung || 'Noch keine private Anweisung hinterlegt.';
+            const autorEl = document.getElementById('anweisung-autor');
+            if (autorEl) {
+                if (p.privateAnweisungVon) { autorEl.textContent = `Anweisung von: ${p.privateAnweisungVon}${p.privateAnweisungAm ? ' · ' + new Date(p.privateAnweisungAm).toLocaleString('de-DE') : ''}`; autorEl.classList.remove('hidden'); }
+                else { autorEl.textContent = ''; autorEl.classList.add('hidden'); }
+            }
+            const editorEl = document.getElementById('private-anweisung-editor');
+            const editorBerechtigt = darfPrivateAnweisungBearbeiten();
+            if (editorEl) editorEl.classList.toggle('hidden', !editorBerechtigt);
+            const eingabeEl = document.getElementById('private-anweisung-eingabe'); if (eingabeEl) eingabeEl.value = p.privateAnweisung || '';
+            const bildDateiEl = document.getElementById('private-anweisung-bild-datei'); if (bildDateiEl) bildDateiEl.value = '';
             const beschreibungEl = document.getElementById('baustellenbeschreibung-text');
             if (beschreibungEl) beschreibungEl.innerText = p.beschreibung || p.anweisung || 'Keine Baustellenbeschreibung hinterlegt.';
             const bildBox = document.getElementById('anweisung-bild-container');
