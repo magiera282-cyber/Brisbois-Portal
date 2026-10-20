@@ -2157,7 +2157,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+        import { getStorage, ref as storageRef, uploadBytes, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
         import { serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -7250,7 +7250,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             });
         }
 
-        async function uploadBaustellenDatei(datei, ordner, projektname) {
+        async function uploadBaustellenDatei(datei, ordner, projektname, onProgress = null) {
             if (!datei) throw new Error("Keine Datei ausgewählt.");
             const maxMB = ordner === "plaene" ? 50 : 15;
             if (datei.size > maxMB * 1024 * 1024) {
@@ -7264,7 +7264,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const dateiname = `${Date.now()}_${crypto.randomUUID()}_${sichererDateiname}`;
             const pfad = `baustellen/${sichererProjektname}/${ordner}/${dateiname}`;
             const ziel = storageRef(storage, pfad);
-            await uploadBytes(ziel, datei, { contentType: datei.type || "application/octet-stream" });
+            // Resumable upload reports the real byte-level progress from Firebase Storage.
+            await new Promise((resolve, reject) => {
+                const task = uploadBytesResumable(ziel, datei, { contentType: datei.type || "application/octet-stream" });
+                task.on("state_changed", snapshot => {
+                    const percent = snapshot.totalBytes ? Math.round(snapshot.bytesTransferred / snapshot.totalBytes * 100) : 0;
+                    if (typeof onProgress === "function") onProgress(percent, snapshot.bytesTransferred, snapshot.totalBytes);
+                }, reject, resolve);
+            });
             return await getDownloadURL(ziel);
         }
 
@@ -7377,6 +7384,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     // Prefer the original PDF in Firebase Storage for sharp zoom.
                     // If Storage is unavailable/blocked, fall back to the established Firestore-image path
                     // so uploading plans still works. Each PDF page becomes its own plan either way.
+                    const progressPanel = document.getElementById('plan-upload-progress');
+                    if (progressPanel) {
+                        progressPanel.classList.remove('hidden');
+                        progressPanel.innerHTML = '<div class="font-semibold mb-2">PDF wird vorbereitet …</div><div class="h-2.5 w-full rounded-full bg-blue-100 overflow-hidden"><div class="h-full bg-blue-600 animate-pulse" style="width:35%"></div></div><p class="mt-1 text-xs text-slate-600">Datei wird geprüft. Prozentanzeige beginnt beim tatsächlichen Upload.</p>';
+                    }
                     if (uploadStatus) uploadStatus.textContent = '⏳ PDF.js wird gestartet und Seiten werden ermittelt …';
                     const anzahlSeiten = await pdfPlanSeitenErmitteln(datei);
                     if (uploadStatus) uploadStatus.textContent = '⏳ ' + anzahlSeiten + ' PDF-Seiten erkannt. Speichere Originaldatei …';
@@ -7387,7 +7399,16 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     if (uploadStatus) uploadStatus.textContent = `⏳ Lade Original-PDF (${(datei.size / 1024 / 1024).toFixed(1)} MB) hoch … Bitte dieses Fenster geöffnet lassen.`;
                     let pdfUrl = '';
                     try {
-                        pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt);
+                        pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt, (percent, transferred, total) => {
+                            const mbDone = (transferred / 1024 / 1024).toFixed(1);
+                            const mbTotal = (total / 1024 / 1024).toFixed(1);
+                            if (uploadStatus) uploadStatus.textContent = `⏫ Original-PDF wird hochgeladen: ${percent}% (${mbDone} von ${mbTotal} MB) …`;
+                            const progress = document.getElementById('plan-upload-progress');
+                            if (progress) {
+                                progress.classList.remove('hidden');
+                                progress.innerHTML = `<div class="flex justify-between gap-3 mb-2"><strong>Original-PDF wird hochgeladen …</strong><strong>${percent}%</strong></div><div class="h-2.5 w-full rounded-full bg-blue-100 overflow-hidden"><div class="h-full bg-blue-600 transition-all" style="width:${percent}%"></div></div><p class="mt-1 text-xs text-slate-600">${mbDone} von ${mbTotal} MB übertragen. Bitte Fenster geöffnet lassen.</p>`;
+                            }
+                        });
                     } catch (e) {
                         console.error('Original-PDF konnte nicht in Firebase Storage gespeichert werden:', e);
                         throw new Error('Die Original-PDF konnte nicht in Firebase Storage gespeichert werden. Es wurde bewusst kein unscharfes Ersatzbild erstellt. Prüfe bitte die Firebase-Storage-Berechtigungen und den verfügbaren Speicher. Details: ' + (e?.message || e));
@@ -7403,6 +7424,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
                         });
                     }
                     if (uploadStatus) uploadStatus.textContent = `✅ Original-PDF gespeichert: ${anzahlSeiten} Seiten in voller Qualität.`;
+                    const donePanel = document.getElementById('plan-upload-progress');
+                    if (donePanel) { donePanel.classList.remove('hidden'); donePanel.innerHTML = '<strong>✅ Upload abgeschlossen – 100%</strong><p class="mt-1 text-xs text-slate-600">Original-PDF gespeichert; Seiten werden in voller Qualität angezeigt.</p>'; }
                     alert(`✅ Die Original-PDF „${datei.name}“ wurde gespeichert. Alle ${anzahlSeiten} Seiten bleiben in voller Qualität verfügbar.`);
                     return;
                 } else {
