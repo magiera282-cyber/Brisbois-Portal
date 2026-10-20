@@ -11,6 +11,14 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- PDF.js für echte PDF-Texterkennung / Seiten-Rendering -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+      // PDF.js worker explizit setzen, damit das Laden der PDF nicht hängen bleibt.
+      window.addEventListener('load', function () {
+        if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+      });
+    </script>
 
 
 <script>
@@ -7239,6 +7247,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist noch nicht geladen. Bitte die Seite einmal neu laden.');
 
             const daten = await datei.arrayBuffer();
+            if (window.pdfjsLib.GlobalWorkerOptions) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
             const pdf = await window.pdfjsLib.getDocument({data: daten}).promise;
             if (!pdf.numPages) throw new Error('Die PDF enthält keine Seiten.');
 
@@ -7276,7 +7285,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
         async function pdfPlanAlsBildSeitenKomprimieren(datei, maxSeite = 1800, qualitaet = 0.78) {
             if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
             if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist nicht geladen. Bitte Seite neu laden.');
-            const pdf = await window.pdfjsLib.getDocument({data: await datei.arrayBuffer()}).promise;
+            if (window.pdfjsLib.GlobalWorkerOptions) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            if (window.pdfjsLib.GlobalWorkerOptions) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            const ladeTask = window.pdfjsLib.getDocument({data: await datei.arrayBuffer()});
+            const pdf = await Promise.race([ladeTask.promise, new Promise((_, reject) => setTimeout(() => reject(new Error('PDF.js reagiert nicht. Bitte Seite neu laden; falls es erneut passiert, liegt es am PDF-Laden.')), 20000))]);
             const result = [];
             for (let seite = 1; seite <= pdf.numPages; seite++) {
                 const page = await pdf.getPage(seite);
@@ -7306,7 +7318,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
         async function pdfPlanSeitenErmitteln(datei) {
             if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
             if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist noch nicht geladen. Bitte die Seite einmal neu laden.');
-            const pdf = await window.pdfjsLib.getDocument({data: await datei.arrayBuffer()}).promise;
+            const ladeTask = window.pdfjsLib.getDocument({data: await datei.arrayBuffer()});
+            const pdf = await Promise.race([ladeTask.promise, new Promise((_, reject) => setTimeout(() => reject(new Error('PDF.js reagiert nicht. Bitte Seite neu laden; falls es erneut passiert, liegt es am PDF-Laden.')), 20000))]);
             if (!pdf.numPages) throw new Error('Die PDF enthält keine Seiten.');
             return pdf.numPages;
         }
@@ -7337,7 +7350,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     // Prefer the original PDF in Firebase Storage for sharp zoom.
                     // If Storage is unavailable/blocked, fall back to the established Firestore-image path
                     // so uploading plans still works. Each PDF page becomes its own plan either way.
+                    if (uploadStatus) uploadStatus.textContent = '⏳ PDF.js wird gestartet und Seiten werden ermittelt …';
                     const anzahlSeiten = await pdfPlanSeitenErmitteln(datei);
+                    if (uploadStatus) uploadStatus.textContent = '⏳ ' + anzahlSeiten + ' PDF-Seiten erkannt. Speichere Originaldatei …';
                     let pdfUrl = '';
                     let storageFehler = null;
                     try {
