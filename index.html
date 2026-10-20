@@ -1583,6 +1583,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                             </label>
                         </div>
                     </div>
+                    <p id="plan-upload-status" class="hidden text-sm text-blue-700 font-semibold mt-2" role="status" aria-live="polite"></p>
 
                     <div id="plaene-auswahl-leiste" class="flex flex-wrap gap-2"></div>
 
@@ -7160,9 +7161,28 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (datei) verarbeiteGrundriss(datei);
         }
 
-        window.weitererPlanHinzufuegen = function(event) {
-            const datei = event.target.files[0];
-            if (datei) verarbeiteGrundriss(datei);
+        window.weitererPlanHinzufuegen = async function(event) {
+            const input = event && event.target;
+            const datei = input && input.files ? input.files[0] : null;
+            if (!datei) {
+                alert("Es wurde keine Datei ausgewählt. Bitte die PDF erneut auswählen.");
+                return;
+            }
+            console.log("[Plan-Upload] Dateiauswahl erkannt:", datei.name, datei.type, datei.size);
+            const status = document.getElementById("plan-upload-status");
+            if (status) {
+                status.textContent = "⏳ Datei ausgewählt: " + datei.name + " – Upload wird gestartet …";
+                status.classList.remove("hidden");
+            }
+            try {
+                await verarbeiteGrundriss(datei);
+            } catch (error) {
+                console.error("[Plan-Upload] Fehler beim Starten:", error);
+                if (status) status.textContent = "❌ Upload konnte nicht gestartet werden: " + (error?.message || error || "Unbekannter Fehler");
+                alert("❌ Der Plan-Upload konnte nicht gestartet werden.\n\n" + (error?.message || error || "Unbekannter Fehler"));
+            } finally {
+                if (input) input.value = "";
+            }
         }
 
         function planBildKomprimieren(datei, maxSeite = 1400, qualitaet = 0.72) {
@@ -7292,6 +7312,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
         }
 
         async function verarbeiteGrundriss(datei) {
+            const uploadStatus = document.getElementById("plan-upload-status");
+            if (uploadStatus && datei) {
+                uploadStatus.textContent = "⏳ Verarbeite „" + (datei.name || "Plan") + "“ …";
+                uploadStatus.classList.remove("hidden");
+            }
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
                 alert("Bitte zuerst eine Baustelle öffnen.");
                 return;
@@ -7330,7 +7355,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
                                 pdfSeite: seite, pdfSeitenGesamt: anzahlSeiten
                             });
                         }
-                        alert(`✅ Die PDF „${datei.name}“ wurde in ${anzahlSeiten} einzelne Pläne aufgeteilt. Originalqualität beim Zoomen bleibt erhalten.`);
+                        if (uploadStatus) uploadStatus.textContent = "✅ PDF erfolgreich hochgeladen: " + anzahlSeiten + " einzelne Pläne.";
+                    alert(`✅ Die PDF „${datei.name}“ wurde in ${anzahlSeiten} einzelne Pläne aufgeteilt. Originalqualität beim Zoomen bleibt erhalten.`);
                         return;
                     }
                     const pdfPlaene = await pdfPlanAlsBildSeitenKomprimieren(datei);
@@ -7342,6 +7368,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                             pdfSeite: pdfPlan.seite, pdfSeitenGesamt: pdfPlaene.length
                         });
                     }
+                    if (uploadStatus) uploadStatus.textContent = "✅ PDF hochgeladen: " + pdfPlaene.length + " einzelne Pläne (Ersatzvariante).";
                     alert(`✅ Die PDF wurde in ${pdfPlaene.length} einzelne Pläne hochgeladen. Hinweis: Firebase Storage war nicht verfügbar, daher ist der Zoom in dieser Ersatzvariante weniger scharf.`);
                     return;
                 } else {
@@ -7364,10 +7391,12 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     groesse: datei.size,
                     speicherart
                 });
+                if (uploadStatus) uploadStatus.textContent = "✅ Plan erfolgreich hochgeladen: " + datei.name;
                 alert(`✅ Plan „${datei.name}“ wurde erfolgreich hochgeladen.`);
             } catch (error) {
                 console.error("Fehler beim Hochladen des Plans:", error);
                 const msg = String(error?.message || error || 'Unbekannter Fehler');
+                if (uploadStatus) uploadStatus.textContent = "❌ Upload fehlgeschlagen: " + msg;
                 alert("❌ Der Plan konnte nicht hochgeladen werden.\n\n" + msg);
             } finally {
                 // Derselbe Plan kann direkt danach erneut ausgewählt werden.
