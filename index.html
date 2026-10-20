@@ -5690,7 +5690,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 const geladenePlaene = [];
                 snap.forEach(planSnap => {
                     const d = planSnap.data() || {};
-                    if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id });
+                    if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id, dateityp: String(d.dateityp || ''), speicherart: String(d.speicherart || ''), pdfUrl: String(d.pdfUrl || ''), pdfSeite: Number(d.pdfSeite || 0), pdfSeitenGesamt: Number(d.pdfSeitenGesamt || 0) });
                 });
                 geladenePlaene.sort((a,b) => a.index - b.index);
 
@@ -5718,12 +5718,13 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     geladenePlaene.length = 0;
                     neu.forEach(planSnap => {
                         const d = planSnap.data() || {};
-                        if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id });
+                        if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id, dateityp: String(d.dateityp || ''), speicherart: String(d.speicherart || ''), pdfUrl: String(d.pdfUrl || ''), pdfSeite: Number(d.pdfSeite || 0), pdfSeitenGesamt: Number(d.pdfSeitenGesamt || 0) });
                     });
                     geladenePlaene.sort((a,b) => a.index - b.index);
                 }
 
                 p.plaene = geladenePlaene.map(x => x.url);
+                p.planMetadaten = geladenePlaene.map(x => ({ dateityp:x.dateityp, speicherart:x.speicherart, pdfUrl:x.pdfUrl, pdfSeite:x.pdfSeite, pdfSeitenGesamt:x.pdfSeitenGesamt }));
                 if (p.aktiverPlanIndex >= p.plaene.length) p.aktiverPlanIndex = Math.max(0, p.plaene.length - 1);
             } catch (e) {
                 console.warn('Plan-Unterkollektion konnte nicht geladen werden; vorhandene lokale Pläne bleiben erhalten:', e);
@@ -5962,6 +5963,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             planVorschauAnzeigen();
             plaeneLeisteAktualisieren();
             projektPinListeAnzeigen();
+            if (!document.getElementById('plan-vollbild-modal')?.classList.contains('hidden')) window.vollbildOeffnen();
         }
 
         function planVorschauAnzeigen() {
@@ -5990,6 +5992,61 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 bildEl.classList.add('hidden');
                 pdfViewer.classList.add('hidden');
                 placeholder.style.display = 'block';
+            }
+        }
+
+        let aktiverPdfRenderTask = null;
+        let aktiverPdfDokument = null;
+        let aktiverPdfRenderToken = 0;
+        async function pdfSeiteInVollbildRendern(planIndex, zoomOverride) {
+            const p = globalDaten.projekte[aktuellesProjekt];
+            const meta = p?.planMetadaten?.[planIndex];
+            const url = meta?.pdfUrl || (meta?.speicherart === 'pdf-original-seite' ? p?.plaene?.[planIndex] : '');
+            if (!url || !meta?.pdfSeite || !window.pdfjsLib) return false;
+            const token = ++aktiverPdfRenderToken;
+            try {
+                if (aktiverPdfRenderTask) { try { aktiverPdfRenderTask.cancel(); } catch (_) {} aktiverPdfRenderTask = null; }
+                if (!aktiverPdfDokument || aktiverPdfDokument._pdfUrl !== url) {
+                    if (aktiverPdfDokument) { try { await aktiverPdfDokument.destroy(); } catch (_) {} }
+                    aktiverPdfDokument = await window.pdfjsLib.getDocument(url).promise;
+                    aktiverPdfDokument._pdfUrl = url;
+                }
+                const page = await aktiverPdfDokument.getPage(Number(meta.pdfSeite));
+                if (token !== aktiverPdfRenderToken) return true;
+                const base = page.getViewport({scale:1});
+                const maxW = Math.max(1, window.innerWidth * 0.92);
+                const maxH = Math.max(1, (window.innerHeight - 150) * 0.92);
+                const fit = Math.min(1, maxW / base.width, maxH / base.height);
+                const zoom = Math.max(0.7, Math.min(10, Number(zoomOverride ?? vollbildZoomFaktor) || 1));
+                const cssScale = fit * zoom;
+                const viewport = page.getViewport({scale: cssScale});
+                const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(viewport.width * dpr));
+                canvas.height = Math.max(1, Math.round(viewport.height * dpr));
+                canvas.style.width = `${Math.max(1, Math.round(viewport.width))}px`;
+                canvas.style.height = `${Math.max(1, Math.round(viewport.height))}px`;
+                canvas.className = 'block max-w-none select-none bg-white';
+                const ctx = canvas.getContext('2d', {alpha:false});
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                const viewer = document.getElementById('vollbild-pdf-viewer');
+                const wrapper = document.getElementById('vollbild-transform-wrapper');
+                const pins = document.getElementById('vollbild-pin-container');
+                if (!viewer || !wrapper) return false;
+                viewer.innerHTML = '';
+                viewer.appendChild(canvas);
+                viewer.style.width = canvas.style.width;
+                viewer.style.height = canvas.style.height;
+                wrapper.style.width = canvas.style.width;
+                wrapper.style.height = canvas.style.height;
+                if (pins) { pins.style.width = canvas.style.width; pins.style.height = canvas.style.height; }
+                aktiverPdfRenderTask = page.render({canvasContext:ctx, viewport});
+                await aktiverPdfRenderTask.promise;
+                if (token !== aktiverPdfRenderToken) return true;
+                return true;
+            } catch (e) {
+                if (e?.name !== 'RenderingCancelledException') console.error('PDF-Seite konnte nicht hochauflösend gerendert werden:', e);
+                return e?.name === 'RenderingCancelledException';
             }
         }
 
@@ -6029,7 +6086,12 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const pdfViewer = document.getElementById('vollbild-pdf-viewer');
             const aktiverPlan = p.plaene[p.aktiverPlanIndex || 0];
 
-            if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
+            const aktiverPlanMeta = p.planMetadaten?.[p.aktiverPlanIndex || 0];
+            if (aktiverPlanMeta?.speicherart === 'pdf-original-seite' && aktiverPlanMeta?.pdfUrl) {
+                bildEl.classList.add('hidden');
+                pdfViewer.classList.remove('hidden');
+                await pdfSeiteInVollbildRendern(p.aktiverPlanIndex || 0, 1);
+            } else if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
                 bildEl.classList.add('hidden');
                 pdfViewer.classList.remove('hidden');
                 pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
@@ -6084,19 +6146,28 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         window.vollbildZoomIn = function() {
             vollbildZoomFaktor = Math.min(vollbildZoomFaktor + 0.3, 10);
-            aktualisiereVollbildTransform();
+            const p = globalDaten.projekte[aktuellesProjekt];
+            const idx = p?.aktiverPlanIndex || 0;
+            if (p?.planMetadaten?.[idx]?.speicherart === 'pdf-original-seite') pdfSeiteInVollbildRendern(idx, vollbildZoomFaktor);
+            else aktualisiereVollbildTransform();
         }
 
         window.vollbildZoomOut = function() {
             vollbildZoomFaktor = Math.max(vollbildZoomFaktor - 0.3, 0.7);
-            aktualisiereVollbildTransform();
+            const p = globalDaten.projekte[aktuellesProjekt];
+            const idx = p?.aktiverPlanIndex || 0;
+            if (p?.planMetadaten?.[idx]?.speicherart === 'pdf-original-seite') pdfSeiteInVollbildRendern(idx, vollbildZoomFaktor);
+            else aktualisiereVollbildTransform();
         }
 
         window.vollbildZoomReset = function() {
             vollbildZoomFaktor = 1;
             mobilePlanOffsetX = 0;
             mobilePlanOffsetY = 0;
-            aktualisiereVollbildTransform();
+            const p = globalDaten.projekte[aktuellesProjekt];
+            const idx = p?.aktiverPlanIndex || 0;
+            if (p?.planMetadaten?.[idx]?.speicherart === 'pdf-original-seite') pdfSeiteInVollbildRendern(idx, 1);
+            else aktualisiereVollbildTransform();
         }
 
         let vollbildPinsSichtbar = true;
@@ -7143,43 +7214,12 @@ SECURITY MIGRATION MARKER (06.10.2026):
             return await getDownloadURL(ziel);
         }
 
-        async function pdfPlanAlsBildKomprimieren(datei, maxSeite = 1800, qualitaet = 0.78) {
+        async function pdfPlanSeitenErmitteln(datei) {
             if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
             if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist noch nicht geladen. Bitte die Seite einmal neu laden.');
-
-            const daten = await datei.arrayBuffer();
-            const pdf = await window.pdfjsLib.getDocument({data: daten}).promise;
+            const pdf = await window.pdfjsLib.getDocument({data: await datei.arrayBuffer()}).promise;
             if (!pdf.numPages) throw new Error('Die PDF enthält keine Seiten.');
-            const plaene = [];
-            for (let nummer = 1; nummer <= pdf.numPages; nummer++) {
-                const seite = await pdf.getPage(nummer);
-                const basis = seite.getViewport({scale: 1});
-                const faktor = Math.min(1.8, maxSeite / Math.max(basis.width, basis.height));
-                const viewport = seite.getViewport({scale: faktor});
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.max(1, Math.round(viewport.width));
-                canvas.height = Math.max(1, Math.round(viewport.height));
-                const ctx = canvas.getContext('2d', {alpha: false});
-                if (!ctx) throw new Error(`PDF-Seite ${nummer} konnte nicht dargestellt werden.`);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                await seite.render({canvasContext: ctx, viewport}).promise;
-                const blob = await new Promise((resolve, reject) => {
-                    canvas.toBlob(b => b ? resolve(b) : reject(new Error(`PDF-Seite ${nummer} konnte nicht komprimiert werden.`)), 'image/jpeg', qualitaet);
-                });
-                const reader = new FileReader();
-                const dataUrl = await new Promise((resolve, reject) => {
-                    reader.onerror = () => reject(new Error(`PDF-Seite ${nummer} konnte nicht gelesen werden.`));
-                    reader.onload = () => resolve(String(reader.result || ''));
-                    reader.readAsDataURL(blob);
-                });
-                if (!dataUrl || dataUrl.length > 800000) {
-                    throw new Error(`PDF-Seite ${nummer} ist trotz Komprimierung zu groß. Bitte eine kleinere PDF auswählen.`);
-                }
-                plaene.push({url: dataUrl, seite: nummer});
-                canvas.width = 1; canvas.height = 1;
-            }
-            return plaene;
+            return pdf.numPages;
         }
 
         async function verarbeiteGrundriss(datei) {
@@ -7200,20 +7240,22 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 let dateityp = 'image/jpeg';
 
                 if (istPdf) {
-                    // Jede PDF-Seite wird als eigener Plan gespeichert (Plan 1, Plan 2 usw.).
-                    // Die bisherigen Einzelbild-Uploads bleiben unverändert.
-                    const pdfPlaene = await pdfPlanAlsBildKomprimieren(datei);
-                    for (const pdfPlan of pdfPlaene) {
-                        await speichereGrundrissPlan(pdfPlan.url, {
-                            dateiname: `${datei.name} – Seite ${pdfPlan.seite}`,
-                            dateityp: 'image/jpeg',
+                    // Original-PDF in Storage ablegen und jede Seite als separaten Plan referenzieren.
+                    // So kann PDF.js bei jedem Zoom neu in hoher Auflösung rendern; Pins bleiben pro Plan indexiert.
+                    const anzahlSeiten = await pdfPlanSeitenErmitteln(datei);
+                    const pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt);
+                    for (let seite = 1; seite <= anzahlSeiten; seite++) {
+                        await speichereGrundrissPlan(pdfUrl, {
+                            dateiname: `${datei.name} – Seite ${seite}`,
+                            dateityp: 'application/pdf',
                             groesse: datei.size,
-                            speicherart: 'firestore-pdf-render',
-                            pdfSeite: pdfPlan.seite,
-                            pdfSeitenGesamt: pdfPlaene.length
+                            speicherart: 'pdf-original-seite',
+                            pdfUrl,
+                            pdfSeite: seite,
+                            pdfSeitenGesamt: anzahlSeiten
                         });
                     }
-                    alert(`✅ Die PDF „${datei.name}“ wurde in ${pdfPlaene.length} einzelne Pläne aufgeteilt und hochgeladen.`);
+                    alert(`✅ Die PDF „${datei.name}“ wurde in ${anzahlSeiten} einzelne Pläne aufgeteilt. Die Originalqualität bleibt beim Zoomen erhalten.`);
                     return;
                 } else {
                     const uploadDatei = await planBildKomprimieren(datei);
@@ -7264,6 +7306,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 dateityp: meta.dateityp || '',
                 groesse: Number(meta.groesse || 0),
                 speicherart: meta.speicherart || '',
+                pdfUrl: meta.pdfUrl || '',
+                pdfSeite: Number(meta.pdfSeite || 0),
+                pdfSeitenGesamt: Number(meta.pdfSeitenGesamt || 0),
                 erstelltAm: new Date().toISOString(),
                 erstelltVon: eingeloggterMitarbeiter || ''
             });
@@ -7271,6 +7316,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // Lokal für die bestehende Anzeige vorhalten. Diese Werte werden
             // NICHT mehr in das Projekt-Dokument geschrieben.
             p.plaene.push(ergebnisUrl);
+            if (!Array.isArray(p.planMetadaten)) p.planMetadaten = [];
+            p.planMetadaten.push({ dateityp: meta.dateityp || '', speicherart: meta.speicherart || '', pdfUrl: meta.pdfUrl || '', pdfSeite: Number(meta.pdfSeite || 0), pdfSeitenGesamt: Number(meta.pdfSeitenGesamt || 0) });
             p.aktiverPlanIndex = index;
 
             if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
