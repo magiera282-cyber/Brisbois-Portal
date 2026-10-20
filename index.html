@@ -7150,35 +7150,36 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const daten = await datei.arrayBuffer();
             const pdf = await window.pdfjsLib.getDocument({data: daten}).promise;
             if (!pdf.numPages) throw new Error('Die PDF enthält keine Seiten.');
-
-            // Für Grundriss-Pläne wird die erste PDF-Seite als hochauflösendes
-            // JPG gespeichert. Dadurch ist kein Firebase-Storage-Zugriff nötig.
-            const seite = await pdf.getPage(1);
-            const basis = seite.getViewport({scale: 1});
-            const faktor = Math.min(1.8, maxSeite / Math.max(basis.width, basis.height));
-            const viewport = seite.getViewport({scale: faktor});
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.max(1, Math.round(viewport.width));
-            canvas.height = Math.max(1, Math.round(viewport.height));
-            const ctx = canvas.getContext('2d', {alpha: false});
-            if (!ctx) throw new Error('Der PDF-Plan konnte nicht dargestellt werden.');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            await seite.render({canvasContext: ctx, viewport}).promise;
-
-            const blob = await new Promise((resolve, reject) => {
-                canvas.toBlob(b => b ? resolve(b) : reject(new Error('Der PDF-Plan konnte nicht komprimiert werden.')), 'image/jpeg', qualitaet);
-            });
-            const reader = new FileReader();
-            const dataUrl = await new Promise((resolve, reject) => {
-                reader.onerror = () => reject(new Error('Der umgewandelte PDF-Plan konnte nicht gelesen werden.'));
-                reader.onload = () => resolve(String(reader.result || ''));
-                reader.readAsDataURL(blob);
-            });
-            if (!dataUrl || dataUrl.length > 800000) {
-                throw new Error('Der PDF-Plan ist trotz Komprimierung noch zu groß. Bitte eine kleinere PDF auswählen.');
+            const plaene = [];
+            for (let nummer = 1; nummer <= pdf.numPages; nummer++) {
+                const seite = await pdf.getPage(nummer);
+                const basis = seite.getViewport({scale: 1});
+                const faktor = Math.min(1.8, maxSeite / Math.max(basis.width, basis.height));
+                const viewport = seite.getViewport({scale: faktor});
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(viewport.width));
+                canvas.height = Math.max(1, Math.round(viewport.height));
+                const ctx = canvas.getContext('2d', {alpha: false});
+                if (!ctx) throw new Error(`PDF-Seite ${nummer} konnte nicht dargestellt werden.`);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                await seite.render({canvasContext: ctx, viewport}).promise;
+                const blob = await new Promise((resolve, reject) => {
+                    canvas.toBlob(b => b ? resolve(b) : reject(new Error(`PDF-Seite ${nummer} konnte nicht komprimiert werden.`)), 'image/jpeg', qualitaet);
+                });
+                const reader = new FileReader();
+                const dataUrl = await new Promise((resolve, reject) => {
+                    reader.onerror = () => reject(new Error(`PDF-Seite ${nummer} konnte nicht gelesen werden.`));
+                    reader.onload = () => resolve(String(reader.result || ''));
+                    reader.readAsDataURL(blob);
+                });
+                if (!dataUrl || dataUrl.length > 800000) {
+                    throw new Error(`PDF-Seite ${nummer} ist trotz Komprimierung zu groß. Bitte eine kleinere PDF auswählen.`);
+                }
+                plaene.push({url: dataUrl, seite: nummer});
+                canvas.width = 1; canvas.height = 1;
             }
-            return dataUrl;
+            return plaene;
         }
 
         async function verarbeiteGrundriss(datei) {
@@ -7199,11 +7200,21 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 let dateityp = 'image/jpeg';
 
                 if (istPdf) {
-                    // PDF-Pläne werden direkt im Browser gerendert und als
-                    // komprimiertes Planbild im bestehenden Plan-Dokument gespeichert.
-                    // Damit funktioniert der PDF-Upload auch ohne Firebase Storage.
-                    url = await pdfPlanAlsBildKomprimieren(datei);
-                    speicherart = 'firestore-pdf-render';
+                    // Jede PDF-Seite wird als eigener Plan gespeichert (Plan 1, Plan 2 usw.).
+                    // Die bisherigen Einzelbild-Uploads bleiben unverändert.
+                    const pdfPlaene = await pdfPlanAlsBildKomprimieren(datei);
+                    for (const pdfPlan of pdfPlaene) {
+                        await speichereGrundrissPlan(pdfPlan.url, {
+                            dateiname: `${datei.name} – Seite ${pdfPlan.seite}`,
+                            dateityp: 'image/jpeg',
+                            groesse: datei.size,
+                            speicherart: 'firestore-pdf-render',
+                            pdfSeite: pdfPlan.seite,
+                            pdfSeitenGesamt: pdfPlaene.length
+                        });
+                    }
+                    alert(`✅ Die PDF „${datei.name}“ wurde in ${pdfPlaene.length} einzelne Pläne aufgeteilt und hochgeladen.`);
+                    return;
                 } else {
                     const uploadDatei = await planBildKomprimieren(datei);
                     const reader = new FileReader();
