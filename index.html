@@ -7356,10 +7356,16 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     let pdfUrl = '';
                     let storageFehler = null;
                     try {
-                        pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt);
+                        // Storage kann in manchen Portal-Konfigurationen hängen bleiben.
+                        // Nach 12 Sekunden wechseln wir zum Bild-Fallback, damit der Upload nicht endlos wartet.
+                        pdfUrl = await Promise.race([
+                            uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Zeitüberschreitung beim Speichern der Original-PDF in Firebase Storage.')), 12000))
+                        ]);
                     } catch (e) {
                         storageFehler = e;
-                        console.warn('PDF-Original konnte nicht in Storage abgelegt werden; nutze kompatiblen Bild-Fallback:', e);
+                        console.warn('PDF-Original konnte nicht rechtzeitig in Storage abgelegt werden; nutze kompatiblen Bild-Fallback:', e);
+                        if (uploadStatus) uploadStatus.textContent = '⏳ Original-PDF-Speicherung dauert zu lange. Erstelle jetzt 3 einzelne Planbilder …';
                     }
                     if (pdfUrl) {
                         for (let seite = 1; seite <= anzahlSeiten; seite++) {
@@ -7376,6 +7382,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     }
                     const pdfPlaene = await pdfPlanAlsBildSeitenKomprimieren(datei);
                     for (const pdfPlan of pdfPlaene) {
+                        if (uploadStatus) uploadStatus.textContent = '⏳ Speichere Planseite ' + pdfPlan.seite + ' von ' + pdfPlaene.length + ' …';
                         await speichereGrundrissPlan(pdfPlan.url, {
                             dateiname: `${datei.name} – Seite ${pdfPlan.seite}`,
                             dateityp: 'image/jpeg', groesse: datei.size,
