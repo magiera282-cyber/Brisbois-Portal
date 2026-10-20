@@ -7305,7 +7305,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     if (snapshot.state === "running") sawRunning = true;
                     lastTransferred = Math.max(lastTransferred, transferred);
                     const percent = snapshot.totalBytes ? Math.round(transferred / snapshot.totalBytes * 100) : 0;
-                    if (typeof onProgress === "function") onProgress(percent, transferred, snapshot.totalBytes, snapshot.state);
+                    if (typeof onProgress === "function") {
+                        try { onProgress(percent, transferred, snapshot.totalBytes, snapshot.state); }
+                        catch (progressError) { console.error("Plan-Upload-Fortschrittsanzeige fehlgeschlagen:", progressError); }
+                    }
                 }, err => {
                     const code = err?.code ? ` [${err.code}]` : "";
                     fail(new Error(`${err?.message || "Firebase Storage Upload fehlgeschlagen."}${code}`));
@@ -7443,19 +7446,24 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     if (uploadStatus) uploadStatus.textContent = `⏳ Lade Original-PDF (${(datei.size / 1024 / 1024).toFixed(1)} MB) hoch … Bitte dieses Fenster geöffnet lassen.`;
                     let pdfUrl = '';
                     try {
-                        pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt, (percent, transferred, total) => {
-                            const mbDone = (transferred / 1024 / 1024).toFixed(1);
-                            const mbTotal = (total / 1024 / 1024).toFixed(1);
-                            if (uploadStatus) uploadStatus.textContent = `⏫ Original-PDF: ${percent}% (${mbDone} von ${mbTotal} MB) – ${state || 'Übertragung läuft'} …`;
-                            const progress = document.getElementById('plan-upload-progress');
-                            if (progress) {
-                                progress.classList.remove('hidden');
-                                progress.innerHTML = `<div class="flex justify-between gap-3 mb-2"><strong>Original-PDF wird hochgeladen …</strong><strong>${percent}%</strong></div><div class="h-2.5 w-full rounded-full bg-blue-100 overflow-hidden"><div class="h-full bg-blue-600 transition-all" style="width:${percent}%"></div></div><p class="mt-1 text-xs text-slate-600">${mbDone} von ${mbTotal} MB übertragen. Bitte Fenster geöffnet lassen.</p>`;
+                        pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt, (percent, transferred, total, uploadState) => {
+                            // UI-Fehler dürfen niemals den Firebase-Status-Listener unterbrechen.
+                            try {
+                                const mbDone = (transferred / 1024 / 1024).toFixed(1);
+                                const mbTotal = (total / 1024 / 1024).toFixed(1);
+                                if (uploadStatus) uploadStatus.textContent = `⏫ Original-PDF: ${percent}% (${mbDone} von ${mbTotal} MB) – ${uploadState || 'Übertragung läuft'} …`;
+                                const progress = document.getElementById('plan-upload-progress');
+                                if (progress) {
+                                    progress.classList.remove('hidden');
+                                    progress.innerHTML = `<div class="flex justify-between gap-3 mb-2"><strong>Original-PDF wird hochgeladen …</strong><strong>${percent}%</strong></div><div class="h-2.5 w-full rounded-full bg-blue-100 overflow-hidden"><div class="h-full bg-blue-600 transition-all" style="width:${percent}%"></div></div><p class="mt-1 text-xs text-slate-600">${mbDone} von ${mbTotal} MB übertragen. Status: ${uploadState || 'Übertragung läuft'}. Bitte Fenster geöffnet lassen.</p>`;
+                                }
+                            } catch (uiError) {
+                                console.error('[Plan-Upload] Fortschrittsanzeige fehlgeschlagen:', uiError);
                             }
                         });
                     } catch (e) {
                         console.error('Original-PDF konnte nicht in Firebase Storage gespeichert werden:', e);
-                        throw new Error('Die Original-PDF konnte nicht in Firebase Storage gespeichert werden. Es wurde bewusst kein unscharfes Ersatzbild erstellt. Details zum Upload-Fehler: ' + (e?.message || e));
+                        throw new Error('Die Original-PDF konnte nicht in Firebase Storage gespeichert werden. Es wurde bewusst kein unscharfes Ersatzbild erstellt. Upload-Details: ' + (e?.message || e));
                     }
                     if (!pdfUrl) throw new Error('Firebase Storage hat keine Download-Adresse für die Original-PDF zurückgegeben.');
                     if (uploadStatus) uploadStatus.textContent = '⏳ Original-PDF gespeichert. Lege jetzt die drei Seiten mit getrennten Pin-Bereichen an …';
