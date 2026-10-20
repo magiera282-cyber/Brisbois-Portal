@@ -7380,46 +7380,30 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     if (uploadStatus) uploadStatus.textContent = '⏳ PDF.js wird gestartet und Seiten werden ermittelt …';
                     const anzahlSeiten = await pdfPlanSeitenErmitteln(datei);
                     if (uploadStatus) uploadStatus.textContent = '⏳ ' + anzahlSeiten + ' PDF-Seiten erkannt. Speichere Originaldatei …';
+                    // Wichtig: PDF niemals in niedrig aufgelöste Bilder umwandeln.
+                    // Die Originaldatei wird direkt in Firebase Storage abgelegt. Bei langsamer
+                    // Verbindung warten wir auf den Upload, statt nach wenigen Sekunden auf
+                    // einen unscharfen JPEG-Fallback umzuschalten.
+                    if (uploadStatus) uploadStatus.textContent = `⏳ Lade Original-PDF (${(datei.size / 1024 / 1024).toFixed(1)} MB) hoch … Bitte dieses Fenster geöffnet lassen.`;
                     let pdfUrl = '';
-                    let storageFehler = null;
                     try {
-                        // Storage kann in manchen Portal-Konfigurationen hängen bleiben.
-                        // Nach 12 Sekunden wechseln wir zum Bild-Fallback, damit der Upload nicht endlos wartet.
-                        pdfUrl = await Promise.race([
-                            uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('Zeitüberschreitung beim Speichern der Original-PDF in Firebase Storage.')), 12000))
-                        ]);
+                        pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt);
                     } catch (e) {
-                        storageFehler = e;
-                        console.warn('PDF-Original konnte nicht rechtzeitig in Storage abgelegt werden; nutze kompatiblen Bild-Fallback:', e);
-                        if (uploadStatus) uploadStatus.textContent = '⏳ Original-PDF-Speicherung dauert zu lange. Erstelle kleinere Planbilder (PDF ist 17 MB und hat sehr große Seiten) …';
+                        console.error('Original-PDF konnte nicht in Firebase Storage gespeichert werden:', e);
+                        throw new Error('Die Original-PDF konnte nicht in Firebase Storage gespeichert werden. Es wurde bewusst kein unscharfes Ersatzbild erstellt. Prüfe bitte die Firebase-Storage-Berechtigungen und den verfügbaren Speicher. Details: ' + (e?.message || e));
                     }
-                    if (pdfUrl) {
-                        for (let seite = 1; seite <= anzahlSeiten; seite++) {
-                            await speichereGrundrissPlan(pdfUrl, {
-                                dateiname: `${datei.name} – Seite ${seite}`,
-                                dateityp: 'application/pdf', groesse: datei.size,
-                                speicherart: 'pdf-original-seite', pdfUrl,
-                                pdfSeite: seite, pdfSeitenGesamt: anzahlSeiten
-                            });
-                        }
-                        if (uploadStatus) uploadStatus.textContent = "✅ PDF erfolgreich hochgeladen: " + anzahlSeiten + " einzelne Pläne.";
-                    alert(`✅ Die PDF „${datei.name}“ wurde in ${anzahlSeiten} einzelne Pläne aufgeteilt. Originalqualität beim Zoomen bleibt erhalten.`);
-                        return;
-                    }
-                    const pdfPlaene = await pdfPlanAlsBildSeitenKomprimieren(datei, 700, 0.52, statusText => { if (uploadStatus) uploadStatus.textContent = statusText; });
-                    for (const pdfPlan of pdfPlaene) {
-                        if (uploadStatus) uploadStatus.textContent = '⏳ Speichere Planseite ' + pdfPlan.seite + ' von ' + pdfPlaene.length + ' …';
-                        if (uploadStatus) uploadStatus.textContent = `⏳ Speichere Planseite ${pdfPlan.seite} von ${pdfPlaene.length} in der Datenbank …`;
-                        await speichereGrundrissPlan(pdfPlan.url, {
-                            dateiname: `${datei.name} – Seite ${pdfPlan.seite}`,
-                            dateityp: 'image/jpeg', groesse: datei.size,
-                            speicherart: 'firestore-pdf-render',
-                            pdfSeite: pdfPlan.seite, pdfSeitenGesamt: pdfPlaene.length
+                    if (!pdfUrl) throw new Error('Firebase Storage hat keine Download-Adresse für die Original-PDF zurückgegeben.');
+                    if (uploadStatus) uploadStatus.textContent = '⏳ Original-PDF gespeichert. Lege jetzt die drei Seiten mit getrennten Pin-Bereichen an …';
+                    for (let seite = 1; seite <= anzahlSeiten; seite++) {
+                        await speichereGrundrissPlan(pdfUrl, {
+                            dateiname: `${datei.name} – Seite ${seite}`,
+                            dateityp: 'application/pdf', groesse: datei.size,
+                            speicherart: 'pdf-original-seite', pdfUrl,
+                            pdfSeite: seite, pdfSeitenGesamt: anzahlSeiten
                         });
                     }
-                    if (uploadStatus) uploadStatus.textContent = "✅ PDF hochgeladen: " + pdfPlaene.length + " einzelne Pläne (Ersatzvariante).";
-                    alert(`✅ Die PDF wurde in ${pdfPlaene.length} einzelne Pläne hochgeladen. Hinweis: Firebase Storage war nicht verfügbar, daher ist der Zoom in dieser Ersatzvariante weniger scharf.`);
+                    if (uploadStatus) uploadStatus.textContent = `✅ Original-PDF gespeichert: ${anzahlSeiten} Seiten in voller Qualität.`;
+                    alert(`✅ Die Original-PDF „${datei.name}“ wurde gespeichert. Alle ${anzahlSeiten} Seiten bleiben in voller Qualität verfügbar.`);
                     return;
                 } else {
                     const uploadDatei = await planBildKomprimieren(datei);
