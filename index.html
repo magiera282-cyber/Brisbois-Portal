@@ -7214,6 +7214,75 @@ SECURITY MIGRATION MARKER (06.10.2026):
             return await getDownloadURL(ziel);
         }
 
+        async function pdfPlanAlsBildKomprimieren(datei, maxSeite = 1800, qualitaet = 0.78) {
+            if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
+            if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist noch nicht geladen. Bitte die Seite einmal neu laden.');
+
+            const daten = await datei.arrayBuffer();
+            const pdf = await window.pdfjsLib.getDocument({data: daten}).promise;
+            if (!pdf.numPages) throw new Error('Die PDF enthält keine Seiten.');
+
+            // Für Grundriss-Pläne wird die erste PDF-Seite als hochauflösendes
+            // JPG gespeichert. Dadurch ist kein Firebase-Storage-Zugriff nötig.
+            const seite = await pdf.getPage(1);
+            const basis = seite.getViewport({scale: 1});
+            const faktor = Math.min(1.8, maxSeite / Math.max(basis.width, basis.height));
+            const viewport = seite.getViewport({scale: faktor});
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(viewport.width));
+            canvas.height = Math.max(1, Math.round(viewport.height));
+            const ctx = canvas.getContext('2d', {alpha: false});
+            if (!ctx) throw new Error('Der PDF-Plan konnte nicht dargestellt werden.');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            await seite.render({canvasContext: ctx, viewport}).promise;
+
+            const blob = await new Promise((resolve, reject) => {
+                canvas.toBlob(b => b ? resolve(b) : reject(new Error('Der PDF-Plan konnte nicht komprimiert werden.')), 'image/jpeg', qualitaet);
+            });
+            const reader = new FileReader();
+            const dataUrl = await new Promise((resolve, reject) => {
+                reader.onerror = () => reject(new Error('Der umgewandelte PDF-Plan konnte nicht gelesen werden.'));
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.readAsDataURL(blob);
+            });
+            if (!dataUrl || dataUrl.length > 800000) {
+                throw new Error('Der PDF-Plan ist trotz Komprimierung noch zu groß. Bitte eine kleinere PDF auswählen.');
+            }
+            return dataUrl;
+        }
+
+
+        async function pdfPlanAlsBildSeitenKomprimieren(datei, maxSeite = 1800, qualitaet = 0.78) {
+            if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
+            if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist nicht geladen. Bitte Seite neu laden.');
+            const pdf = await window.pdfjsLib.getDocument({data: await datei.arrayBuffer()}).promise;
+            const result = [];
+            for (let seite = 1; seite <= pdf.numPages; seite++) {
+                const page = await pdf.getPage(seite);
+                const base = page.getViewport({scale: 1});
+                const scale = Math.min(1, maxSeite / Math.max(base.width, base.height));
+                const viewport = page.getViewport({scale: scale || 1});
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(viewport.width));
+                canvas.height = Math.max(1, Math.round(viewport.height));
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('PDF-Seite konnte nicht verarbeitet werden.');
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                await page.render({canvasContext: ctx, viewport}).promise;
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', qualitaet));
+                if (!blob) throw new Error(`PDF-Seite ${seite} konnte nicht als Bild gespeichert werden.`);
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader(); reader.onerror = () => reject(new Error('PDF-Seite konnte nicht gelesen werden.'));
+                    reader.onload = () => resolve(String(reader.result || '')); reader.readAsDataURL(blob);
+                });
+                if (!dataUrl || dataUrl.length > 800000) throw new Error(`PDF-Seite ${seite} ist zu groß zum Speichern.`);
+                result.push({seite, url: dataUrl});
+                canvas.width = 1; canvas.height = 1;
+            }
+            return result;
+        }
+
         async function pdfPlanSeitenErmitteln(datei) {
             if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
             if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist noch nicht geladen. Bitte die Seite einmal neu laden.');
@@ -7240,22 +7309,40 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 let dateityp = 'image/jpeg';
 
                 if (istPdf) {
-                    // Original-PDF in Storage ablegen und jede Seite als separaten Plan referenzieren.
-                    // So kann PDF.js bei jedem Zoom neu in hoher Auflösung rendern; Pins bleiben pro Plan indexiert.
+                    // Prefer the original PDF in Firebase Storage for sharp zoom.
+                    // If Storage is unavailable/blocked, fall back to the established Firestore-image path
+                    // so uploading plans still works. Each PDF page becomes its own plan either way.
                     const anzahlSeiten = await pdfPlanSeitenErmitteln(datei);
-                    const pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt);
-                    for (let seite = 1; seite <= anzahlSeiten; seite++) {
-                        await speichereGrundrissPlan(pdfUrl, {
-                            dateiname: `${datei.name} – Seite ${seite}`,
-                            dateityp: 'application/pdf',
-                            groesse: datei.size,
-                            speicherart: 'pdf-original-seite',
-                            pdfUrl,
-                            pdfSeite: seite,
-                            pdfSeitenGesamt: anzahlSeiten
+                    let pdfUrl = '';
+                    let storageFehler = null;
+                    try {
+                        pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt);
+                    } catch (e) {
+                        storageFehler = e;
+                        console.warn('PDF-Original konnte nicht in Storage abgelegt werden; nutze kompatiblen Bild-Fallback:', e);
+                    }
+                    if (pdfUrl) {
+                        for (let seite = 1; seite <= anzahlSeiten; seite++) {
+                            await speichereGrundrissPlan(pdfUrl, {
+                                dateiname: `${datei.name} – Seite ${seite}`,
+                                dateityp: 'application/pdf', groesse: datei.size,
+                                speicherart: 'pdf-original-seite', pdfUrl,
+                                pdfSeite: seite, pdfSeitenGesamt: anzahlSeiten
+                            });
+                        }
+                        alert(`✅ Die PDF „${datei.name}“ wurde in ${anzahlSeiten} einzelne Pläne aufgeteilt. Originalqualität beim Zoomen bleibt erhalten.`);
+                        return;
+                    }
+                    const pdfPlaene = await pdfPlanAlsBildSeitenKomprimieren(datei);
+                    for (const pdfPlan of pdfPlaene) {
+                        await speichereGrundrissPlan(pdfPlan.url, {
+                            dateiname: `${datei.name} – Seite ${pdfPlan.seite}`,
+                            dateityp: 'image/jpeg', groesse: datei.size,
+                            speicherart: 'firestore-pdf-render',
+                            pdfSeite: pdfPlan.seite, pdfSeitenGesamt: pdfPlaene.length
                         });
                     }
-                    alert(`✅ Die PDF „${datei.name}“ wurde in ${anzahlSeiten} einzelne Pläne aufgeteilt. Die Originalqualität bleibt beim Zoomen erhalten.`);
+                    alert(`✅ Die PDF wurde in ${pdfPlaene.length} einzelne Pläne hochgeladen. Hinweis: Firebase Storage war nicht verfügbar, daher ist der Zoom in dieser Ersatzvariante weniger scharf.`);
                     return;
                 } else {
                     const uploadDatei = await planBildKomprimieren(datei);
