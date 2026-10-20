@@ -11,14 +11,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- PDF.js für echte PDF-Texterkennung / Seiten-Rendering -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-      // PDF.js worker explizit setzen, damit das Laden der PDF nicht hängen bleibt.
-      window.addEventListener('load', function () {
-        if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
-          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        }
-      });
-    </script>
 
 
 <script>
@@ -1530,16 +1522,12 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <div id="projekt-info-panel-beschreibung" class="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 hidden">
                         <div class="font-bold mb-2">Baustellenbeschreibung</div>
                         <div id="baustellenbeschreibung-text" class="whitespace-pre-wrap">Keine Baustellenbeschreibung hinterlegt.</div>
-                        <div id="beschreibung-bild-container" class="mt-3 hidden">
-                            <button type="button" id="beschreibung-bild-button" onclick="baustellenBildInVorschauOeffnen('beschreibung-bild')" class="block max-w-full text-left" aria-label="Bild zur Baustellenbeschreibung vergrößern"><img id="beschreibung-bild" alt="Bild zur Baustellenbeschreibung – zum Vergrößern anklicken" class="max-w-full max-h-80 rounded-lg border border-slate-300 object-contain cursor-zoom-in"></button>
-                            <iframe id="beschreibung-pdf" title="PDF zur Baustellenbeschreibung" class="hidden w-full h-96 rounded-lg border border-slate-300 bg-white"></iframe>
-                            <a id="beschreibung-pdf-link" class="hidden inline-block mt-2 text-blue-700 underline font-semibold" target="_blank" rel="noopener">📄 PDF öffnen</a>
-                        </div>
+                        <div id="beschreibung-bild-container" class="mt-3 hidden"><button type="button" onclick="baustellenBildInVorschauOeffnen('beschreibung-bild')" class="block max-w-full text-left" aria-label="Bild zur Baustellenbeschreibung vergrößern"><img id="beschreibung-bild" alt="Bild zur Baustellenbeschreibung – zum Vergrößern anklicken" class="max-w-full max-h-80 rounded-lg border border-slate-300 object-contain cursor-zoom-in"></button></div>
                         <div id="beschreibung-bild-editor" class="mt-4 pt-3 border-t border-slate-200 hidden">
-                            <label for="beschreibung-bild-datei" class="block text-xs font-bold mb-1">Bild oder PDF zur Baustellenbeschreibung hinzufügen (optional)</label>
-                            <input id="beschreibung-bild-datei" type="file" accept="image/*,application/pdf,.pdf" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800">
-                            <div class="flex justify-end mt-2"><button type="button" onclick="baustellenbeschreibungBildSpeichern()" class="rounded-lg bg-slate-700 hover:bg-slate-800 px-4 py-2 text-sm font-bold text-white">💾 Datei speichern</button></div>
-                            <div class="mt-1 text-xs text-slate-500">Ein vorhandenes Bild oder PDF bleibt erhalten, wenn keine neue Datei ausgewählt wird.</div>
+                            <label for="beschreibung-bild-datei" class="block text-xs font-bold mb-1">Bild zur Baustellenbeschreibung hinzufügen (optional)</label>
+                            <input id="beschreibung-bild-datei" type="file" accept="image/*" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800">
+                            <div class="flex justify-end mt-2"><button type="button" onclick="baustellenbeschreibungBildSpeichern()" class="rounded-lg bg-slate-700 hover:bg-slate-800 px-4 py-2 text-sm font-bold text-white">💾 Bild speichern</button></div>
+                            <div class="mt-1 text-xs text-slate-500">Ein vorhandenes Bild bleibt erhalten, wenn kein neues Bild ausgewählt wird.</div>
                         </div>
                     </div>
                     <div id="projekt-info-panel-verlegerfotos" class="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-lg hidden">
@@ -1582,9 +1570,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <div class="flex justify-between items-center flex-wrap gap-2">
                         <h3 class="font-semibold text-lg text-slate-700">📐 Baustellen-Pläne & Mangel-Pins</h3>
                         <div class="flex items-center gap-2 flex-wrap">
-                            <button type="button" id="pdf-extern-oeffnen-btn" onclick="pdfExternOeffnen()" class="hidden text-xs bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm">
-                                ↗ PDF extern öffnen
-                            </button>
                             <button type="button" id="pin-modus-btn" onclick="pinModusUmschalten()" class="text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm">
                                 📌 Pin setzen (Aus)
                             </button>
@@ -1594,7 +1579,6 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                             </label>
                         </div>
                     </div>
-                    <p id="plan-upload-status" class="hidden text-sm text-blue-700 font-semibold mt-2" role="status" aria-live="polite"></p>
 
                     <div id="plaene-auswahl-leiste" class="flex flex-wrap gap-2"></div>
 
@@ -2157,7 +2141,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getStorage, ref as storageRef, uploadBytes, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+        import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
         import { serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -5546,56 +5530,39 @@ SECURITY MIGRATION MARKER (06.10.2026):
         };
 
         window.baustellenbeschreibungBildSpeichern = async function(){
-            if (!darfPrivateAnweisungBearbeiten()) { alert('Nur Chef, 2. Chef und Techniker dürfen eine Datei zur Baustellenbeschreibung hinzufügen.'); return; }
+            if (!darfPrivateAnweisungBearbeiten()) { alert('Nur Chef, 2. Chef und Techniker dürfen ein Bild zur Baustellenbeschreibung hinzufügen.'); return; }
             const titel = aktuellesProjekt;
             const p = globalDaten.projekte[titel];
             if (!titel || !p) { alert('Bitte zuerst eine Baustelle auswählen.'); return; }
             const input = document.getElementById('beschreibung-bild-datei');
             const datei = input?.files?.[0];
-            if (!datei) { alert('Bitte zuerst ein Bild oder PDF auswählen.'); return; }
+            if (!datei) { alert('Bitte zuerst ein Bild auswählen.'); return; }
             const button = document.querySelector('#beschreibung-bild-editor button[onclick*="baustellenbeschreibungBildSpeichern"]');
-            const original = button?.textContent || '💾 Datei speichern';
+            const original = button?.textContent || '💾 Bild speichern';
             if (button) { button.disabled = true; button.textContent = '⏳ Wird gespeichert …'; }
             const vorher = p.beschreibungBild || '';
-            const vorherTyp = p.beschreibungBildTyp || '';
             try {
-                const istPdf = datei.type === 'application/pdf' || /\.pdf$/i.test(datei.name || '');
-                if (!istPdf && !String(datei.type || '').startsWith('image/')) throw new Error('Bitte eine Bilddatei oder PDF auswählen.');
-                if (datei.size > 450 * 1024) throw new Error('Die Datei darf maximal 450 KB groß sein, damit sie sicher mit den Baustellendaten gespeichert werden kann.');
-                const dateiZumLesen = istPdf ? datei : await planBildKomprimieren(datei, 1000, 0.68);
+                if (!String(datei.type || '').startsWith('image/')) throw new Error('Bitte eine Bilddatei auswählen.');
+                if (datei.size > 12 * 1024 * 1024) throw new Error('Das Bild darf maximal 12 MB groß sein.');
+                const komprimiert = await planBildKomprimieren(datei, 1000, 0.68);
                 const dataUrl = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
-                    reader.onerror = () => reject(new Error('Die Datei konnte nicht gelesen werden.'));
+                    reader.onerror = () => reject(new Error('Das Bild konnte nicht gelesen werden.'));
                     reader.onload = () => resolve(String(reader.result || ''));
-                    reader.readAsDataURL(dateiZumLesen);
+                    reader.readAsDataURL(komprimiert);
                 });
-                if (!dataUrl || dataUrl.length > 650000) throw new Error('Die Datei ist zu groß zum Speichern. Bitte ein kleineres PDF/Bild auswählen.');
+                if (!dataUrl || dataUrl.length > 650000) throw new Error('Das Bild ist nach der Komprimierung noch zu groß. Bitte ein kleineres Bild auswählen.');
                 p.beschreibungBild = dataUrl;
-                p.beschreibungBildTyp = istPdf ? 'application/pdf' : 'image';
                 const ok = await projektSpeichern(titel);
-                if (!ok) { p.beschreibungBild = vorher; p.beschreibungBildTyp = vorherTyp; throw new Error('Firebase hat das Speichern nicht bestätigt.'); }
+                if (!ok) { p.beschreibungBild = vorher; throw new Error('Firebase hat das Speichern nicht bestätigt.'); }
                 input.value = '';
                 const box = document.getElementById('beschreibung-bild-container');
                 const img = document.getElementById('beschreibung-bild');
-                const imgButton = document.getElementById('beschreibung-bild-button');
-                const pdf = document.getElementById('beschreibung-pdf');
-                const pdfLink = document.getElementById('beschreibung-pdf-link');
-                if (box) box.classList.remove('hidden');
-                if (istPdf) {
-                    if (imgButton) imgButton.classList.add('hidden');
-                    if (img) img.removeAttribute('src');
-                    if (pdf) { pdf.src = dataUrl; pdf.classList.remove('hidden'); }
-                    if (pdfLink) { pdfLink.href = dataUrl; pdfLink.classList.remove('hidden'); }
-                } else {
-                    if (pdf) { pdf.removeAttribute('src'); pdf.classList.add('hidden'); }
-                    if (pdfLink) { pdfLink.removeAttribute('href'); pdfLink.classList.add('hidden'); }
-                    if (imgButton) imgButton.classList.remove('hidden');
-                    if (img) img.src = dataUrl;
-                }
-                alert((istPdf ? 'PDF' : 'Bild') + ' zur Baustellenbeschreibung wurde gespeichert.');
+                if (box && img) { img.src = dataUrl; box.classList.remove('hidden'); }
+                alert('Bild zur Baustellenbeschreibung wurde gespeichert.');
             } catch (e) {
-                console.error('Datei zur Baustellenbeschreibung konnte nicht gespeichert werden:', e);
-                alert('Datei konnte nicht gespeichert werden.\n' + (e.message || e));
+                console.error('Bild zur Baustellenbeschreibung konnte nicht gespeichert werden:', e);
+                alert('Bild konnte nicht gespeichert werden.\n' + (e.message || e));
             } finally { if (button) { button.disabled = false; button.textContent = original; } }
         };
 
@@ -5702,7 +5669,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 const geladenePlaene = [];
                 snap.forEach(planSnap => {
                     const d = planSnap.data() || {};
-                    if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id, dateityp: String(d.dateityp || ''), speicherart: String(d.speicherart || ''), pdfUrl: String(d.pdfUrl || ''), pdfSeite: Number(d.pdfSeite || 0), pdfSeitenGesamt: Number(d.pdfSeitenGesamt || 0) });
+                    if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id });
                 });
                 geladenePlaene.sort((a,b) => a.index - b.index);
 
@@ -5730,14 +5697,12 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     geladenePlaene.length = 0;
                     neu.forEach(planSnap => {
                         const d = planSnap.data() || {};
-                        if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id, dateityp: String(d.dateityp || ''), speicherart: String(d.speicherart || ''), pdfUrl: String(d.pdfUrl || ''), pdfSeite: Number(d.pdfSeite || 0), pdfSeitenGesamt: Number(d.pdfSeitenGesamt || 0) });
+                        if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id });
                     });
                     geladenePlaene.sort((a,b) => a.index - b.index);
                 }
 
                 p.plaene = geladenePlaene.map(x => x.url);
-                p.planMetadaten = geladenePlaene.map(x => ({ dateityp:x.dateityp, speicherart:x.speicherart, pdfUrl:x.pdfUrl, pdfSeite:x.pdfSeite, pdfSeitenGesamt:x.pdfSeitenGesamt }));
-                pdfExternButtonAktualisieren();
                 if (p.aktiverPlanIndex >= p.plaene.length) p.aktiverPlanIndex = Math.max(0, p.plaene.length - 1);
             } catch (e) {
                 console.warn('Plan-Unterkollektion konnte nicht geladen werden; vorhandene lokale Pläne bleiben erhalten:', e);
@@ -5832,28 +5797,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const eingabeEl = document.getElementById('private-anweisung-eingabe'); if (eingabeEl) eingabeEl.value = '';
             const bildDateiEl = document.getElementById('private-anweisung-bild-datei'); if (bildDateiEl) bildDateiEl.value = '';
             const beschreibungEl = document.getElementById('baustellenbeschreibung-text'); if (beschreibungEl) beschreibungEl.innerText = 'Keine Baustellenbeschreibung hinterlegt.';
-            const beschreibungDatei = p.beschreibungBild || '';
-            const beschreibungBox = document.getElementById('beschreibung-bild-container');
-            const beschreibungImg = document.getElementById('beschreibung-bild');
-            const beschreibungImgButton = document.getElementById('beschreibung-bild-button');
-            const beschreibungPdf = document.getElementById('beschreibung-pdf');
-            const beschreibungPdfLink = document.getElementById('beschreibung-pdf-link');
-            const beschreibungIstPdf = String(p.beschreibungBildTyp || '').includes('pdf') || /^data:application\/pdf/i.test(beschreibungDatei);
-            if (beschreibungBox) beschreibungBox.classList.toggle('hidden', !beschreibungDatei);
-            if (beschreibungIstPdf && beschreibungDatei) {
-                if (beschreibungImgButton) beschreibungImgButton.classList.add('hidden');
-                if (beschreibungImg) beschreibungImg.removeAttribute('src');
-                if (beschreibungPdf) { beschreibungPdf.src = beschreibungDatei; beschreibungPdf.classList.remove('hidden'); }
-                if (beschreibungPdfLink) { beschreibungPdfLink.href = beschreibungDatei; beschreibungPdfLink.classList.remove('hidden'); }
-            } else if (beschreibungDatei) {
-                if (beschreibungPdf) { beschreibungPdf.removeAttribute('src'); beschreibungPdf.classList.add('hidden'); }
-                if (beschreibungPdfLink) { beschreibungPdfLink.removeAttribute('href'); beschreibungPdfLink.classList.add('hidden'); }
-                if (beschreibungImgButton) beschreibungImgButton.classList.remove('hidden');
-                if (beschreibungImg) beschreibungImg.src = beschreibungDatei;
-            } else {
-                if (beschreibungPdf) { beschreibungPdf.removeAttribute('src'); beschreibungPdf.classList.add('hidden'); }
-                if (beschreibungPdfLink) { beschreibungPdfLink.removeAttribute('href'); beschreibungPdfLink.classList.add('hidden'); }
-            }
             const beschBildBox = document.getElementById('beschreibung-bild-container'); if (beschBildBox) beschBildBox.classList.add('hidden');
             const beschBildInput = document.getElementById('beschreibung-bild-datei'); if (beschBildInput) beschBildInput.value = '';
             const fotoInput = document.getElementById('verleger-foto-datei'); if (fotoInput) fotoInput.value = '';
@@ -5976,7 +5919,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             planVorschauAnzeigen();
             plaeneLeisteAktualisieren();
             projektPinListeAnzeigen();
-            if (!document.getElementById('plan-vollbild-modal')?.classList.contains('hidden')) window.vollbildOeffnen();
         }
 
         function planVorschauAnzeigen() {
@@ -5991,10 +5933,13 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 const aktiverPlan = p.plaene[p.aktiverPlanIndex] || p.plaene[0];
                 placeholder.style.display = 'none';
 
-                if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
+                if (aktiverPlan.startsWith('r2://') || aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
                     bildEl.classList.add('hidden');
                     pdfViewer.classList.remove('hidden');
-                    pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
+                    pdfViewer.innerHTML = '<div class="p-4 text-sm text-slate-500">PDF wird geladen …</div>';
+                    r2PlanUrlAufloesen(aktiverPlan).then(pdfUrl => {
+                        pdfViewer.innerHTML = `<iframe src="${pdfUrl}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
+                    }).catch(error => { pdfViewer.innerHTML = `<div class="p-4 text-sm text-red-600">${escapeHtml(error.message || error)}</div>`; });
                 } else {
                     pdfViewer.classList.add('hidden');
                     bildEl.src = aktiverPlan;
@@ -6008,87 +5953,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         }
 
-        // Öffnet die Original-PDF im nativen Browser-PDF-Viewer. Die einzelnen PDF-Seiten
-        // bleiben im Portal als eigene Pläne gespeichert, damit Pins pro Seite erhalten bleiben.
-        window.pdfExternOeffnen = function() {
-            const p = globalDaten.projekte[aktuellesProjekt];
-            const meta = p?.planMetadaten?.[Number(p?.aktiverPlanIndex || 0)];
-            const url = meta?.pdfUrl || (p?.planMetadaten || []).find(m => m?.pdfUrl)?.pdfUrl || '';
-            if (!url) {
-                alert('Für diesen Plan ist keine Original-PDF-Adresse gespeichert. Bitte lade die PDF erneut hoch.');
-                return;
-            }
-            const win = window.open(url, '_blank');
-            if (!win) alert('Der Browser hat das neue Fenster blockiert. Bitte Pop-ups für das Portal erlauben.');
-        };
-
-        function pdfExternButtonAktualisieren() {
-            const btn = document.getElementById('pdf-extern-oeffnen-btn');
-            const p = globalDaten.projekte[aktuellesProjekt];
-            const hasPdf = !!(p?.planMetadaten || []).some(m => m?.pdfUrl);
-            if (btn) btn.classList.toggle('hidden', !hasPdf);
-        }
-
-        let aktiverPdfRenderTask = null;
-        let aktiverPdfDokument = null;
-        let aktiverPdfRenderToken = 0;
-        async function pdfSeiteInVollbildRendern(planIndex, zoomOverride) {
-            const p = globalDaten.projekte[aktuellesProjekt];
-            const meta = p?.planMetadaten?.[planIndex];
-            const url = meta?.pdfUrl || (meta?.speicherart === 'pdf-original-seite' ? p?.plaene?.[planIndex] : '');
-            if (!url || !meta?.pdfSeite || !window.pdfjsLib) return false;
-            const token = ++aktiverPdfRenderToken;
-            try {
-                if (aktiverPdfRenderTask) { try { aktiverPdfRenderTask.cancel(); } catch (_) {} aktiverPdfRenderTask = null; }
-                if (!aktiverPdfDokument || aktiverPdfDokument._pdfUrl !== url) {
-                    if (aktiverPdfDokument) { try { await aktiverPdfDokument.destroy(); } catch (_) {} }
-                    aktiverPdfDokument = await window.pdfjsLib.getDocument(url).promise;
-                    aktiverPdfDokument._pdfUrl = url;
-                }
-                const page = await aktiverPdfDokument.getPage(Number(meta.pdfSeite));
-                if (token !== aktiverPdfRenderToken) return true;
-                const base = page.getViewport({scale:1});
-                const maxW = Math.max(1, window.innerWidth * 0.92);
-                const maxH = Math.max(1, (window.innerHeight - 150) * 0.92);
-                const fit = Math.min(1, maxW / base.width, maxH / base.height);
-                const zoom = Math.max(0.7, Math.min(10, Number(zoomOverride ?? vollbildZoomFaktor) || 1));
-                const cssScale = fit * zoom;
-                const viewport = page.getViewport({scale: cssScale});
-                const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.max(1, Math.round(viewport.width * dpr));
-                canvas.height = Math.max(1, Math.round(viewport.height * dpr));
-                canvas.style.width = `${Math.max(1, Math.round(viewport.width))}px`;
-                canvas.style.height = `${Math.max(1, Math.round(viewport.height))}px`;
-                canvas.className = 'block max-w-none select-none bg-white';
-                const ctx = canvas.getContext('2d', {alpha:false});
-                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-                const viewer = document.getElementById('vollbild-pdf-viewer');
-                const wrapper = document.getElementById('vollbild-transform-wrapper');
-                const pins = document.getElementById('vollbild-pin-container');
-                if (!viewer || !wrapper) return false;
-                viewer.innerHTML = '';
-                viewer.appendChild(canvas);
-                viewer.style.width = canvas.style.width;
-                viewer.style.height = canvas.style.height;
-                wrapper.style.width = canvas.style.width;
-                wrapper.style.height = canvas.style.height;
-                if (pins) { pins.style.width = canvas.style.width; pins.style.height = canvas.style.height; }
-                aktiverPdfRenderTask = page.render({canvasContext:ctx, viewport});
-                await aktiverPdfRenderTask.promise;
-                if (token !== aktiverPdfRenderToken) return true;
-                return true;
-            } catch (e) {
-                if (e?.name !== 'RenderingCancelledException') console.error('PDF-Seite konnte nicht hochauflösend gerendert werden:', e);
-                return e?.name === 'RenderingCancelledException';
-            }
-        }
-
         // VOLLBILD / GROSSANSICHT MODAL STEUERUNG
         window.vollbildOeffnen = async function() {
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             let p = globalDaten.projekte[aktuellesProjekt];
-            pdfExternButtonAktualisieren();
 
             // Beim Öffnen einer Baustelle werden die Pläne aus der eigenen
             // Unterkollektion asynchron geladen. Verhindere, dass ein Klick
@@ -6121,15 +5989,16 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const pdfViewer = document.getElementById('vollbild-pdf-viewer');
             const aktiverPlan = p.plaene[p.aktiverPlanIndex || 0];
 
-            const aktiverPlanMeta = p.planMetadaten?.[p.aktiverPlanIndex || 0];
-            if (aktiverPlanMeta?.speicherart === 'pdf-original-seite' && aktiverPlanMeta?.pdfUrl) {
+            if (aktiverPlan.startsWith('r2://') || aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
                 bildEl.classList.add('hidden');
                 pdfViewer.classList.remove('hidden');
-                await pdfSeiteInVollbildRendern(p.aktiverPlanIndex || 0, 1);
-            } else if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
-                bildEl.classList.add('hidden');
-                pdfViewer.classList.remove('hidden');
-                pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
+                pdfViewer.innerHTML = '<div class="p-4 text-sm text-slate-500">PDF wird geladen …</div>';
+                try {
+                    const pdfUrl = await r2PlanUrlAufloesen(aktiverPlan);
+                    pdfViewer.innerHTML = `<iframe src="${pdfUrl}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
+                } catch (error) {
+                    pdfViewer.innerHTML = `<div class="p-4 text-sm text-red-600">${escapeHtml(error.message || error)}</div>`;
+                }
             } else {
                 pdfViewer.classList.add('hidden');
                 bildEl.src = aktiverPlan;
@@ -6181,28 +6050,19 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         window.vollbildZoomIn = function() {
             vollbildZoomFaktor = Math.min(vollbildZoomFaktor + 0.3, 10);
-            const p = globalDaten.projekte[aktuellesProjekt];
-            const idx = p?.aktiverPlanIndex || 0;
-            if (p?.planMetadaten?.[idx]?.speicherart === 'pdf-original-seite') pdfSeiteInVollbildRendern(idx, vollbildZoomFaktor);
-            else aktualisiereVollbildTransform();
+            aktualisiereVollbildTransform();
         }
 
         window.vollbildZoomOut = function() {
             vollbildZoomFaktor = Math.max(vollbildZoomFaktor - 0.3, 0.7);
-            const p = globalDaten.projekte[aktuellesProjekt];
-            const idx = p?.aktiverPlanIndex || 0;
-            if (p?.planMetadaten?.[idx]?.speicherart === 'pdf-original-seite') pdfSeiteInVollbildRendern(idx, vollbildZoomFaktor);
-            else aktualisiereVollbildTransform();
+            aktualisiereVollbildTransform();
         }
 
         window.vollbildZoomReset = function() {
             vollbildZoomFaktor = 1;
             mobilePlanOffsetX = 0;
             mobilePlanOffsetY = 0;
-            const p = globalDaten.projekte[aktuellesProjekt];
-            const idx = p?.aktiverPlanIndex || 0;
-            if (p?.planMetadaten?.[idx]?.speicherart === 'pdf-original-seite') pdfSeiteInVollbildRendern(idx, 1);
-            else aktualisiereVollbildTransform();
+            aktualisiereVollbildTransform();
         }
 
         let vollbildPinsSichtbar = true;
@@ -7195,28 +7055,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (datei) verarbeiteGrundriss(datei);
         }
 
-        window.weitererPlanHinzufuegen = async function(event) {
-            const input = event && event.target;
-            const datei = input && input.files ? input.files[0] : null;
-            if (!datei) {
-                alert("Es wurde keine Datei ausgewählt. Bitte die PDF erneut auswählen.");
-                return;
-            }
-            console.log("[Plan-Upload] Dateiauswahl erkannt:", datei.name, datei.type, datei.size);
-            const status = document.getElementById("plan-upload-status");
-            if (status) {
-                status.textContent = "⏳ Datei ausgewählt: " + datei.name + " – Upload wird gestartet …";
-                status.classList.remove("hidden");
-            }
-            try {
-                await verarbeiteGrundriss(datei);
-            } catch (error) {
-                console.error("[Plan-Upload] Fehler beim Starten:", error);
-                if (status) status.textContent = "❌ Upload konnte nicht gestartet werden: " + (error?.message || error || "Unbekannter Fehler");
-                alert("❌ Der Plan-Upload konnte nicht gestartet werden.\n\n" + (error?.message || error || "Unbekannter Fehler"));
-            } finally {
-                if (input) input.value = "";
-            }
+        window.weitererPlanHinzufuegen = function(event) {
+            const datei = event.target.files[0];
+            if (datei) verarbeiteGrundriss(datei);
         }
 
         function planBildKomprimieren(datei, maxSeite = 1400, qualitaet = 0.72) {
@@ -7250,7 +7091,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             });
         }
 
-        async function uploadBaustellenDatei(datei, ordner, projektname, onProgress = null) {
+        async function uploadBaustellenDatei(datei, ordner, projektname) {
             if (!datei) throw new Error("Keine Datei ausgewählt.");
             const maxMB = ordner === "plaene" ? 50 : 15;
             if (datei.size > maxMB * 1024 * 1024) {
@@ -7264,61 +7105,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const dateiname = `${Date.now()}_${crypto.randomUUID()}_${sichererDateiname}`;
             const pfad = `baustellen/${sichererProjektname}/${ordner}/${dateiname}`;
             const ziel = storageRef(storage, pfad);
-            // Resumable upload reports actual bytes. Also expose task state and fail clearly
-            // if Firebase stays at 0 bytes instead of leaving the user with an endless spinner.
-            await new Promise((resolve, reject) => {
-                let settled = false;
-                let lastTransferred = 0;
-                let lastChangeAt = Date.now();
-                let sawRunning = false;
-                let sawAnySnapshot = false;
-                const task = uploadBytesResumable(ziel, datei, { contentType: datei.type || "application/pdf", customMetadata: { originalFilename: String(datei.name || "plan.pdf").slice(0, 180), uploadSource: "brisbois-plan-module" } });
-                const fail = (err) => {
-                    if (settled) return;
-                    settled = true;
-                    clearInterval(watchdog);
-                    reject(err instanceof Error ? err : new Error(String(err || "Unbekannter Firebase-Uploadfehler")));
-                };
-                // Separate timeout for startup vs. stalled byte transfer. Merely being in
-                // state 'running' is not progress; bytesTransferred must actually increase.
-                const watchdog = setInterval(() => {
-                    if (settled) return;
-                    const idleMs = Date.now() - lastChangeAt;
-                    if (!sawAnySnapshot && idleMs > 20000) {
-                        try { task.cancel(); } catch (_) {}
-                        fail(new Error("Firebase hat den Upload nicht gestartet (20 Sekunden ohne Upload-Status). Die PDF wurde nicht gespeichert."));
-                        return;
-                    }
-                    if (sawRunning && idleMs > 45000) {
-                        try { task.cancel(); } catch (_) {}
-                        const state = task.snapshot?.state || "unbekannt";
-                        const reason = lastTransferred === 0
-                            ? "Firebase meldet 'running', überträgt aber keine Bytes. Prüfe bitte im Browser F12 → Konsole/Netzwerk auf den ersten roten Fehler."
-                            : "Die Datenübertragung ist während des Uploads stehen geblieben.";
-                        fail(new Error(`Upload nach 45 Sekunden ohne tatsächlichen Fortschritt gestoppt (Status: ${state}, ${lastTransferred} von ${datei.size} Bytes). ${reason}`));
-                    }
-                }, 1000);
-                task.on("state_changed", snapshot => {
-                    sawAnySnapshot = true;
-                    const transferred = Number(snapshot.bytesTransferred || 0);
-                    if (transferred > lastTransferred) lastChangeAt = Date.now();
-                    if (snapshot.state === "running") sawRunning = true;
-                    lastTransferred = Math.max(lastTransferred, transferred);
-                    const percent = snapshot.totalBytes ? Math.round(transferred / snapshot.totalBytes * 100) : 0;
-                    if (typeof onProgress === "function") {
-                        try { onProgress(percent, transferred, snapshot.totalBytes, snapshot.state); }
-                        catch (progressError) { console.error("Plan-Upload-Fortschrittsanzeige fehlgeschlagen:", progressError); }
-                    }
-                }, err => {
-                    const code = err?.code ? ` [${err.code}]` : "";
-                    fail(new Error(`${err?.message || "Firebase Storage Upload fehlgeschlagen."}${code}`));
-                }, () => {
-                    if (settled) return;
-                    settled = true;
-                    clearInterval(watchdog);
-                    resolve();
-                });
-            });
+            await uploadBytes(ziel, datei, { contentType: datei.type || "application/octet-stream" });
             return await getDownloadURL(ziel);
         }
 
@@ -7327,7 +7114,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist noch nicht geladen. Bitte die Seite einmal neu laden.');
 
             const daten = await datei.arrayBuffer();
-            if (window.pdfjsLib.GlobalWorkerOptions) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
             const pdf = await window.pdfjsLib.getDocument({data: daten}).promise;
             if (!pdf.numPages) throw new Error('Die PDF enthält keine Seiten.');
 
@@ -7361,56 +7147,64 @@ SECURITY MIGRATION MARKER (06.10.2026):
             return dataUrl;
         }
 
+        const BRISBOIS_R2_WORKER = "https://icy-tree-df33.magiera282.workers.dev";
+        const brisboisR2BlobCache = new Map();
 
-        async function pdfPlanAlsBildSeitenKomprimieren(datei, maxSeite = 700, qualitaet = 0.52, onProgress = null) {
-            if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
-            if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist nicht geladen. Bitte Seite neu laden.');
-            if (window.pdfjsLib.GlobalWorkerOptions) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-            const ladeTask = window.pdfjsLib.getDocument({data: await datei.arrayBuffer()});
-            const pdf = await Promise.race([ladeTask.promise, new Promise((_, reject) => setTimeout(() => reject(new Error('PDF.js reagiert nicht. Bitte Seite neu laden; falls es erneut passiert, liegt es am PDF-Laden.')), 20000))]);
-            const result = [];
-            for (let seite = 1; seite <= pdf.numPages; seite++) {
-                if (typeof onProgress === 'function') onProgress(`⏳ Erstelle Planbild ${seite} von ${pdf.numPages} …`);
-                const page = await pdf.getPage(seite);
-                const base = page.getViewport({scale: 1});
-                const scale = Math.min(1, maxSeite / Math.max(base.width, base.height));
-                const viewport = page.getViewport({scale: scale || 1});
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.max(1, Math.round(viewport.width));
-                canvas.height = Math.max(1, Math.round(viewport.height));
-                const ctx = canvas.getContext('2d');
-                if (!ctx) throw new Error('PDF-Seite konnte nicht verarbeitet werden.');
-                ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                const renderTask = page.render({canvasContext: ctx, viewport});
-                await Promise.race([renderTask.promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`Die Verarbeitung von PDF-Seite ${seite} dauert länger als 120 Sekunden. Die Seite wurde nicht absichtlich abgebrochen; bitte erneut versuchen oder die PDF neu exportieren.`)), 120000))]);
-                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', qualitaet));
-                if (!blob) throw new Error(`PDF-Seite ${seite} konnte nicht als Bild gespeichert werden.`);
-                const dataUrl = await new Promise((resolve, reject) => {
-                    const reader = new FileReader(); reader.onerror = () => reject(new Error('PDF-Seite konnte nicht gelesen werden.'));
-                    reader.onload = () => resolve(String(reader.result || '')); reader.readAsDataURL(blob);
-                });
-                if (!dataUrl || dataUrl.length > 800000) throw new Error(`PDF-Seite ${seite} ist zu groß zum Speichern.`);
-                result.push({seite, url: dataUrl});
-                canvas.width = 1; canvas.height = 1;
-            }
-            return result;
+        async function r2PlanHochladen(datei, projektname) {
+            const user = auth.currentUser;
+            if (!user) throw new Error("Bitte melde dich erneut im Portal an.");
+            const token = await user.getIdToken();
+            const query = new URLSearchParams({ project: String(projektname || "baustelle"), filename: datei.name || "plan.pdf" });
+            return await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", `${BRISBOIS_R2_WORKER}/upload-plan?${query}`);
+                xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+                xhr.setRequestHeader("Content-Type", "application/pdf");
+                xhr.upload.onprogress = event => {
+                    if (event.lengthComputable) {
+                        const pct = Math.round(event.loaded / event.total * 100);
+                        const mb = (event.loaded / 1048576).toFixed(1);
+                        const total = (event.total / 1048576).toFixed(1);
+                        let status = document.getElementById("r2-plan-upload-status");
+                        if (!status) {
+                            status = document.createElement("div"); status.id = "r2-plan-upload-status";
+                            status.style.cssText = "position:fixed;z-index:99999;left:50%;bottom:20px;transform:translateX(-50%);background:#0f172a;color:white;padding:12px 18px;border-radius:12px;font:600 14px system-ui;box-shadow:0 8px 28px #0004";
+                            document.body.appendChild(status);
+                        }
+                        status.textContent = `PDF wird hochgeladen: ${pct}% (${mb} von ${total} MB)`;
+                    }
+                };
+                xhr.onerror = () => reject(new Error("Netzwerkfehler beim R2-Upload."));
+                xhr.onabort = () => reject(new Error("Upload abgebrochen."));
+                xhr.onload = () => {
+                    document.getElementById("r2-plan-upload-status")?.remove();
+                    let result = {}; try { result = JSON.parse(xhr.responseText || "{}"); } catch (_) {}
+                    if (xhr.status >= 200 && xhr.status < 300 && result.success && result.url) resolve(result.url);
+                    else reject(new Error(result.error || `R2-Upload fehlgeschlagen (HTTP ${xhr.status}).`));
+                };
+                xhr.send(datei);
+            });
         }
 
-        async function pdfPlanSeitenErmitteln(datei) {
-            if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
-            if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist noch nicht geladen. Bitte die Seite einmal neu laden.');
-            const ladeTask = window.pdfjsLib.getDocument({data: await datei.arrayBuffer()});
-            const pdf = await Promise.race([ladeTask.promise, new Promise((_, reject) => setTimeout(() => reject(new Error('PDF.js reagiert nicht. Bitte Seite neu laden; falls es erneut passiert, liegt es am PDF-Laden.')), 20000))]);
-            if (!pdf.numPages) throw new Error('Die PDF enthält keine Seiten.');
-            return pdf.numPages;
+        async function r2PlanUrlAufloesen(planUrl) {
+            if (!String(planUrl || "").startsWith("r2://")) return planUrl;
+            if (brisboisR2BlobCache.has(planUrl)) return brisboisR2BlobCache.get(planUrl);
+            const user = auth.currentUser;
+            if (!user) throw new Error("Bitte melde dich erneut im Portal an, um den Plan zu öffnen.");
+            const token = await user.getIdToken();
+            const key = planUrl.slice(5);
+            const response = await fetch(`${BRISBOIS_R2_WORKER}/file?key=${encodeURIComponent(key)}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (!response.ok) {
+                let msg = "Der PDF-Plan konnte nicht geladen werden.";
+                try { const data = await response.json(); msg = data.error || msg; } catch (_) {}
+                throw new Error(msg);
+            }
+            const blobUrl = URL.createObjectURL(await response.blob());
+            brisboisR2BlobCache.set(planUrl, blobUrl);
+            return blobUrl;
         }
 
         async function verarbeiteGrundriss(datei) {
-            const uploadStatus = document.getElementById("plan-upload-status");
-            if (uploadStatus && datei) {
-                uploadStatus.textContent = "⏳ Verarbeite „" + (datei.name || "Plan") + "“ …";
-                uploadStatus.classList.remove("hidden");
-            }
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
                 alert("Bitte zuerst eine Baustelle öffnen.");
                 return;
@@ -7428,58 +7222,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 let dateityp = 'image/jpeg';
 
                 if (istPdf) {
-                    // Prefer the original PDF in Firebase Storage for sharp zoom.
-                    // If Storage is unavailable/blocked, fall back to the established Firestore-image path
-                    // so uploading plans still works. Each PDF page becomes its own plan either way.
-                    const progressPanel = document.getElementById('plan-upload-progress');
-                    if (progressPanel) {
-                        progressPanel.classList.remove('hidden');
-                        progressPanel.innerHTML = '<div class="font-semibold mb-2">PDF wird vorbereitet …</div><div class="h-2.5 w-full rounded-full bg-blue-100 overflow-hidden"><div class="h-full bg-blue-600 animate-pulse" style="width:35%"></div></div><p class="mt-1 text-xs text-slate-600">Datei wird geprüft. Prozentanzeige beginnt beim tatsächlichen Upload.</p>';
-                    }
-                    if (uploadStatus) uploadStatus.textContent = '⏳ PDF.js wird gestartet und Seiten werden ermittelt …';
-                    const anzahlSeiten = await pdfPlanSeitenErmitteln(datei);
-                    if (uploadStatus) uploadStatus.textContent = '⏳ ' + anzahlSeiten + ' PDF-Seiten erkannt. Speichere Originaldatei …';
-                    // Wichtig: PDF niemals in niedrig aufgelöste Bilder umwandeln.
-                    // Die Originaldatei wird direkt in Firebase Storage abgelegt. Bei langsamer
-                    // Verbindung warten wir auf den Upload, statt nach wenigen Sekunden auf
-                    // einen unscharfen JPEG-Fallback umzuschalten.
-                    if (uploadStatus) uploadStatus.textContent = `⏳ Lade Original-PDF (${(datei.size / 1024 / 1024).toFixed(1)} MB) hoch … Bitte dieses Fenster geöffnet lassen.`;
-                    let pdfUrl = '';
-                    try {
-                        pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt, (percent, transferred, total, uploadState) => {
-                            // UI-Fehler dürfen niemals den Firebase-Status-Listener unterbrechen.
-                            try {
-                                const mbDone = (transferred / 1024 / 1024).toFixed(1);
-                                const mbTotal = (total / 1024 / 1024).toFixed(1);
-                                if (uploadStatus) uploadStatus.textContent = `⏫ Original-PDF: ${percent}% (${mbDone} von ${mbTotal} MB) – ${uploadState || 'Übertragung läuft'} …`;
-                                const progress = document.getElementById('plan-upload-progress');
-                                if (progress) {
-                                    progress.classList.remove('hidden');
-                                    progress.innerHTML = `<div class="flex justify-between gap-3 mb-2"><strong>Original-PDF wird hochgeladen …</strong><strong>${percent}%</strong></div><div class="h-2.5 w-full rounded-full bg-blue-100 overflow-hidden"><div class="h-full bg-blue-600 transition-all" style="width:${percent}%"></div></div><p class="mt-1 text-xs text-slate-600">${mbDone} von ${mbTotal} MB übertragen. Status: ${uploadState || 'Übertragung läuft'}. Bitte Fenster geöffnet lassen.</p>`;
-                                }
-                            } catch (uiError) {
-                                console.error('[Plan-Upload] Fortschrittsanzeige fehlgeschlagen:', uiError);
-                            }
-                        });
-                    } catch (e) {
-                        console.error('Original-PDF konnte nicht in Firebase Storage gespeichert werden:', e);
-                        throw new Error('Die Original-PDF konnte nicht in Firebase Storage gespeichert werden. Es wurde bewusst kein unscharfes Ersatzbild erstellt. Upload-Details: ' + (e?.message || e));
-                    }
-                    if (!pdfUrl) throw new Error('Firebase Storage hat keine Download-Adresse für die Original-PDF zurückgegeben.');
-                    if (uploadStatus) uploadStatus.textContent = '⏳ Original-PDF gespeichert. Lege jetzt die drei Seiten mit getrennten Pin-Bereichen an …';
-                    for (let seite = 1; seite <= anzahlSeiten; seite++) {
-                        await speichereGrundrissPlan(pdfUrl, {
-                            dateiname: `${datei.name} – Seite ${seite}`,
-                            dateityp: 'application/pdf', groesse: datei.size,
-                            speicherart: 'pdf-original-seite', pdfUrl,
-                            pdfSeite: seite, pdfSeitenGesamt: anzahlSeiten
-                        });
-                    }
-                    if (uploadStatus) uploadStatus.textContent = `✅ Original-PDF gespeichert: ${anzahlSeiten} Seiten in voller Qualität.`;
-                    const donePanel = document.getElementById('plan-upload-progress');
-                    if (donePanel) { donePanel.classList.remove('hidden'); donePanel.innerHTML = '<strong>✅ Upload abgeschlossen – 100%</strong><p class="mt-1 text-xs text-slate-600">Original-PDF gespeichert; Seiten werden in voller Qualität angezeigt.</p>'; }
-                    alert(`✅ Die Original-PDF „${datei.name}“ wurde gespeichert. Alle ${anzahlSeiten} Seiten bleiben in voller Qualität verfügbar.`);
-                    return;
+                    // Original-PDF wird unverändert in den privaten Cloudflare-R2-Bucket geladen.
+                    url = await r2PlanHochladen(datei, aktuellesProjekt);
+                    speicherart = 'r2-pdf-original';
+                    dateityp = 'application/pdf';
                 } else {
                     const uploadDatei = await planBildKomprimieren(datei);
                     const reader = new FileReader();
@@ -7500,17 +7246,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     groesse: datei.size,
                     speicherart
                 });
-                if (uploadStatus) uploadStatus.textContent = "✅ Plan erfolgreich hochgeladen: " + datei.name;
                 alert(`✅ Plan „${datei.name}“ wurde erfolgreich hochgeladen.`);
             } catch (error) {
                 console.error("Fehler beim Hochladen des Plans:", error);
                 const msg = String(error?.message || error || 'Unbekannter Fehler');
-                if (uploadStatus) uploadStatus.textContent = "❌ Upload fehlgeschlagen: " + msg;
-                const progress = document.getElementById('plan-upload-progress');
-                if (progress) {
-                    progress.classList.remove('hidden');
-                    progress.innerHTML = `<strong class="text-red-700">❌ Upload fehlgeschlagen</strong><p class="mt-1 text-xs text-slate-700">${String(msg).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}</p>`;
-                }
                 alert("❌ Der Plan konnte nicht hochgeladen werden.\n\n" + msg);
             } finally {
                 // Derselbe Plan kann direkt danach erneut ausgewählt werden.
@@ -7529,30 +7268,21 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // Damit wächst das Baustellen-Dokument nicht mehr mit jedem Bild.
             const index = p.plaene.length;
             const planId = crypto.randomUUID();
-            await Promise.race([
-                setDoc(doc(db, 'projekte', titel, 'plaene', planId), {
+            await setDoc(doc(db, 'projekte', titel, 'plaene', planId), {
                 index,
                 url: ergebnisUrl,
                 dateiname: meta.dateiname || '',
                 dateityp: meta.dateityp || '',
                 groesse: Number(meta.groesse || 0),
                 speicherart: meta.speicherart || '',
-                pdfUrl: meta.pdfUrl || '',
-                pdfSeite: Number(meta.pdfSeite || 0),
-                pdfSeitenGesamt: Number(meta.pdfSeitenGesamt || 0),
                 erstelltAm: new Date().toISOString(),
                 erstelltVon: eingeloggterMitarbeiter || ''
-                }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Speichern der Planseite in Firebase dauert zu lange. Bitte Firebase-Verbindung und Firestore-Regeln prüfen.')), 20000))
-            ]);
+            });
 
             // Lokal für die bestehende Anzeige vorhalten. Diese Werte werden
             // NICHT mehr in das Projekt-Dokument geschrieben.
             p.plaene.push(ergebnisUrl);
-            if (!Array.isArray(p.planMetadaten)) p.planMetadaten = [];
-            p.planMetadaten.push({ dateityp: meta.dateityp || '', speicherart: meta.speicherart || '', pdfUrl: meta.pdfUrl || '', pdfSeite: Number(meta.pdfSeite || 0), pdfSeitenGesamt: Number(meta.pdfSeitenGesamt || 0) });
             p.aktiverPlanIndex = index;
-            pdfExternButtonAktualisieren();
 
             if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
             const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
