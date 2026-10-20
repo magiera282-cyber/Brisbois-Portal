@@ -7264,13 +7264,43 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const dateiname = `${Date.now()}_${crypto.randomUUID()}_${sichererDateiname}`;
             const pfad = `baustellen/${sichererProjektname}/${ordner}/${dateiname}`;
             const ziel = storageRef(storage, pfad);
-            // Resumable upload reports the real byte-level progress from Firebase Storage.
+            // Resumable upload reports actual bytes. Also expose task state and fail clearly
+            // if Firebase stays at 0 bytes instead of leaving the user with an endless spinner.
             await new Promise((resolve, reject) => {
-                const task = uploadBytesResumable(ziel, datei, { contentType: datei.type || "application/octet-stream" });
+                let settled = false;
+                let lastTransferred = 0;
+                let lastChangeAt = Date.now();
+                const task = uploadBytesResumable(ziel, datei, { contentType: datei.type || "application/pdf" });
+                const fail = (err) => {
+                    if (settled) return;
+                    settled = true;
+                    clearInterval(watchdog);
+                    reject(err instanceof Error ? err : new Error(String(err || "Unbekannter Firebase-Uploadfehler")));
+                };
+                const watchdog = setInterval(() => {
+                    if (settled) return;
+                    const idleMs = Date.now() - lastChangeAt;
+                    if (idleMs > 45000) {
+                        try { task.cancel(); } catch (_) {}
+                        const code = task.snapshot?.state || "unbekannt";
+                        fail(new Error(`Firebase-Upload hat 45 Sekunden keine Daten übertragen (Status: ${code}, ${lastTransferred} von ${datei.size} Bytes). Bitte Browser-Konsole/Netzwerk prüfen; die Datei wurde nicht als erfolgreich gespeichert markiert.`));
+                    }
+                }, 1000);
                 task.on("state_changed", snapshot => {
-                    const percent = snapshot.totalBytes ? Math.round(snapshot.bytesTransferred / snapshot.totalBytes * 100) : 0;
-                    if (typeof onProgress === "function") onProgress(percent, snapshot.bytesTransferred, snapshot.totalBytes);
-                }, reject, resolve);
+                    const transferred = Number(snapshot.bytesTransferred || 0);
+                    if (transferred !== lastTransferred || snapshot.state === "running") lastChangeAt = Date.now();
+                    lastTransferred = transferred;
+                    const percent = snapshot.totalBytes ? Math.round(transferred / snapshot.totalBytes * 100) : 0;
+                    if (typeof onProgress === "function") onProgress(percent, transferred, snapshot.totalBytes, snapshot.state);
+                }, err => {
+                    const code = err?.code ? ` [${err.code}]` : "";
+                    fail(new Error(`${err?.message || "Firebase Storage Upload fehlgeschlagen."}${code}`));
+                }, () => {
+                    if (settled) return;
+                    settled = true;
+                    clearInterval(watchdog);
+                    resolve();
+                });
             });
             return await getDownloadURL(ziel);
         }
@@ -7411,7 +7441,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                         });
                     } catch (e) {
                         console.error('Original-PDF konnte nicht in Firebase Storage gespeichert werden:', e);
-                        throw new Error('Die Original-PDF konnte nicht in Firebase Storage gespeichert werden. Es wurde bewusst kein unscharfes Ersatzbild erstellt. Prüfe bitte die Firebase-Storage-Berechtigungen und den verfügbaren Speicher. Details: ' + (e?.message || e));
+                        throw new Error('Die Original-PDF konnte nicht in Firebase Storage gespeichert werden. Es wurde bewusst kein unscharfes Ersatzbild erstellt. Details zum Upload-Fehler: ' + (e?.message || e));
                     }
                     if (!pdfUrl) throw new Error('Firebase Storage hat keine Download-Adresse für die Original-PDF zurückgegeben.');
                     if (uploadStatus) uploadStatus.textContent = '⏳ Original-PDF gespeichert. Lege jetzt die drei Seiten mit getrennten Pin-Bereichen an …';
