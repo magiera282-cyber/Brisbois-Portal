@@ -7308,7 +7308,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         }
 
 
-        async function pdfPlanAlsBildSeitenKomprimieren(datei, maxSeite = 1200, qualitaet = 0.68, onProgress = null) {
+        async function pdfPlanAlsBildSeitenKomprimieren(datei, maxSeite = 700, qualitaet = 0.52, onProgress = null) {
             if (!datei) throw new Error('Keine PDF-Datei ausgewählt.');
             if (!window.pdfjsLib) throw new Error('Die PDF-Anzeige ist nicht geladen. Bitte Seite neu laden.');
             if (window.pdfjsLib.GlobalWorkerOptions) window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -7328,7 +7328,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 if (!ctx) throw new Error('PDF-Seite konnte nicht verarbeitet werden.');
                 ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 const renderTask = page.render({canvasContext: ctx, viewport});
-                await Promise.race([renderTask.promise, new Promise((_, reject) => setTimeout(() => { try { renderTask.cancel(); } catch (_) {} reject(new Error(`Die PDF-Seite ${seite} lässt sich nicht rechtzeitig rendern. Bitte eine kleinere oder neu exportierte PDF testen.`)); }, 30000))]);
+                await Promise.race([renderTask.promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`Die Verarbeitung von PDF-Seite ${seite} dauert länger als 120 Sekunden. Die Seite wurde nicht absichtlich abgebrochen; bitte erneut versuchen oder die PDF neu exportieren.`)), 120000))]);
                 const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', qualitaet));
                 if (!blob) throw new Error(`PDF-Seite ${seite} konnte nicht als Bild gespeichert werden.`);
                 const dataUrl = await new Promise((resolve, reject) => {
@@ -7392,7 +7392,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     } catch (e) {
                         storageFehler = e;
                         console.warn('PDF-Original konnte nicht rechtzeitig in Storage abgelegt werden; nutze kompatiblen Bild-Fallback:', e);
-                        if (uploadStatus) uploadStatus.textContent = '⏳ Original-PDF-Speicherung dauert zu lange. Wechsle zur Bildverarbeitung …';
+                        if (uploadStatus) uploadStatus.textContent = '⏳ Original-PDF-Speicherung dauert zu lange. Erstelle kleinere Planbilder (PDF ist 17 MB und hat sehr große Seiten) …';
                     }
                     if (pdfUrl) {
                         for (let seite = 1; seite <= anzahlSeiten; seite++) {
@@ -7407,7 +7407,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     alert(`✅ Die PDF „${datei.name}“ wurde in ${anzahlSeiten} einzelne Pläne aufgeteilt. Originalqualität beim Zoomen bleibt erhalten.`);
                         return;
                     }
-                    const pdfPlaene = await pdfPlanAlsBildSeitenKomprimieren(datei, 1200, 0.68, statusText => { if (uploadStatus) uploadStatus.textContent = statusText; });
+                    const pdfPlaene = await pdfPlanAlsBildSeitenKomprimieren(datei, 700, 0.52, statusText => { if (uploadStatus) uploadStatus.textContent = statusText; });
                     for (const pdfPlan of pdfPlaene) {
                         if (uploadStatus) uploadStatus.textContent = '⏳ Speichere Planseite ' + pdfPlan.seite + ' von ' + pdfPlaene.length + ' …';
                         if (uploadStatus) uploadStatus.textContent = `⏳ Speichere Planseite ${pdfPlan.seite} von ${pdfPlaene.length} in der Datenbank …`;
