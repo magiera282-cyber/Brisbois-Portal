@@ -1582,6 +1582,9 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <div class="flex justify-between items-center flex-wrap gap-2">
                         <h3 class="font-semibold text-lg text-slate-700">📐 Baustellen-Pläne & Mangel-Pins</h3>
                         <div class="flex items-center gap-2 flex-wrap">
+                            <button type="button" id="pdf-extern-oeffnen-btn" onclick="pdfExternOeffnen()" class="hidden text-xs bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-sm">
+                                ↗ PDF extern öffnen
+                            </button>
                             <button type="button" id="pin-modus-btn" onclick="pinModusUmschalten()" class="text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm">
                                 📌 Pin setzen (Aus)
                             </button>
@@ -5734,6 +5737,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
                 p.plaene = geladenePlaene.map(x => x.url);
                 p.planMetadaten = geladenePlaene.map(x => ({ dateityp:x.dateityp, speicherart:x.speicherart, pdfUrl:x.pdfUrl, pdfSeite:x.pdfSeite, pdfSeitenGesamt:x.pdfSeitenGesamt }));
+                pdfExternButtonAktualisieren();
                 if (p.aktiverPlanIndex >= p.plaene.length) p.aktiverPlanIndex = Math.max(0, p.plaene.length - 1);
             } catch (e) {
                 console.warn('Plan-Unterkollektion konnte nicht geladen werden; vorhandene lokale Pläne bleiben erhalten:', e);
@@ -6004,6 +6008,27 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
         }
 
+        // Öffnet die Original-PDF im nativen Browser-PDF-Viewer. Die einzelnen PDF-Seiten
+        // bleiben im Portal als eigene Pläne gespeichert, damit Pins pro Seite erhalten bleiben.
+        window.pdfExternOeffnen = function() {
+            const p = globalDaten.projekte[aktuellesProjekt];
+            const meta = p?.planMetadaten?.[Number(p?.aktiverPlanIndex || 0)];
+            const url = meta?.pdfUrl || (p?.planMetadaten || []).find(m => m?.pdfUrl)?.pdfUrl || '';
+            if (!url) {
+                alert('Für diesen Plan ist keine Original-PDF-Adresse gespeichert. Bitte lade die PDF erneut hoch.');
+                return;
+            }
+            const win = window.open(url, '_blank');
+            if (!win) alert('Der Browser hat das neue Fenster blockiert. Bitte Pop-ups für das Portal erlauben.');
+        };
+
+        function pdfExternButtonAktualisieren() {
+            const btn = document.getElementById('pdf-extern-oeffnen-btn');
+            const p = globalDaten.projekte[aktuellesProjekt];
+            const hasPdf = !!(p?.planMetadaten || []).some(m => m?.pdfUrl);
+            if (btn) btn.classList.toggle('hidden', !hasPdf);
+        }
+
         let aktiverPdfRenderTask = null;
         let aktiverPdfDokument = null;
         let aktiverPdfRenderToken = 0;
@@ -6063,6 +6088,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         window.vollbildOeffnen = async function() {
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             let p = globalDaten.projekte[aktuellesProjekt];
+            pdfExternButtonAktualisieren();
 
             // Beim Öffnen einer Baustelle werden die Pläne aus der eigenen
             // Unterkollektion asynchron geladen. Verhindere, dass ein Klick
@@ -7457,6 +7483,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (!Array.isArray(p.planMetadaten)) p.planMetadaten = [];
             p.planMetadaten.push({ dateityp: meta.dateityp || '', speicherart: meta.speicherart || '', pdfUrl: meta.pdfUrl || '', pdfSeite: Number(meta.pdfSeite || 0), pdfSeitenGesamt: Number(meta.pdfSeitenGesamt || 0) });
             p.aktiverPlanIndex = index;
+            pdfExternButtonAktualisieren();
 
             if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
             const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
