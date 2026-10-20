@@ -7270,26 +7270,40 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 let settled = false;
                 let lastTransferred = 0;
                 let lastChangeAt = Date.now();
-                const task = uploadBytesResumable(ziel, datei, { contentType: datei.type || "application/pdf" });
+                let sawRunning = false;
+                let sawAnySnapshot = false;
+                const task = uploadBytesResumable(ziel, datei, { contentType: datei.type || "application/pdf", customMetadata: { originalFilename: String(datei.name || "plan.pdf").slice(0, 180), uploadSource: "brisbois-plan-module" } });
                 const fail = (err) => {
                     if (settled) return;
                     settled = true;
                     clearInterval(watchdog);
                     reject(err instanceof Error ? err : new Error(String(err || "Unbekannter Firebase-Uploadfehler")));
                 };
+                // Separate timeout for startup vs. stalled byte transfer. Merely being in
+                // state 'running' is not progress; bytesTransferred must actually increase.
                 const watchdog = setInterval(() => {
                     if (settled) return;
                     const idleMs = Date.now() - lastChangeAt;
-                    if (idleMs > 45000) {
+                    if (!sawAnySnapshot && idleMs > 20000) {
                         try { task.cancel(); } catch (_) {}
-                        const code = task.snapshot?.state || "unbekannt";
-                        fail(new Error(`Firebase-Upload hat 45 Sekunden keine Daten übertragen (Status: ${code}, ${lastTransferred} von ${datei.size} Bytes). Bitte Browser-Konsole/Netzwerk prüfen; die Datei wurde nicht als erfolgreich gespeichert markiert.`));
+                        fail(new Error("Firebase hat den Upload nicht gestartet (20 Sekunden ohne Upload-Status). Die PDF wurde nicht gespeichert."));
+                        return;
+                    }
+                    if (sawRunning && idleMs > 45000) {
+                        try { task.cancel(); } catch (_) {}
+                        const state = task.snapshot?.state || "unbekannt";
+                        const reason = lastTransferred === 0
+                            ? "Firebase meldet 'running', überträgt aber keine Bytes. Prüfe bitte im Browser F12 → Konsole/Netzwerk auf den ersten roten Fehler."
+                            : "Die Datenübertragung ist während des Uploads stehen geblieben.";
+                        fail(new Error(`Upload nach 45 Sekunden ohne tatsächlichen Fortschritt gestoppt (Status: ${state}, ${lastTransferred} von ${datei.size} Bytes). ${reason}`));
                     }
                 }, 1000);
                 task.on("state_changed", snapshot => {
+                    sawAnySnapshot = true;
                     const transferred = Number(snapshot.bytesTransferred || 0);
-                    if (transferred !== lastTransferred || snapshot.state === "running") lastChangeAt = Date.now();
-                    lastTransferred = transferred;
+                    if (transferred > lastTransferred) lastChangeAt = Date.now();
+                    if (snapshot.state === "running") sawRunning = true;
+                    lastTransferred = Math.max(lastTransferred, transferred);
                     const percent = snapshot.totalBytes ? Math.round(transferred / snapshot.totalBytes * 100) : 0;
                     if (typeof onProgress === "function") onProgress(percent, transferred, snapshot.totalBytes, snapshot.state);
                 }, err => {
@@ -7432,7 +7446,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                         pdfUrl = await uploadBaustellenDatei(datei, 'plaene', aktuellesProjekt, (percent, transferred, total) => {
                             const mbDone = (transferred / 1024 / 1024).toFixed(1);
                             const mbTotal = (total / 1024 / 1024).toFixed(1);
-                            if (uploadStatus) uploadStatus.textContent = `⏫ Original-PDF wird hochgeladen: ${percent}% (${mbDone} von ${mbTotal} MB) …`;
+                            if (uploadStatus) uploadStatus.textContent = `⏫ Original-PDF: ${percent}% (${mbDone} von ${mbTotal} MB) – ${state || 'Übertragung läuft'} …`;
                             const progress = document.getElementById('plan-upload-progress');
                             if (progress) {
                                 progress.classList.remove('hidden');
@@ -7484,6 +7498,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 console.error("Fehler beim Hochladen des Plans:", error);
                 const msg = String(error?.message || error || 'Unbekannter Fehler');
                 if (uploadStatus) uploadStatus.textContent = "❌ Upload fehlgeschlagen: " + msg;
+                const progress = document.getElementById('plan-upload-progress');
+                if (progress) {
+                    progress.classList.remove('hidden');
+                    progress.innerHTML = `<strong class="text-red-700">❌ Upload fehlgeschlagen</strong><p class="mt-1 text-xs text-slate-700">${String(msg).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}</p>`;
+                }
                 alert("❌ Der Plan konnte nicht hochgeladen werden.\n\n" + msg);
             } finally {
                 // Derselbe Plan kann direkt danach erneut ausgewählt werden.
