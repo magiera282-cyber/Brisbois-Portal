@@ -5724,7 +5724,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     geladenePlaene.sort((a,b) => a.index - b.index);
                 }
 
-                p.plaene = geladenePlaene.map(x => x.url);\n                p.planDetails = geladenePlaene.map((x,i) => ({ id:x.id, name:x.name || `Plan ${i+1}`, folder:x.folder || 'Nicht sortiert' }));\n                if (!Array.isArray(p.planOrdner)) p.planOrdner = [];\n                p.planDetails.forEach(x => { if (!p.planOrdner.includes(x.folder)) p.planOrdner.push(x.folder); });
+                p.plaene = geladenePlaene.map(x => x.url);
+                p.planDetails = geladenePlaene.map((x,i) => ({ id:x.id, name:x.name || `Plan ${i+1}`, folder:x.folder || 'Nicht sortiert' }));
+                if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
+                p.planDetails.forEach(x => { if (!p.planOrdner.includes(x.folder)) p.planOrdner.push(x.folder); });
                 if (p.aktiverPlanIndex >= p.plaene.length) p.aktiverPlanIndex = Math.max(0, p.plaene.length - 1);
             } catch (e) {
                 console.warn('Plan-Unterkollektion konnte nicht geladen werden; vorhandene lokale Pläne bleiben erhalten:', e);
