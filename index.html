@@ -4386,12 +4386,13 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const form = document.getElementById('uzin-katalog-neu-form');
             if (form) form.classList.add('hidden');
             if (grid) {
+                if (typeof materiallisteNormalisieren === 'function') materiallisteNormalisieren();
                 grid.innerHTML = '';
                 const produkte = Array.isArray(globalDaten.materialliste)
-                    ? globalDaten.materialliste.filter(m => m && m.aktiv !== false && String(m.produkt || '').trim())
+                    ? globalDaten.materialliste.filter(m => m && String(m.produkt || '').trim())
                     : [];
                 if (!produkte.length) {
-                    grid.innerHTML = '<p class="text-sm text-slate-500 col-span-2">Keine aktiven Produkte in der Materialliste gefunden. Bitte zuerst die zentrale Materialliste befüllen.</p>';
+                    grid.innerHTML = '<p class="text-sm text-slate-500 col-span-2">Keine Produkte in der Materialliste gefunden. Bitte zuerst die zentrale Materialliste befüllen.</p>';
                 } else {
                     produkte.forEach((prod, index) => {
                         const karte = document.createElement('button');
@@ -4402,7 +4403,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                         const kat = String(prod.kategorie || 'Material');
                         karte.innerHTML = `<strong class="block text-sm text-slate-900"></strong><span class="block text-xs text-slate-500 mt-1"></span><span class="block text-xs text-blue-600 font-bold mt-2">＋ Zur Packliste</span>`;
                         karte.querySelector('strong').textContent = name;
-                        karte.querySelector('span').textContent = `${hersteller} · ${kat}`;
+                        karte.querySelector('span').textContent = `${hersteller} · ${kat}${prod.aktiv === false ? ' · Für KI deaktiviert' : ''}`;
                         karte.addEventListener('click', () => window.materiallistenProduktZurPackliste(index));
                         grid.appendChild(karte);
                     });
@@ -4412,8 +4413,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
         };
 
         window.materiallistenProduktZurPackliste = function(index) {
+            if (typeof materiallisteNormalisieren === 'function') materiallisteNormalisieren();
             const produkte = Array.isArray(globalDaten.materialliste)
-                ? globalDaten.materialliste.filter(m => m && m.aktiv !== false && String(m.produkt || '').trim())
+                ? globalDaten.materialliste.filter(m => m && String(m.produkt || '').trim())
                 : [];
             const prod = produkte[index];
             if (!prod || !aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
