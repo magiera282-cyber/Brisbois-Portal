@@ -5677,6 +5677,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (suchfeld && suchfeld.value) projektSucheAktualisieren(suchfeld.value);
         }
 
+        // Dokument-IDs der einzelnen Grundriss-Pläne nur im Arbeitsspeicher halten;
+        // sie werden nicht in das Baustellen-Dokument geschrieben.
+        window.baustellenPlanDokumentIds = window.baustellenPlanDokumentIds || {};
+
         async function ladePlaeneFuerProjekt(titel) {
             const p = globalDaten.projekte[titel];
             if (!p) return;
@@ -5693,6 +5697,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id });
                 });
                 geladenePlaene.sort((a,b) => a.index - b.index);
+                window.baustellenPlanDokumentIds[titel] = geladenePlaene.map(x => x.id);
 
                 // Alte Pläne, die noch direkt im Projekt-Dokument liegen,
                 // einmalig in einzelne Plan-Dokumente übernehmen.
@@ -5721,6 +5726,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                         if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id });
                     });
                     geladenePlaene.sort((a,b) => a.index - b.index);
+                    window.baustellenPlanDokumentIds[titel] = geladenePlaene.map(x => x.id);
                 }
 
                 p.plaene = geladenePlaene.map(x => x.url);
@@ -5945,13 +5951,64 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             p.plaene.forEach((planUrl, idx) => {
                 const aktiv = idx === p.aktiverPlanIndex;
+                const planBerechtigt = isChefOrPrivileged();
                 leiste.innerHTML += `
-                    <button type="button" onclick="aktivenPlanWechseln(${idx})" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1 ${aktiv ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
-                        📄 Plan ${idx + 1} ${aktiv ? '✓' : ''}
-                    </button>
+                    <span class="inline-flex items-center gap-1 rounded-lg ${aktiv ? 'bg-blue-600' : 'bg-slate-200'}">
+                        <button type="button" onclick="aktivenPlanWechseln(${idx})" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1 ${aktiv ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
+                            📄 Plan ${idx + 1} ${aktiv ? '✓' : ''}
+                        </button>
+                        ${planBerechtigt ? `<button type="button" onclick="event.stopPropagation();baustellenPlanLoeschen(${idx})" class="px-2 py-1.5 rounded-lg text-xs font-bold text-red-600 hover:bg-red-100" title="Plan ${idx + 1} löschen" aria-label="Plan ${idx + 1} löschen">🗑️</button>` : ''}
+                    </span>
                 `;
             });
         }
+
+        window.baustellenPlanLoeschen = async function(idx) {
+            if (!isChefOrPrivileged()) {
+                alert('Nur Chef, Techniker, Sekretariat oder Admin dürfen Baustellenpläne löschen.');
+                return;
+            }
+            const titel = aktuellesProjekt;
+            const p = titel ? globalDaten.projekte[titel] : null;
+            const ids = window.baustellenPlanDokumentIds?.[titel] || [];
+            if (!p || !Array.isArray(p.plaene) || !p.plaene[idx]) {
+                alert('Der ausgewählte Plan wurde nicht gefunden. Bitte die Baustelle erneut öffnen.');
+                return;
+            }
+            const planId = ids[idx];
+            if (!planId) {
+                alert('Die Plan-ID ist noch nicht geladen. Bitte die Baustelle erneut öffnen und erneut versuchen.');
+                return;
+            }
+            if (!confirm(`Plan ${idx + 1} der Baustelle „${titel}“ wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) return;
+
+            try {
+                await deleteDoc(doc(db, 'projekte', titel, 'plaene', planId));
+                p.plaene.splice(idx, 1);
+                ids.splice(idx, 1);
+                window.baustellenPlanDokumentIds[titel] = ids;
+                if (!p.plaene.length) p.aktiverPlanIndex = 0;
+                else if (idx < p.aktiverPlanIndex) p.aktiverPlanIndex--;
+                else if (idx === p.aktiverPlanIndex) p.aktiverPlanIndex = Math.min(idx, p.plaene.length - 1);
+
+                // Nur den aktiven Planindex im Projekt-Dokument speichern;
+                // sämtliche anderen Baustellendaten bleiben unverändert.
+                const { plaene: _planbilder, ...projektOhnePlanbilder } = p;
+                await setDoc(doc(db, 'projekte', titel), { ...projektOhnePlanbilder, plaene: [] });
+                p.plaene = p.plaene || [];
+                plaeneLeisteAktualisieren();
+                planVorschauAnzeigen();
+                if (typeof vollbildSchliessen === 'function') vollbildSchliessen();
+                alert('Der Baustellenplan wurde gelöscht. Andere Baustellendaten wurden nicht gelöscht.');
+            } catch (error) {
+                console.error('Baustellenplan konnte nicht gelöscht werden:', error);
+                alert('Der Baustellenplan konnte nicht gelöscht werden. Prüfe die Firestore-Berechtigungen.
+' + (error?.message || error));
+                await ladePlaeneFuerProjekt(titel);
+                plaeneLeisteAktualisieren();
+                planVorschauAnzeigen();
+            }
+        };
 
         window.aktivenPlanWechseln = function(idx) {
             const p = globalDaten.projekte[aktuellesProjekt];
@@ -7246,6 +7303,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // Damit wächst das Baustellen-Dokument nicht mehr mit jedem Bild.
             const index = p.plaene.length;
             const planId = crypto.randomUUID();
+            window.baustellenPlanDokumentIds = window.baustellenPlanDokumentIds || {};
+            if (!Array.isArray(window.baustellenPlanDokumentIds[titel])) window.baustellenPlanDokumentIds[titel] = [];
             await setDoc(doc(db, 'projekte', titel, 'plaene', planId), {
                 index,
                 url: ergebnisUrl,
@@ -7260,6 +7319,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // Lokal für die bestehende Anzeige vorhalten. Diese Werte werden
             // NICHT mehr in das Projekt-Dokument geschrieben.
             p.plaene.push(ergebnisUrl);
+            window.baustellenPlanDokumentIds[titel].push(planId);
             p.aktiverPlanIndex = index;
 
             if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
