@@ -6781,12 +6781,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
             liste.innerHTML = pins.map((pin, index) => {
                 const planIdx = pin.planIndex !== undefined ? Number(pin.planIndex) : 0;
+                const planMeta = Array.isArray(p?.planDetails) ? p.planDetails[planIdx] : null;
+                const planOrdnerName = String(planMeta?.folder || planMeta?.ordner || 'Nicht sortiert');
                 const typ = pin.typ === 'frage' ? '🔵 Frage' : pin.typ === 'eigen' ? '🟡 Eigener' : '🔴 Mangel';
                 const gelesen = Array.isArray(pin.gelesenVon) && pin.gelesenVon.includes(eingeloggterMitarbeiter);
                 return `<button type="button" onclick="projektPinAnzeigen(${index})" class="w-full text-left border rounded-xl p-3 bg-white hover:bg-amber-50 hover:border-amber-300 transition shadow-sm">
                     <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0 flex-1">
-                            <div class="flex items-center gap-2 flex-wrap"><span class="font-bold text-xs text-slate-800">${typ}</span><span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-bold">Plan ${planIdx + 1}</span>${!gelesen ? '<span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-black animate-pulse">NEU</span>' : ''}</div>
+                            <div class="flex items-center gap-2 flex-wrap"><span class="font-bold text-xs text-slate-800">${typ}</span><span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-bold">Plan ${planIdx + 1}</span><span class="text-[10px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold">📁 ${escapeHtml(planOrdnerName)}</span>${!gelesen ? '<span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-black animate-pulse">NEU</span>' : ''}</div>
                             <div class="text-sm font-semibold text-slate-700 mt-1 truncate">${escapeHtml(pin.text || 'Ohne Beschreibung')}</div>
                             <div class="text-[10px] text-slate-400 mt-1">${escapeHtml(pin.von || '')} · ${escapeHtml(pin.zeit || '')}</div>
                         </div>
@@ -7357,6 +7359,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
             if (!datei) return;
             const istPdf = datei.type === 'application/pdf' || String(datei.name || '').toLowerCase().endsWith('.pdf');
+            const projekt = globalDaten.projekte[aktuellesProjekt];
+            const vorhandeneOrdner = [...new Set([...(projekt.planOrdner || []), ...((projekt.planDetails || []).map(d => d.folder).filter(Boolean))])];
+            const ordnerHinweis = vorhandeneOrdner.length
+                ? 'Vorhandene Ordner:\n' + vorhandeneOrdner.map((n, i) => `${i + 1}. ${n}`).join('\n') + '\n\n'
+                : 'Es gibt noch keine Ordner. Gib einen neuen Ordnernamen ein.\n\n';
+            const ausgewaehlterOrdner = prompt(ordnerHinweis + 'In welchen Ordner soll dieser Plan hochgeladen werden?\nBestehenden Ordnernamen eingeben oder einen neuen Ordnernamen erstellen:', window.aktuellerPlanOrdner || vorhandeneOrdner[0] || 'Nicht sortiert');
+            if (ausgewaehlterOrdner === null || !ausgewaehlterOrdner.trim()) return;
+            const planOrdnerName = ausgewaehlterOrdner.trim().slice(0, 80);
             try {
                 if (datei.size > 50 * 1024 * 1024) {
                     alert("Der Plan darf maximal 50 MB groß sein.");
@@ -7391,7 +7401,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     dateiname: datei.name,
                     dateityp,
                     groesse: datei.size,
-                    speicherart
+                    speicherart,
+                    ordner: planOrdnerName,
+                    planName: datei.name.replace(/\.[^.]+$/, '')
                 });
                 alert(`✅ Plan „${datei.name}“ wurde erfolgreich hochgeladen.`);
             } catch (error) {
@@ -7423,12 +7435,18 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 groesse: Number(meta.groesse || 0),
                 speicherart: meta.speicherart || '',
                 erstelltAm: new Date().toISOString(),
-                erstelltVon: eingeloggterMitarbeiter || ''
+                erstelltVon: eingeloggterMitarbeiter || '',
+                ordner: String(meta.ordner || 'Nicht sortiert'),
+                planName: String(meta.planName || meta.dateiname || `Plan ${index + 1}`)
             });
 
             // Lokal für die bestehende Anzeige vorhalten. Diese Werte werden
             // NICHT mehr in das Projekt-Dokument geschrieben.
             p.plaene.push(ergebnisUrl);
+            if (!Array.isArray(p.planDetails)) p.planDetails = [];
+            p.planDetails[index] = { id: planId, name: String(meta.planName || meta.dateiname || `Plan ${index + 1}`), folder: String(meta.ordner || 'Nicht sortiert') };
+            if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
+            if (!p.planOrdner.includes(String(meta.ordner || 'Nicht sortiert'))) p.planOrdner.push(String(meta.ordner || 'Nicht sortiert'));
             p.aktiverPlanIndex = index;
 
             if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
