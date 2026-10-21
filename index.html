@@ -984,15 +984,15 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
     <div id="uzin-auswahl-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center border-b pb-3">
-                <h3 class="text-lg font-bold text-slate-900">🧱 Uzin-Produkt für Packliste auswählen</h3>
+                <h3 class="text-lg font-bold text-slate-900">📦 Produkt aus der Materialliste auswählen</h3>
                 <button onclick="document.getElementById('uzin-auswahl-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
             </div>
             
-            <p class="text-xs text-slate-500">Wähle ein Produkt aus oder füge neue Artikel zum Katalog hinzu:</p>
+            <p class="text-xs text-slate-500">Hier werden die aktiven Produkte aus derselben Materialliste angezeigt, die auch die KI-Auftragserstellung verwendet.</p>
 
             <div id="uzin-produkte-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto p-1 flex-1 max-h-[45vh]"></div>
 
-            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+            <div id="uzin-katalog-neu-form" class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
                 <p class="text-xs font-bold text-slate-700 uppercase">➕ Artikel zum Uzin-Katalog hinzufügen:</p>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <input type="text" id="neues-uzin-bez" placeholder="Produktbezeichnung..." class="px-3 py-1.5 border rounded text-xs">
@@ -1624,7 +1624,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <div class="flex justify-between items-center">
                         <div><h3 class="font-semibold text-lg text-slate-700">📦 Projekt-Packliste & Materialverbrauch</h3><p class="text-[11px] text-slate-400 mt-1">Soll → verbraucht → Rest. Verbrauch direkt auf der Baustelle dokumentieren.</p></div>
                         <button onclick="uzinAuswahlOeffnen()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition shadow-sm">
-                            ➕ Uzin-Material hinzufügen
+                            ➕ Materialliste öffnen
                         </button>
                     </div>
                     <div class="overflow-x-auto">
@@ -1637,7 +1637,8 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                                     <th class="p-3">Verbraucht</th>
                                     <th class="p-3">Rest</th>
                                     <th class="p-3">Lagerort</th>
-                                    <th class="p-3 rounded-r text-center">Status</th>
+                                    <th class="p-3 text-center">Status</th>
+                                    <th class="p-3 rounded-r text-center">Aktion</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-200"></tbody>
@@ -4381,9 +4382,53 @@ SECURITY MIGRATION MARKER (06.10.2026):
         }
 
         window.uzinAuswahlOeffnen = function() {
-            uzinKatalogGridAktualisieren();
+            const grid = document.getElementById('uzin-produkte-grid');
+            const form = document.getElementById('uzin-katalog-neu-form');
+            if (form) form.classList.add('hidden');
+            if (grid) {
+                grid.innerHTML = '';
+                const produkte = Array.isArray(globalDaten.materialliste)
+                    ? globalDaten.materialliste.filter(m => m && m.aktiv !== false && String(m.produkt || '').trim())
+                    : [];
+                if (!produkte.length) {
+                    grid.innerHTML = '<p class="text-sm text-slate-500 col-span-2">Keine aktiven Produkte in der Materialliste gefunden. Bitte zuerst die zentrale Materialliste befüllen.</p>';
+                } else {
+                    produkte.forEach((prod, index) => {
+                        const karte = document.createElement('button');
+                        karte.type = 'button';
+                        karte.className = 'border rounded-xl p-3 text-left bg-slate-50 hover:bg-blue-50 transition';
+                        const name = String(prod.produkt || 'Material');
+                        const hersteller = String(prod.hersteller || 'Hersteller nicht angegeben');
+                        const kat = String(prod.kategorie || 'Material');
+                        karte.innerHTML = `<strong class="block text-sm text-slate-900"></strong><span class="block text-xs text-slate-500 mt-1"></span><span class="block text-xs text-blue-600 font-bold mt-2">＋ Zur Packliste</span>`;
+                        karte.querySelector('strong').textContent = name;
+                        karte.querySelector('span').textContent = `${hersteller} · ${kat}`;
+                        karte.addEventListener('click', () => window.materiallistenProduktZurPackliste(index));
+                        grid.appendChild(karte);
+                    });
+                }
+            }
             document.getElementById('uzin-auswahl-modal').classList.remove('hidden');
-        }
+        };
+
+        window.materiallistenProduktZurPackliste = function(index) {
+            const produkte = Array.isArray(globalDaten.materialliste)
+                ? globalDaten.materialliste.filter(m => m && m.aktiv !== false && String(m.produkt || '').trim())
+                : [];
+            const prod = produkte[index];
+            if (!prod || !aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
+            const menge = prompt(`Soll-Menge für ${prod.produkt} eingeben:`, prod.gebinde ? `1 ${prod.gebinde}` : '1');
+            if (menge === null || !menge.trim()) return;
+            const p = globalDaten.projekte[aktuellesProjekt];
+            if (!Array.isArray(p.material)) p.material = [];
+            p.material.push({ bez: prod.hersteller ? `${prod.hersteller} ${prod.produkt}` : prod.produkt,
+                kat: prod.kategorie || 'Material', menge: menge.trim(), ort: '–', status: '⏳ Offen', verbraucht: 0,
+                materiallisteId: prod.id || '' });
+            Promise.resolve(projektSpeichern(aktuellesProjekt)).then(() => {
+                document.getElementById('uzin-auswahl-modal')?.classList.add('hidden');
+                packlisteAktualisieren();
+            }).catch(err => alert('Material konnte nicht zur Packliste hinzugefügt werden: ' + (err?.message || err)));
+        };
 
         function uzinKatalogGridAktualisieren() {
             const grid = document.getElementById('uzin-produkte-grid');
@@ -4785,30 +4830,57 @@ SECURITY MIGRATION MARKER (06.10.2026):
         };
 
         window.nachrichtAbsenden = async function() {
-            const empfaenger = document.getElementById('nachricht-empfaenger').value;
-            const text = document.getElementById('nachricht-text-input').value;
+            const empfaengerEl = document.getElementById('nachricht-empfaenger');
+            const textEl = document.getElementById('nachricht-text-input');
+            const empfaenger = empfaengerEl?.value || '';
+            const text = textEl?.value || '';
             if(!text.trim()) {
                 alert("Bitte gib einen Nachrichtentext ein!");
+                return;
+            }
+            if (!eingeloggterMitarbeiter || !empfaenger) {
+                alert("Nachricht konnte nicht gesendet werden: Absender oder Empfänger fehlt. Bitte neu anmelden und erneut versuchen.");
                 return;
             }
 
             const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
             const absenderAnzeige = eingeloggterMitarbeiter + ` (${(globalDaten.mitarbeiterListe || []).find(m => m.name === eingeloggterMitarbeiter)?.rolle || eingeloggteRolle})`;
-
-            if(!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
-            globalDaten.benachrichtigungen.unshift({
+            const neueNachricht = {
                 von: absenderAnzeige,
                 empfaenger: empfaenger,
-                text: text,
+                text: text.trim(),
                 datum: datum,
                 gelesenVon: [eingeloggterMitarbeiter],
                 geloeschtVon: [],
                 projekt: '',
                 typ: 'nachricht'
-            });
+            };
 
-            globalGlobalSpeichern();
-            document.getElementById('nachricht-modal').classList.add('hidden');
+            if(!Array.isArray(globalDaten.benachrichtigungen)) globalDaten.benachrichtigungen = [];
+            globalDaten.benachrichtigungen.unshift(neueNachricht);
+
+            // Nachrichten separat speichern. Die allgemeine Speicherfunktion schreibt
+            // mehrere andere Portalbereiche mit und kann deshalb bei Rollenrechten
+            // fehlschlagen, obwohl der Nutzer nur eine Nachricht senden möchte.
+            try {
+                await setDoc(doc(db, "portal_data", "notifications"), {
+                    benachrichtigungen: globalDaten.benachrichtigungen,
+                    aktualisiertAm: new Date().toISOString()
+                });
+            } catch (error) {
+                globalDaten.benachrichtigungen = globalDaten.benachrichtigungen.filter(n => n !== neueNachricht);
+                console.error("Nachricht konnte nicht in Firebase gespeichert werden:", error);
+                const code = String(error?.code || '');
+                if (code.includes('permission-denied')) {
+                    alert("Die Nachricht wurde nicht gesendet. Firebase verweigert dieser Anmeldung das Schreiben in portal_data/notifications. Die Firestore-Regeln müssen geprüft werden.");
+                } else {
+                    alert("Die Nachricht konnte nicht gespeichert werden. Bitte Internetverbindung prüfen und erneut versuchen. Details stehen in der Browser-Konsole.");
+                }
+                return;
+            }
+
+            document.getElementById('nachricht-modal')?.classList.add('hidden');
+            if (textEl) textEl.value = '';
             benachrichtigungenAnzeigen();
 
             // Push zusätzlich über den bereits eingerichteten Cloudflare Worker senden.
@@ -6919,6 +6991,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     <td class="p-3 text-center font-bold ${rest!==null&&rest<=0?'text-red-600':'text-emerald-700'}">${restText}</td>
                     <td class="p-3 text-slate-600">${escapeHtml(mat.ort||'–')}</td>
                     <td class="p-3 text-center">${statusBtn}</td>
+                    <td class="p-3 text-center">${manager ? `<button type="button" onclick="packlistenProduktLoeschen(${index})" class="text-xs font-bold text-red-600 hover:text-red-800 px-2 py-1 rounded border border-red-200" title="Produkt aus dieser Packliste entfernen">🗑 Löschen</button>` : '–'}</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -6938,6 +7011,25 @@ SECURITY MIGRATION MARKER (06.10.2026):
             await window.globalGlobalSpeichern();
             packlisteAktualisieren();
             benachrichtigungenAnzeigen();
+        };
+
+        window.packlistenProduktLoeschen = async function(index) {
+            if (!(istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Sekretariat') || eingeloggteRolle.includes('Admin') || eingeloggterMitarbeiter === 'Christian Leppin')) {
+                alert('Nur Büro/Leitung darf Produkte aus der Packliste löschen.');
+                return;
+            }
+            if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
+            const materialien = globalDaten.projekte[aktuellesProjekt].material || [];
+            const mat = materialien[index];
+            if (!mat) return;
+            if (!confirm(`„${mat.bez || 'Material'}“ wirklich aus der Packliste dieser Baustelle entfernen? Die zentrale Materialliste bleibt unverändert.`)) return;
+            materialien.splice(index, 1);
+            try {
+                await projektSpeichern(aktuellesProjekt);
+                packlisteAktualisieren();
+            } catch (err) {
+                alert('Produkt konnte nicht gelöscht werden: ' + (err?.message || err));
+            }
         };
 
         window.statusMatUmschalten = function(index) {
@@ -8844,7 +8936,7 @@ body{top:0!important}
     '🧱 Uzin-Produkt für Packliste auswählen':'🧱 Sélectionner un produit Uzin pour la liste de colisage','Wähle ein Produkt aus oder füge neue Artikel zum Katalog hinzu:':'Sélectionnez un produit ou ajoutez de nouveaux articles au catalogue :','📁 Neues Projekt & Materialien anlegen':'📁 Créer un nouveau projet & matériaux','Adresse eingeben oder über die Karte das Gebäude auswählen und markieren.':'Saisissez l’adresse ou sélectionnez et marquez le bâtiment sur la carte.','Anweisung / Arbeitsdetails für das Team':'Instruction / détails du travail pour l’équipe','+ Weiteres Material':'+ Ajouter un matériau','💾 Baustelle & Materialien speichern':'💾 Enregistrer le chantier & les matériaux','📍 Baustelle auf Karte auswählen':'📍 Sélectionner le chantier sur la carte','Adresse suchen, Karte verschieben oder direkt auf das Gebäude tippen.':'Recherchez l’adresse, déplacez la carte ou touchez directement le bâtiment.','Noch keine Position ausgewählt.':'Aucune position sélectionnée.','💡 Der Marker kann mit dem Finger/der Maus auf das genaue Gebäude gezogen werden.':'💡 Le marqueur peut être déplacé avec le doigt/la souris jusqu’au bâtiment exact.','✏️ Baustelle / Projekt bearbeiten':'✏️ Modifier le chantier / projet','💾 Änderungen speichern':'💾 Enregistrer les modifications',
     'Baustelle kurz beschreiben → Räume, Flächen, Arbeiten und Material automatisch erkennen → Baustelle anlegen':'Décrivez brièvement le chantier → reconnaître automatiquement les pièces, surfaces, travaux et matériaux → créer le chantier','Schreibe einfach in deinen eigenen Worten. Mehrere Räume können direkt angegeben werden, z. B. „1: Raum 69 m² … 2: Raum 35 m² … in alle Räume …“.':'Écrivez simplement avec vos propres mots. Plusieurs pièces peuvent être indiquées directement, par ex. « 1 : pièce 69 m² … 2 : pièce 35 m² … dans toutes les pièces … ».','✅ KI-Auftrag erkannt – bitte kurz prüfen':'✅ Ordre IA reconnu – veuillez vérifier','Projekt / Baustelle':'Projet / chantier','Adresse eingeben oder 📍 Karte öffnen. Dort kannst du das genaue Gebäude markieren.':'Saisissez l’adresse ou ouvrez 📍 la carte. Vous pouvez y marquer le bâtiment exact.','Erkanntes Material':'Matériaux détectés','🚀 Baustelle anlegen':'🚀 Créer le chantier',
     'Hier ist deine persönliche Übersicht für den heutigen Arbeitstag in Luxemburg. Alles Wichtige auf einen Blick.':'Voici votre aperçu personnel de la journée de travail au Luxembourg. Tout l’essentiel en un coup d’œil.','Ideale Bedingungen für Baustellen- und Verlegearbeiten in Luxemburg.':'Conditions idéales pour les travaux de chantier et de pose au Luxembourg.','Deine heutigen und geplanten Einsätze':'Vos interventions d’aujourd’hui et planifiées','Diese Woche':'Cette semaine','Aktuelle Baustelle':'Chantier actuel','Keine Zuweisung':'Aucune affectation','Keine Baustelle zugeordnet':'Aucun chantier attribué','Bitte wende dich an die Arbeitsvorbereitung.':'Veuillez vous adresser à la préparation des travaux.','14 Tage':'14 jours','⏱️ Zeiterfassung & Urlaub verwalten →':'⏱️ Gérer le temps de travail & les congés →',
-    '🗑️ Löschen':'🗑️ Supprimer','Anweisung vom Chef:':'Instruction du chef :','Materialanlieferung erfolgt am Dienstag direkt über den Hintereingang.':'La livraison des matériaux aura lieu mardi directement par l’entrée arrière.','🔍 Antippen für Großansicht & Pins':'🔍 Toucher pour agrandir & afficher les pins','Grundriss-Plan (Bild oder PDF) antippen oder per Drag & Drop einfügen':'Touchez le plan (image ou PDF) ou insérez-le par glisser-déposer','Tipp: Tippe einfach auf den Plan, um ihn im':'Conseil : touchez simplement le plan pour l’ouvrir en','zu öffnen, heranzuzoomen und Pins zu setzen.':', zoomer et placer des pins.','Klicke auf einen Eintrag, um direkt zum richtigen Plan und Pin zu springen.':'Cliquez sur une entrée pour accéder directement au bon plan et au bon pin.','Soll → verbraucht → Rest. Verbrauch direkt auf der Baustelle dokumentieren.':'Prévu → consommé → reste. Documentez directement la consommation sur le chantier.','➕ Uzin-Material hinzufügen':'➕ Ajouter un matériau Uzin','für heute':'pour aujourd’hui','💾 Bericht speichern':'💾 Enregistrer le rapport','✅ Abnahme speichern':'✅ Enregistrer la réception','Alles zur Baustelle an einem Ort':'Tout sur le chantier au même endroit','Aktuelle Übersicht über Baustellen, Einsätze und gemeldete Probleme.':'Aperçu actuel des chantiers, interventions et problèmes signalés.','📅 Heute im Einsatz':'📅 En intervention aujourd’hui','Bestände, Wareneingänge, Werkzeugausgaben und automatische Nachbestellungen.':'Stocks, réceptions de marchandises, sorties d’outils et commandes automatiques.','＋ Artikel anlegen':'＋ Ajouter un article','Nachbestellen':'Commander','Ausgaben heute':'Sorties aujourd’hui','Noch keine Lagerartikel angelegt.':'Aucun article de stock créé.','Hier siehst du, welche Maschine gerade bei welchem Mitarbeiter ist.':'Ici, vous voyez quelle machine est actuellement attribuée à quel employé.','Hier werden alle verwendeten Produkte mit Verbrauch hinterlegt. Die KI-Auftragserstellung greift automatisch auf diese Liste zurück.':'Tous les produits utilisés et leur consommation sont enregistrés ici. La création de commande IA utilise automatiquement cette liste.','＋ Material hinzufügen':'＋ Ajouter un matériau','Verbrauch von':'Consommation de','Noch keine Materialien hinterlegt. Klicke auf „Material hinzufügen“.':'Aucun matériau enregistré. Cliquez sur « Ajouter un matériau ».',
+    '🗑️ Löschen':'🗑️ Supprimer','Anweisung vom Chef:':'Instruction du chef :','Materialanlieferung erfolgt am Dienstag direkt über den Hintereingang.':'La livraison des matériaux aura lieu mardi directement par l’entrée arrière.','🔍 Antippen für Großansicht & Pins':'🔍 Toucher pour agrandir & afficher les pins','Grundriss-Plan (Bild oder PDF) antippen oder per Drag & Drop einfügen':'Touchez le plan (image ou PDF) ou insérez-le par glisser-déposer','Tipp: Tippe einfach auf den Plan, um ihn im':'Conseil : touchez simplement le plan pour l’ouvrir en','zu öffnen, heranzuzoomen und Pins zu setzen.':', zoomer et placer des pins.','Klicke auf einen Eintrag, um direkt zum richtigen Plan und Pin zu springen.':'Cliquez sur une entrée pour accéder directement au bon plan et au bon pin.','Soll → verbraucht → Rest. Verbrauch direkt auf der Baustelle dokumentieren.':'Prévu → consommé → reste. Documentez directement la consommation sur le chantier.','➕ Materialliste öffnen':'➕ Ajouter un matériau Uzin','für heute':'pour aujourd’hui','💾 Bericht speichern':'💾 Enregistrer le rapport','✅ Abnahme speichern':'✅ Enregistrer la réception','Alles zur Baustelle an einem Ort':'Tout sur le chantier au même endroit','Aktuelle Übersicht über Baustellen, Einsätze und gemeldete Probleme.':'Aperçu actuel des chantiers, interventions et problèmes signalés.','📅 Heute im Einsatz':'📅 En intervention aujourd’hui','Bestände, Wareneingänge, Werkzeugausgaben und automatische Nachbestellungen.':'Stocks, réceptions de marchandises, sorties d’outils et commandes automatiques.','＋ Artikel anlegen':'＋ Ajouter un article','Nachbestellen':'Commander','Ausgaben heute':'Sorties aujourd’hui','Noch keine Lagerartikel angelegt.':'Aucun article de stock créé.','Hier siehst du, welche Maschine gerade bei welchem Mitarbeiter ist.':'Ici, vous voyez quelle machine est actuellement attribuée à quel employé.','Hier werden alle verwendeten Produkte mit Verbrauch hinterlegt. Die KI-Auftragserstellung greift automatisch auf diese Liste zurück.':'Tous les produits utilisés et leur consommation sont enregistrés ici. La création de commande IA utilise automatiquement cette liste.','＋ Material hinzufügen':'＋ Ajouter un matériau','Verbrauch von':'Consommation de','Noch keine Materialien hinterlegt. Klicke auf „Material hinzufügen“.':'Aucun matériau enregistré. Cliquez sur « Ajouter un matériau ».',
     'Klicke auf eine Nachricht, um sie als separates Fenster zu öffnen.':'Cliquez sur un message pour l’ouvrir dans une fenêtre séparée.','🗑️ Alle löschen':'🗑️ Tout supprimer','Handynummer, E-Mail und Passwort ändern.':'Modifier le numéro de téléphone, l’e-mail et le mot de passe.','💾 Daten in der Cloud aktualisieren':'💾 Mettre à jour les données dans le cloud','👥 Neuen Mitarbeiter anlegen':'👥 Ajouter un nouvel employé','➕ Mitarbeiter anlegen (start123)':'➕ Ajouter un employé (start123)','Baustellen direkt für jeden Wochentag planen. Pro Tag sind mehrere Baustellen möglich.':'Planifiez directement les chantiers pour chaque jour de la semaine. Plusieurs chantiers sont possibles par jour.','Heute':'Aujourd’hui','Diese Zuordnung bestimmt, welche Baustellen in der Wochenplanung auswählbar sind.':'Cette affectation détermine quels chantiers peuvent être sélectionnés dans le planning hebdomadaire.',
     'Verleger sehen nur eigene Belege. Chef, Techniker und Sekretariat sehen alle Belege.':'Les poseurs ne voient que leurs propres reçus. Le chef, les techniciens et le secrétariat voient tous les reçus.','➕ Neuen Beleg hochladen':'➕ Téléverser un nouveau reçu','📤 Beleg speichern':'📤 Enregistrer le reçu','Noch keine Belege vorhanden.':'Aucun reçu disponible.','Chef, Techniker und Sekretariat können Abrechnungen für einzelne Verleger hochladen. Verleger sehen nur ihre eigenen Abrechnungen.':'Le chef, les techniciens et le secrétariat peuvent téléverser les décomptes de chaque poseur. Les poseurs ne voient que leurs propres décomptes.','📤 Abrechnung speichern':'📤 Enregistrer le décompte','Hochgeladen von':'Téléversé par','Noch keine Abrechnungen vorhanden.':'Aucun décompte disponible.',
     '⏱️ Tägliche Zeiterfassung':'⏱️ Suivi quotidien du temps de travail','Verbleibender Resturlaub (Tage)':'Congés restants (jours)','Trage hier ein, wie viel Urlaub Dir für dieses Jahr noch zusteht.':'Indiquez ici combien de jours de congé il vous reste pour cette année.','💾 Speichern':'💾 Enregistrer','🌴 Neuen Urlaubsantrag einreichen':'🌴 Soumettre une nouvelle demande de congé','🌴 Neuen Urlaubsantrag':'🌴 Nouvelle demande de congé','Wähle den Zeitraum und sende deinen Antrag an das Büro.':'Choisissez la période et envoyez votre demande au bureau.','Hier siehst nur du deine eigenen Anträge und deren Entscheidung.':'Ici, vous voyez uniquement vos propres demandes et leur décision.','Alle deine gespeicherten Krankmeldungen und Krankheitstage.':'Tous vos arrêts maladie et jours de maladie enregistrés.','0 Tage':'0 jour','Netto-Stunden':'Heures nettes','👑 Chef-Zentrale: Urlaubs-Freigaben & Team-Stunden':'👑 Centrale chef : validations des congés & heures de l’équipe','📊 Erfasste Stunden im Team (September)':'📊 Heures enregistrées de l’équipe (septembre)','Deine geplanten Baustellen für diese Woche':'Vos chantiers planifiés pour cette semaine','Zeitraum und Krankmeldung hinterlegen':'Indiquer la période et l’arrêt maladie','Foto oder PDF der Krankmeldung.':'Photo ou PDF de l’arrêt maladie.','💾 Krankmeldung speichern':'💾 Enregistrer l’arrêt maladie','🏗️ Baustelle einteilen':'🏗️ Affecter un chantier','Baustelle auswählen...':'Sélectionner un chantier...','Abwesenheit für diesen Tag':'Absence pour ce jour','🏖️ Urlaub':'🏖️ Congé','🤒 Krank':'🤒 Malade','↩️ Löschen':'↩️ Supprimer',
