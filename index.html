@@ -6002,8 +6002,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 alert('Der Baustellenplan wurde gelöscht. Andere Baustellendaten wurden nicht gelöscht.');
             } catch (error) {
                 console.error('Baustellenplan konnte nicht gelöscht werden:', error);
-                alert('Der Baustellenplan konnte nicht gelöscht werden. Prüfe die Firestore-Berechtigungen.
-' + (error?.message || error));
+                alert('Der Baustellenplan konnte nicht gelöscht werden. Prüfe die Firestore-Berechtigungen.\n' + (error?.message || error));
                 await ladePlaeneFuerProjekt(titel);
                 plaeneLeisteAktualisieren();
                 planVorschauAnzeigen();
