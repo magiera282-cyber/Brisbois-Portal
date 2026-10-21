@@ -1522,12 +1522,16 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <div id="projekt-info-panel-beschreibung" class="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 hidden">
                         <div class="font-bold mb-2">Baustellenbeschreibung</div>
                         <div id="baustellenbeschreibung-text" class="whitespace-pre-wrap">Keine Baustellenbeschreibung hinterlegt.</div>
-                        <div id="beschreibung-bild-container" class="mt-3 hidden"><button type="button" onclick="baustellenBildInVorschauOeffnen('beschreibung-bild')" class="block max-w-full text-left" aria-label="Bild zur Baustellenbeschreibung vergrößern"><img id="beschreibung-bild" alt="Bild zur Baustellenbeschreibung – zum Vergrößern anklicken" class="max-w-full max-h-80 rounded-lg border border-slate-300 object-contain cursor-zoom-in"></button></div>
+                        <div id="beschreibung-bild-container" class="mt-3 hidden">
+                            <button type="button" id="beschreibung-bild-button" onclick="baustellenBildInVorschauOeffnen('beschreibung-bild')" class="block max-w-full text-left" aria-label="Bild zur Baustellenbeschreibung vergrößern"><img id="beschreibung-bild" alt="Bild zur Baustellenbeschreibung – zum Vergrößern anklicken" class="max-w-full max-h-80 rounded-lg border border-slate-300 object-contain cursor-zoom-in"></button>
+                            <iframe id="beschreibung-pdf" title="PDF zur Baustellenbeschreibung" class="hidden w-full h-96 rounded-lg border border-slate-300 bg-white"></iframe>
+                            <a id="beschreibung-pdf-link" class="hidden inline-block mt-2 text-blue-700 underline font-semibold" target="_blank" rel="noopener">📄 PDF öffnen</a>
+                        </div>
                         <div id="beschreibung-bild-editor" class="mt-4 pt-3 border-t border-slate-200 hidden">
-                            <label for="beschreibung-bild-datei" class="block text-xs font-bold mb-1">Bild zur Baustellenbeschreibung hinzufügen (optional)</label>
-                            <input id="beschreibung-bild-datei" type="file" accept="image/*" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800">
-                            <div class="flex justify-end mt-2"><button type="button" onclick="baustellenbeschreibungBildSpeichern()" class="rounded-lg bg-slate-700 hover:bg-slate-800 px-4 py-2 text-sm font-bold text-white">💾 Bild speichern</button></div>
-                            <div class="mt-1 text-xs text-slate-500">Ein vorhandenes Bild bleibt erhalten, wenn kein neues Bild ausgewählt wird.</div>
+                            <label for="beschreibung-bild-datei" class="block text-xs font-bold mb-1">Bild oder PDF zur Baustellenbeschreibung hinzufügen (optional)</label>
+                            <input id="beschreibung-bild-datei" type="file" accept="image/*,application/pdf,.pdf" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800">
+                            <div class="flex justify-end mt-2"><button type="button" onclick="baustellenbeschreibungBildSpeichern()" class="rounded-lg bg-slate-700 hover:bg-slate-800 px-4 py-2 text-sm font-bold text-white">💾 Datei speichern</button></div>
+                            <div class="mt-1 text-xs text-slate-500">Ein vorhandenes Bild oder PDF bleibt erhalten, wenn keine neue Datei ausgewählt wird.</div>
                         </div>
                     </div>
                     <div id="projekt-info-panel-verlegerfotos" class="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-lg hidden">
@@ -5530,39 +5534,56 @@ SECURITY MIGRATION MARKER (06.10.2026):
         };
 
         window.baustellenbeschreibungBildSpeichern = async function(){
-            if (!darfPrivateAnweisungBearbeiten()) { alert('Nur Chef, 2. Chef und Techniker dürfen ein Bild zur Baustellenbeschreibung hinzufügen.'); return; }
+            if (!darfPrivateAnweisungBearbeiten()) { alert('Nur Chef, 2. Chef und Techniker dürfen eine Datei zur Baustellenbeschreibung hinzufügen.'); return; }
             const titel = aktuellesProjekt;
             const p = globalDaten.projekte[titel];
             if (!titel || !p) { alert('Bitte zuerst eine Baustelle auswählen.'); return; }
             const input = document.getElementById('beschreibung-bild-datei');
             const datei = input?.files?.[0];
-            if (!datei) { alert('Bitte zuerst ein Bild auswählen.'); return; }
+            if (!datei) { alert('Bitte zuerst ein Bild oder PDF auswählen.'); return; }
             const button = document.querySelector('#beschreibung-bild-editor button[onclick*="baustellenbeschreibungBildSpeichern"]');
-            const original = button?.textContent || '💾 Bild speichern';
+            const original = button?.textContent || '💾 Datei speichern';
             if (button) { button.disabled = true; button.textContent = '⏳ Wird gespeichert …'; }
             const vorher = p.beschreibungBild || '';
+            const vorherTyp = p.beschreibungBildTyp || '';
             try {
-                if (!String(datei.type || '').startsWith('image/')) throw new Error('Bitte eine Bilddatei auswählen.');
-                if (datei.size > 12 * 1024 * 1024) throw new Error('Das Bild darf maximal 12 MB groß sein.');
-                const komprimiert = await planBildKomprimieren(datei, 1000, 0.68);
+                const istPdf = datei.type === 'application/pdf' || /\.pdf$/i.test(datei.name || '');
+                if (!istPdf && !String(datei.type || '').startsWith('image/')) throw new Error('Bitte eine Bilddatei oder PDF auswählen.');
+                if (datei.size > 450 * 1024) throw new Error('Die Datei darf maximal 450 KB groß sein, damit sie sicher mit den Baustellendaten gespeichert werden kann.');
+                const dateiZumLesen = istPdf ? datei : await planBildKomprimieren(datei, 1000, 0.68);
                 const dataUrl = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
-                    reader.onerror = () => reject(new Error('Das Bild konnte nicht gelesen werden.'));
+                    reader.onerror = () => reject(new Error('Die Datei konnte nicht gelesen werden.'));
                     reader.onload = () => resolve(String(reader.result || ''));
-                    reader.readAsDataURL(komprimiert);
+                    reader.readAsDataURL(dateiZumLesen);
                 });
-                if (!dataUrl || dataUrl.length > 650000) throw new Error('Das Bild ist nach der Komprimierung noch zu groß. Bitte ein kleineres Bild auswählen.');
+                if (!dataUrl || dataUrl.length > 650000) throw new Error('Die Datei ist zu groß zum Speichern. Bitte ein kleineres PDF/Bild auswählen.');
                 p.beschreibungBild = dataUrl;
+                p.beschreibungBildTyp = istPdf ? 'application/pdf' : 'image';
                 const ok = await projektSpeichern(titel);
-                if (!ok) { p.beschreibungBild = vorher; throw new Error('Firebase hat das Speichern nicht bestätigt.'); }
+                if (!ok) { p.beschreibungBild = vorher; p.beschreibungBildTyp = vorherTyp; throw new Error('Firebase hat das Speichern nicht bestätigt.'); }
                 input.value = '';
                 const box = document.getElementById('beschreibung-bild-container');
                 const img = document.getElementById('beschreibung-bild');
-                if (box && img) { img.src = dataUrl; box.classList.remove('hidden'); }
-                alert('Bild zur Baustellenbeschreibung wurde gespeichert.');
+                const imgButton = document.getElementById('beschreibung-bild-button');
+                const pdf = document.getElementById('beschreibung-pdf');
+                const pdfLink = document.getElementById('beschreibung-pdf-link');
+                if (box) box.classList.remove('hidden');
+                if (istPdf) {
+                    if (imgButton) imgButton.classList.add('hidden');
+                    if (img) img.removeAttribute('src');
+                    if (pdf) { pdf.src = dataUrl; pdf.classList.remove('hidden'); }
+                    if (pdfLink) { pdfLink.href = dataUrl; pdfLink.classList.remove('hidden'); }
+                } else {
+                    if (pdf) { pdf.removeAttribute('src'); pdf.classList.add('hidden'); }
+                    if (pdfLink) { pdfLink.removeAttribute('href'); pdfLink.classList.add('hidden'); }
+                    if (imgButton) imgButton.classList.remove('hidden');
+                    if (img) img.src = dataUrl;
+                }
+                alert((istPdf ? 'PDF' : 'Bild') + ' zur Baustellenbeschreibung wurde gespeichert.');
             } catch (e) {
-                console.error('Bild zur Baustellenbeschreibung konnte nicht gespeichert werden:', e);
-                alert('Bild konnte nicht gespeichert werden.\n' + (e.message || e));
+                console.error('Datei zur Baustellenbeschreibung konnte nicht gespeichert werden:', e);
+                alert('Datei konnte nicht gespeichert werden.\n' + (e.message || e));
             } finally { if (button) { button.disabled = false; button.textContent = original; } }
         };
 
@@ -5797,6 +5818,28 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const eingabeEl = document.getElementById('private-anweisung-eingabe'); if (eingabeEl) eingabeEl.value = '';
             const bildDateiEl = document.getElementById('private-anweisung-bild-datei'); if (bildDateiEl) bildDateiEl.value = '';
             const beschreibungEl = document.getElementById('baustellenbeschreibung-text'); if (beschreibungEl) beschreibungEl.innerText = 'Keine Baustellenbeschreibung hinterlegt.';
+            const beschreibungDatei = p.beschreibungBild || '';
+            const beschreibungBox = document.getElementById('beschreibung-bild-container');
+            const beschreibungImg = document.getElementById('beschreibung-bild');
+            const beschreibungImgButton = document.getElementById('beschreibung-bild-button');
+            const beschreibungPdf = document.getElementById('beschreibung-pdf');
+            const beschreibungPdfLink = document.getElementById('beschreibung-pdf-link');
+            const beschreibungIstPdf = String(p.beschreibungBildTyp || '').includes('pdf') || /^data:application\/pdf/i.test(beschreibungDatei);
+            if (beschreibungBox) beschreibungBox.classList.toggle('hidden', !beschreibungDatei);
+            if (beschreibungIstPdf && beschreibungDatei) {
+                if (beschreibungImgButton) beschreibungImgButton.classList.add('hidden');
+                if (beschreibungImg) beschreibungImg.removeAttribute('src');
+                if (beschreibungPdf) { beschreibungPdf.src = beschreibungDatei; beschreibungPdf.classList.remove('hidden'); }
+                if (beschreibungPdfLink) { beschreibungPdfLink.href = beschreibungDatei; beschreibungPdfLink.classList.remove('hidden'); }
+            } else if (beschreibungDatei) {
+                if (beschreibungPdf) { beschreibungPdf.removeAttribute('src'); beschreibungPdf.classList.add('hidden'); }
+                if (beschreibungPdfLink) { beschreibungPdfLink.removeAttribute('href'); beschreibungPdfLink.classList.add('hidden'); }
+                if (beschreibungImgButton) beschreibungImgButton.classList.remove('hidden');
+                if (beschreibungImg) beschreibungImg.src = beschreibungDatei;
+            } else {
+                if (beschreibungPdf) { beschreibungPdf.removeAttribute('src'); beschreibungPdf.classList.add('hidden'); }
+                if (beschreibungPdfLink) { beschreibungPdfLink.removeAttribute('href'); beschreibungPdfLink.classList.add('hidden'); }
+            }
             const beschBildBox = document.getElementById('beschreibung-bild-container'); if (beschBildBox) beschBildBox.classList.add('hidden');
             const beschBildInput = document.getElementById('beschreibung-bild-datei'); if (beschBildInput) beschBildInput.value = '';
             const fotoInput = document.getElementById('verleger-foto-datei'); if (fotoInput) fotoInput.value = '';
@@ -5933,13 +5976,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 const aktiverPlan = p.plaene[p.aktiverPlanIndex] || p.plaene[0];
                 placeholder.style.display = 'none';
 
-                if (aktiverPlan.startsWith('r2://') || aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
+                if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
                     bildEl.classList.add('hidden');
                     pdfViewer.classList.remove('hidden');
-                    pdfViewer.innerHTML = '<div class="p-4 text-sm text-slate-500">PDF wird geladen …</div>';
-                    r2PlanUrlAufloesen(aktiverPlan).then(pdfUrl => {
-                        pdfViewer.innerHTML = `<iframe src="${pdfUrl}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
-                    }).catch(error => { pdfViewer.innerHTML = `<div class="p-4 text-sm text-red-600">${escapeHtml(error.message || error)}</div>`; });
+                    pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
                 } else {
                     pdfViewer.classList.add('hidden');
                     bildEl.src = aktiverPlan;
@@ -5989,16 +6029,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const pdfViewer = document.getElementById('vollbild-pdf-viewer');
             const aktiverPlan = p.plaene[p.aktiverPlanIndex || 0];
 
-            if (aktiverPlan.startsWith('r2://') || aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
+            if (aktiverPlan.startsWith('data:application/pdf') || aktiverPlan.includes('.pdf') || aktiverPlan.includes('application/pdf')) {
                 bildEl.classList.add('hidden');
                 pdfViewer.classList.remove('hidden');
-                pdfViewer.innerHTML = '<div class="p-4 text-sm text-slate-500">PDF wird geladen …</div>';
-                try {
-                    const pdfUrl = await r2PlanUrlAufloesen(aktiverPlan);
-                    pdfViewer.innerHTML = `<iframe src="${pdfUrl}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
-                } catch (error) {
-                    pdfViewer.innerHTML = `<div class="p-4 text-sm text-red-600">${escapeHtml(error.message || error)}</div>`;
-                }
+                pdfViewer.innerHTML = `<iframe src="${aktiverPlan}" class="w-full h-full border-0 pointer-events-none"></iframe>`;
             } else {
                 pdfViewer.classList.add('hidden');
                 bildEl.src = aktiverPlan;
@@ -7147,63 +7181,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             return dataUrl;
         }
 
-        const BRISBOIS_R2_WORKER = "https://icy-tree-df33.magiera282.workers.dev";
-        const brisboisR2BlobCache = new Map();
-
-        async function r2PlanHochladen(datei, projektname) {
-            const user = auth.currentUser;
-            if (!user) throw new Error("Bitte melde dich erneut im Portal an.");
-            const token = await user.getIdToken();
-            const query = new URLSearchParams({ project: String(projektname || "baustelle"), filename: datei.name || "plan.pdf" });
-            return await new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                xhr.open("POST", `${BRISBOIS_R2_WORKER}/upload-plan?${query}`);
-                xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-                xhr.setRequestHeader("Content-Type", "application/pdf");
-                xhr.upload.onprogress = event => {
-                    if (event.lengthComputable) {
-                        const pct = Math.round(event.loaded / event.total * 100);
-                        const mb = (event.loaded / 1048576).toFixed(1);
-                        const total = (event.total / 1048576).toFixed(1);
-                        let status = document.getElementById("r2-plan-upload-status");
-                        if (!status) {
-                            status = document.createElement("div"); status.id = "r2-plan-upload-status";
-                            status.style.cssText = "position:fixed;z-index:99999;left:50%;bottom:20px;transform:translateX(-50%);background:#0f172a;color:white;padding:12px 18px;border-radius:12px;font:600 14px system-ui;box-shadow:0 8px 28px #0004";
-                            document.body.appendChild(status);
-                        }
-                        status.textContent = `PDF wird hochgeladen: ${pct}% (${mb} von ${total} MB)`;
-                    }
-                };
-                xhr.onerror = () => reject(new Error("Netzwerkfehler beim R2-Upload."));
-                xhr.onabort = () => reject(new Error("Upload abgebrochen."));
-                xhr.onload = () => {
-                    document.getElementById("r2-plan-upload-status")?.remove();
-                    let result = {}; try { result = JSON.parse(xhr.responseText || "{}"); } catch (_) {}
-                    if (xhr.status >= 200 && xhr.status < 300 && result.success && result.url) resolve(result.url);
-                    else reject(new Error(result.error || `R2-Upload fehlgeschlagen (HTTP ${xhr.status}).`));
-                };
-                xhr.send(datei);
-            });
-        }
-
-        async function r2PlanUrlAufloesen(planUrl) {
-            if (!String(planUrl || "").startsWith("r2://")) return planUrl;
-            if (brisboisR2BlobCache.has(planUrl)) return brisboisR2BlobCache.get(planUrl);
-            const user = auth.currentUser;
-            if (!user) throw new Error("Bitte melde dich erneut im Portal an, um den Plan zu öffnen.");
-            const token = await user.getIdToken();
-            const key = planUrl.slice(5);
-            const response = await fetch(`${BRISBOIS_R2_WORKER}/file?key=${encodeURIComponent(key)}`, { headers: { Authorization: `Bearer ${token}` } });
-            if (!response.ok) {
-                let msg = "Der PDF-Plan konnte nicht geladen werden.";
-                try { const data = await response.json(); msg = data.error || msg; } catch (_) {}
-                throw new Error(msg);
-            }
-            const blobUrl = URL.createObjectURL(await response.blob());
-            brisboisR2BlobCache.set(planUrl, blobUrl);
-            return blobUrl;
-        }
-
         async function verarbeiteGrundriss(datei) {
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
                 alert("Bitte zuerst eine Baustelle öffnen.");
@@ -7222,10 +7199,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 let dateityp = 'image/jpeg';
 
                 if (istPdf) {
-                    // Original-PDF wird unverändert in den privaten Cloudflare-R2-Bucket geladen.
-                    url = await r2PlanHochladen(datei, aktuellesProjekt);
-                    speicherart = 'r2-pdf-original';
-                    dateityp = 'application/pdf';
+                    // PDF-Pläne werden direkt im Browser gerendert und als
+                    // komprimiertes Planbild im bestehenden Plan-Dokument gespeichert.
+                    // Damit funktioniert der PDF-Upload auch ohne Firebase Storage.
+                    url = await pdfPlanAlsBildKomprimieren(datei);
+                    speicherart = 'firestore-pdf-render';
                 } else {
                     const uploadDatei = await planBildKomprimieren(datei);
                     const reader = new FileReader();
