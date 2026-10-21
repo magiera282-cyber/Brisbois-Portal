@@ -5918,7 +5918,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const problemButton = document.querySelector('[onclick*="problemMeldenOeffnen"]');
             if (problemButton) problemButton.classList.remove('hidden');
 
-            // Zuerst die Baustelle normal anzeigen, damit nichts blockiert.
+            // Beim Öffnen einer Baustelle zuerst nur die Ordnerübersicht zeigen.
+            window.aktuellerPlanOrdner = null;
+            window.planAnsichtFreigegeben = false;
             projektListeAktualisieren();
             plaeneLeisteAktualisieren();
             planVorschauAnzeigen();
@@ -5937,6 +5939,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
         }
 
         window.aktuellerPlanOrdner = null;
+        // Ein Plan wird erst angezeigt, nachdem der Benutzer ihn innerhalb
+        // eines geöffneten Ordners ausdrücklich angeklickt hat.
+        window.planAnsichtFreigegeben = false;
 
         async function planOrdnerErstellen() {
             const p = globalDaten.projekte[aktuellesProjekt];
@@ -5954,10 +5959,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         window.planOrdnerOeffnen = function(name) {
             window.aktuellerPlanOrdner = name;
+            window.planAnsichtFreigegeben = false;
+            planVorschauAnzeigen();
             plaeneLeisteAktualisieren();
         };
         window.planOrdnerZurueck = function() {
             window.aktuellerPlanOrdner = null;
+            window.planAnsichtFreigegeben = false;
+            planVorschauAnzeigen();
             plaeneLeisteAktualisieren();
         };
 
@@ -6035,7 +6044,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 if (!ordnerNamen.length) ordnerNamen.push('Nicht sortiert');
                 leiste.innerHTML = `<div class="w-full"><p class="text-xs text-slate-500 mb-2">📁 Wähle einen Ordner, um die darin gespeicherten Pläne und Pins zu öffnen.</p><div class="flex flex-wrap gap-2">${ordnerNamen.map(n=>{
                     const count=p.planDetails.filter(d=>d.folder===n).length;
-                    return `<div class="flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 p-1"><button type="button" onclick="planOrdnerOeffnen(${JSON.stringify(n).replace(/"/g,'&quot;')})" class="px-3 py-2 text-sm font-bold text-amber-950 hover:bg-amber-100 rounded-lg">📁 ${escapeHtml(n)} <span class="text-xs font-normal">(${count})</span></button><button type="button" title="Ordner umbenennen" onclick="planOrdnerUmbenennen(${JSON.stringify(n).replace(/"/g,'&quot;')})" class="px-2 py-2 text-xs text-slate-600">✏️</button></div>`;
+                    return `<div class="flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 p-1"><button type="button" onclick="planOrdnerOeffnen(${JSON.stringify(n).replace(/"/g,'&quot;')})" class="px-3 py-2 text-sm font-bold text-amber-950 hover:bg-amber-100 rounded-lg">📁 ${escapeHtml(n)} <span class="text-xs font-normal">(${count})</span></button><button type="button" title="Ordner umbenennen" onclick="planOrdnerUmbenennen(${JSON.stringify(n).replace(/"/g,'&quot;')})" class="px-2 py-2 text-xs text-slate-600">✏️</button><button type="button" title="Ordner löschen" onclick="planOrdnerLoeschen(${JSON.stringify(n).replace(/"/g,'&quot;')})" class="px-2 py-2 text-xs text-red-600 hover:bg-red-100 rounded-lg">🗑️</button></div>`;
                 }).join('')}</div></div>`;
                 return;
             }
@@ -6065,9 +6074,45 @@ SECURITY MIGRATION MARKER (06.10.2026):
             } catch(e){console.error(e);alert('Ordner konnte nicht gespeichert werden.');}
         };
 
+        window.planOrdnerLoeschen = async function(name) {
+            const titel = aktuellesProjekt;
+            const p = globalDaten.projekte[titel];
+            if (!p || !name) return;
+            const enthaltene = (p.planDetails || []).filter(d => d.folder === name);
+            const hinweis = enthaltene.length
+                ? `Der Ordner enthält ${enthaltene.length} Plan(e). Diese werden in „Nicht sortiert“ verschoben. Die Pläne und ihre Pins werden nicht gelöscht.`
+                : 'Der leere Ordner wird gelöscht.';
+            if (!confirm(`Ordner „${name}“ wirklich löschen?\n\n${hinweis}`)) return;
+            try {
+                // Nur den Ordner entfernen; Planbilder und Pins bleiben unangetastet.
+                if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
+                p.planOrdner = p.planOrdner.filter(x => x !== name);
+                enthaltene.forEach(d => { d.folder = 'Nicht sortiert'; });
+                if (enthaltene.length && !p.planOrdner.includes('Nicht sortiert')) p.planOrdner.push('Nicht sortiert');
+                const updates = enthaltene.filter(d => d.id).map(d =>
+                    setDoc(doc(db, 'projekte', titel, 'plaene', d.id), {
+                        ordner: 'Nicht sortiert', planName: d.name || 'Plan'
+                    }, { merge: true })
+                );
+                await Promise.all(updates);
+                const gespeichert = await projektSpeichern(titel);
+                if (gespeichert === false) throw new Error('Ordneränderung konnte nicht gespeichert werden.');
+                if (window.aktuellerPlanOrdner === name) window.aktuellerPlanOrdner = null;
+                plaeneLeisteAktualisieren();
+                planVorschauAnzeigen();
+                projektPinListeAnzeigen();
+            } catch (e) {
+                console.error('Plan-Ordner konnte nicht gelöscht werden:', e);
+                alert('Der Ordner konnte nicht sicher gelöscht werden. Bitte Verbindung und Firebase-Berechtigungen prüfen.');
+                plaeneLeisteAktualisieren();
+            }
+        };
+
         window.aktivenPlanWechseln = function(idx) {
             const p = globalDaten.projekte[aktuellesProjekt];
             if (!p || !Array.isArray(p.plaene) || !p.plaene[idx]) return;
+            // Plan nur nach expliziter Auswahl innerhalb des Ordners anzeigen.
+            window.planAnsichtFreigegeben = true;
             p.aktiverPlanIndex = idx;
             // Nur den kleinen Index im Projekt-Dokument speichern.
             projektSpeichern(aktuellesProjekt);
@@ -6083,6 +6128,18 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) return;
             const p = globalDaten.projekte[aktuellesProjekt];
+
+            // Keine Vorschau beim bloßen Öffnen der Baustelle oder des Ordners.
+            // Erst der Klick auf einen einzelnen Plan gibt die Vorschau frei.
+            if (!window.planAnsichtFreigegeben) {
+                bildEl.src = "";
+                bildEl.classList.add('hidden');
+                pdfViewer.innerHTML = "";
+                pdfViewer.classList.add('hidden');
+                placeholder.style.display = 'block';
+                placeholder.innerHTML = '<div class="p-6 text-center text-slate-600"><div class="text-3xl mb-2">📁</div><div class="font-bold">Wähle zuerst einen Ordner und danach einen Plan.</div><div class="text-sm mt-1">Der Grundriss und seine Pins werden erst nach Auswahl des Plans angezeigt.</div></div>';
+                return;
+            }
 
             if (p.plaene && p.plaene.length > 0) {
                 const aktiverPlan = p.plaene[p.aktiverPlanIndex] || p.plaene[0];
