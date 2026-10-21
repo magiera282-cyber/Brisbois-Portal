@@ -5962,26 +5962,53 @@ SECURITY MIGRATION MARKER (06.10.2026):
         };
 
         async function planMetadatenAendern(idx, art) {
-            const p = globalDaten.projekte[aktuellesProjekt];
-            if (!p || !p.plaene || !p.plaene[idx]) return;
+            const titel = aktuellesProjekt;
+            const p = globalDaten.projekte[titel];
+            if (!p || !Array.isArray(p.plaene) || !p.plaene[idx]) return;
             if (!Array.isArray(p.planDetails)) p.planDetails = p.plaene.map((_,i)=>({id:null,name:`Plan ${i+1}`,folder:'Nicht sortiert'}));
             const d = p.planDetails[idx] || (p.planDetails[idx]={id:null,name:`Plan ${idx+1}`,folder:'Nicht sortiert'});
+            let patch = {};
             if (art === 'name') {
                 const name = prompt('Neuer Planname:', d.name || `Plan ${idx+1}`);
-                if (!name || !name.trim()) return;
+                if (name === null || !name.trim()) return;
                 d.name = name.trim().slice(0,120);
+                patch = {planName:d.name};
             } else {
-                const ordner = prompt('In welchen Ordner soll der Plan? Vorhandene Ordner: ' + (p.planOrdner||[]).join(', '), d.folder || 'Nicht sortiert');
-                if (!ordner || !ordner.trim()) return;
-                d.folder = ordner.trim().slice(0,80);
+                const ordnerNamen = [...new Set([...(p.planOrdner || []), ...p.planDetails.map(x=>x.folder).filter(Boolean)])];
+                const hilfe = ordnerNamen.length ? ordnerNamen.map((n,i)=>`${i+1}. ${n}`).join('\n') : 'Noch keine Ordner vorhanden.';
+                const eingabe = prompt('Plan in welchen Ordner verschieben?\n\n' + hilfe + '\n\nBitte den Ordnernamen exakt eingeben oder einen neuen Namen eingeben:', d.folder || 'Nicht sortiert');
+                if (eingabe === null || !eingabe.trim()) return;
+                const ziel = eingabe.trim().slice(0,80);
+                d.folder = ziel;
                 if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
-                if (!p.planOrdner.includes(d.folder)) p.planOrdner.push(d.folder);
+                if (!p.planOrdner.includes(ziel)) p.planOrdner.push(ziel);
+                patch = {ordner:ziel, planName:d.name || `Plan ${idx+1}`};
             }
             try {
-                if (d.id) await setDoc(doc(db,'projekte',aktuellesProjekt,'plaene',d.id), art === 'name' ? {planName:d.name} : {ordner:d.folder}, {merge:true});
-                await projektSpeichern(aktuellesProjekt);
+                // Zuerst die Plan-Metadaten direkt am einzelnen Plan speichern.
+                // So bleiben Planbild und zugehörige Pins unverändert.
+                if (d.id) {
+                    await setDoc(doc(db, 'projekte', titel, 'plaene', d.id), patch, {merge:true});
+                } else {
+                    // Ältere/lokale Pläne bekommen bei Bedarf ein eigenes Plan-Dokument.
+                    const id = crypto.randomUUID();
+                    await setDoc(doc(db, 'projekte', titel, 'plaene', id), {
+                        index: idx, url: p.plaene[idx], planName: d.name || `Plan ${idx+1}`,
+                        ordner: d.folder || 'Nicht sortiert', migriert: true
+                    });
+                    d.id = id;
+                }
+                const gespeichert = await projektSpeichern(titel);
+                if (gespeichert === false) throw new Error('Baustellen-Metadaten konnten nicht gespeichert werden.');
                 plaeneLeisteAktualisieren();
-            } catch(e) { console.error(e); alert('Die Änderung konnte nicht gespeichert werden. Bitte Verbindung prüfen.'); }
+                planVorschauAnzeigen();
+                projektPinListeAnzeigen();
+            } catch(e) {
+                console.error('Planänderung konnte nicht gespeichert werden:', e);
+                alert('Der Plan konnte nicht verschoben/umbenannt werden. Firebase hat das Speichern nicht bestätigt. Bitte prüfe die Verbindung und Berechtigungen.');
+                // Ansicht erneut aus den zuletzt bekannten lokalen Daten aufbauen.
+                plaeneLeisteAktualisieren();
+            }
         }
         window.planUmbenennen = idx => planMetadatenAendern(idx,'name');
         window.planInOrdnerVerschieben = idx => planMetadatenAendern(idx,'folder');
