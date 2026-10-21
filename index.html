@@ -1574,6 +1574,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <div class="flex justify-between items-center flex-wrap gap-2">
                         <h3 class="font-semibold text-lg text-slate-700">📐 Baustellen-Pläne & Mangel-Pins</h3>
                         <div class="flex items-center gap-2 flex-wrap">
+                            <button type="button" onclick="planOrdnerErstellen()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-1.5 rounded-lg font-bold transition shadow-sm">📁 Ordner erstellen</button>
                             <button type="button" id="pin-modus-btn" onclick="pinModusUmschalten()" class="text-xs bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg font-bold transition shadow-sm">
                                 📌 Pin setzen (Aus)
                             </button>
@@ -5677,10 +5678,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (suchfeld && suchfeld.value) projektSucheAktualisieren(suchfeld.value);
         }
 
-        // Dokument-IDs der einzelnen Grundriss-Pläne nur im Arbeitsspeicher halten;
-        // sie werden nicht in das Baustellen-Dokument geschrieben.
-        window.baustellenPlanDokumentIds = window.baustellenPlanDokumentIds || {};
-
         async function ladePlaeneFuerProjekt(titel) {
             const p = globalDaten.projekte[titel];
             if (!p) return;
@@ -5694,10 +5691,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 const geladenePlaene = [];
                 snap.forEach(planSnap => {
                     const d = planSnap.data() || {};
-                    if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id });
+                    if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id, name: String(d.planName || d.dateiname || ''), folder: String(d.ordner || 'Nicht sortiert') });
                 });
                 geladenePlaene.sort((a,b) => a.index - b.index);
-                window.baustellenPlanDokumentIds[titel] = geladenePlaene.map(x => x.id);
 
                 // Alte Pläne, die noch direkt im Projekt-Dokument liegen,
                 // einmalig in einzelne Plan-Dokumente übernehmen.
@@ -5723,13 +5719,12 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     geladenePlaene.length = 0;
                     neu.forEach(planSnap => {
                         const d = planSnap.data() || {};
-                        if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id });
+                        if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id, name: String(d.planName || d.dateiname || ''), folder: String(d.ordner || 'Nicht sortiert') });
                     });
                     geladenePlaene.sort((a,b) => a.index - b.index);
-                    window.baustellenPlanDokumentIds[titel] = geladenePlaene.map(x => x.id);
                 }
 
-                p.plaene = geladenePlaene.map(x => x.url);
+                p.plaene = geladenePlaene.map(x => x.url);\n                p.planDetails = geladenePlaene.map((x,i) => ({ id:x.id, name:x.name || `Plan ${i+1}`, folder:x.folder || 'Nicht sortiert' }));\n                if (!Array.isArray(p.planOrdner)) p.planOrdner = [];\n                p.planDetails.forEach(x => { if (!p.planOrdner.includes(x.folder)) p.planOrdner.push(x.folder); });
                 if (p.aktiverPlanIndex >= p.plaene.length) p.aktiverPlanIndex = Math.max(0, p.plaene.length - 1);
             } catch (e) {
                 console.warn('Plan-Unterkollektion konnte nicht geladen werden; vorhandene lokale Pläne bleiben erhalten:', e);
@@ -5938,75 +5933,106 @@ SECURITY MIGRATION MARKER (06.10.2026):
             projektListeAktualisieren();
         }
 
+        window.aktuellerPlanOrdner = null;
+
+        async function planOrdnerErstellen() {
+            const p = globalDaten.projekte[aktuellesProjekt];
+            if (!p) return;
+            const name = prompt('Wie soll der neue Plan-Ordner heißen? (z. B. Erdgeschoss)');
+            if (!name || !name.trim()) return;
+            const sauber = name.trim().slice(0,80);
+            if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
+            if (!p.planOrdner.includes(sauber)) p.planOrdner.push(sauber);
+            await projektSpeichern(aktuellesProjekt);
+            window.aktuellerPlanOrdner = sauber;
+            plaeneLeisteAktualisieren();
+        }
+        window.planOrdnerErstellen = planOrdnerErstellen;
+
+        window.planOrdnerOeffnen = function(name) {
+            window.aktuellerPlanOrdner = name;
+            plaeneLeisteAktualisieren();
+        };
+        window.planOrdnerZurueck = function() {
+            window.aktuellerPlanOrdner = null;
+            plaeneLeisteAktualisieren();
+        };
+
+        async function planMetadatenAendern(idx, art) {
+            const p = globalDaten.projekte[aktuellesProjekt];
+            if (!p || !p.plaene || !p.plaene[idx]) return;
+            if (!Array.isArray(p.planDetails)) p.planDetails = p.plaene.map((_,i)=>({id:null,name:`Plan ${i+1}`,folder:'Nicht sortiert'}));
+            const d = p.planDetails[idx] || (p.planDetails[idx]={id:null,name:`Plan ${idx+1}`,folder:'Nicht sortiert'});
+            if (art === 'name') {
+                const name = prompt('Neuer Planname:', d.name || `Plan ${idx+1}`);
+                if (!name || !name.trim()) return;
+                d.name = name.trim().slice(0,120);
+            } else {
+                const ordner = prompt('In welchen Ordner soll der Plan? Vorhandene Ordner: ' + (p.planOrdner||[]).join(', '), d.folder || 'Nicht sortiert');
+                if (!ordner || !ordner.trim()) return;
+                d.folder = ordner.trim().slice(0,80);
+                if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
+                if (!p.planOrdner.includes(d.folder)) p.planOrdner.push(d.folder);
+            }
+            try {
+                if (d.id) await setDoc(doc(db,'projekte',aktuellesProjekt,'plaene',d.id), art === 'name' ? {planName:d.name} : {ordner:d.folder}, {merge:true});
+                await projektSpeichern(aktuellesProjekt);
+                plaeneLeisteAktualisieren();
+            } catch(e) { console.error(e); alert('Die Änderung konnte nicht gespeichert werden. Bitte Verbindung prüfen.'); }
+        }
+        window.planUmbenennen = idx => planMetadatenAendern(idx,'name');
+        window.planInOrdnerVerschieben = idx => planMetadatenAendern(idx,'folder');
+
         function plaeneLeisteAktualisieren() {
             const leiste = document.getElementById('plaene-auswahl-leiste');
             if(!leiste) return;
             leiste.innerHTML = '';
-
             const p = globalDaten.projekte[aktuellesProjekt];
-            if (!p || !p.plaene || p.plaene.length === 0) {
-                leiste.innerHTML = `<span class="text-xs text-slate-400 italic">Keine Pläne hochgeladen.</span>`;
+            if (!p) {
+                leiste.innerHTML = `<span class="text-xs text-slate-400 italic">Bitte zuerst eine Baustelle öffnen.</span>`;
                 return;
             }
-
-            p.plaene.forEach((planUrl, idx) => {
-                const aktiv = idx === p.aktiverPlanIndex;
-                const planBerechtigt = isChefOrPrivileged();
-                leiste.innerHTML += `
-                    <span class="inline-flex items-center gap-1 rounded-lg ${aktiv ? 'bg-blue-600' : 'bg-slate-200'}">
-                        <button type="button" onclick="aktivenPlanWechseln(${idx})" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1 ${aktiv ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
-                            📄 Plan ${idx + 1} ${aktiv ? '✓' : ''}
-                        </button>
-                        ${planBerechtigt ? `<button type="button" onclick="event.stopPropagation();baustellenPlanLoeschen(${idx})" class="px-2 py-1.5 rounded-lg text-xs font-bold text-red-600 hover:bg-red-100" title="Plan ${idx + 1} löschen" aria-label="Plan ${idx + 1} löschen">🗑️</button>` : ''}
-                    </span>
-                `;
+            if (!Array.isArray(p.plaene)) p.plaene = [];
+            if (!Array.isArray(p.planDetails)) p.planDetails = p.plaene.map((_,i)=>({id:null,name:`Plan ${i+1}`,folder:'Nicht sortiert'}));
+            if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
+            p.planDetails.forEach((d,i) => {
+                if (!d.name) d.name = `Plan ${i+1}`;
+                if (!d.folder) d.folder = 'Nicht sortiert';
+                if (!p.planOrdner.includes(d.folder)) p.planOrdner.push(d.folder);
+            });
+            if (window.aktuellerPlanOrdner === null) {
+                const ordnerNamen = [...new Set([...p.planOrdner, ...p.planDetails.map(d=>d.folder)])];
+                if (!ordnerNamen.length) ordnerNamen.push('Nicht sortiert');
+                leiste.innerHTML = `<div class="w-full"><p class="text-xs text-slate-500 mb-2">📁 Wähle einen Ordner, um die darin gespeicherten Pläne und Pins zu öffnen.</p><div class="flex flex-wrap gap-2">${ordnerNamen.map(n=>{
+                    const count=p.planDetails.filter(d=>d.folder===n).length;
+                    return `<div class="flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 p-1"><button type="button" onclick="planOrdnerOeffnen(${JSON.stringify(n).replace(/"/g,'&quot;')})" class="px-3 py-2 text-sm font-bold text-amber-950 hover:bg-amber-100 rounded-lg">📁 ${escapeHtml(n)} <span class="text-xs font-normal">(${count})</span></button><button type="button" title="Ordner umbenennen" onclick="planOrdnerUmbenennen(${JSON.stringify(n).replace(/"/g,'&quot;')})" class="px-2 py-2 text-xs text-slate-600">✏️</button></div>`;
+                }).join('')}</div></div>`;
+                return;
+            }
+            const current = window.aktuellerPlanOrdner;
+            leiste.innerHTML = `<div class="w-full flex flex-wrap items-center gap-2 mb-2"><button type="button" onclick="planOrdnerZurueck()" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 text-sm font-bold">← Alle Ordner</button><span class="font-bold text-slate-800">📁 ${escapeHtml(current)}</span></div>`;
+            const plans = p.planDetails.map((d,idx)=>({...d,idx})).filter(d=>d.folder===current);
+            if (!plans.length) leiste.innerHTML += `<p class="text-xs text-slate-500">Dieser Ordner ist leer. Lade einen Plan hoch oder verschiebe einen vorhandenen Plan hierher.</p>`;
+            plans.forEach(d => {
+                const aktiv = d.idx === p.aktiverPlanIndex;
+                leiste.innerHTML += `<div class="flex flex-wrap items-center gap-1 rounded-lg border p-1 ${aktiv?'border-blue-500 bg-blue-50':'border-slate-200 bg-white/80'}"><button type="button" onclick="aktivenPlanWechseln(${d.idx})" class="px-3 py-2 rounded-lg text-xs font-bold ${aktiv?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">📄 ${escapeHtml(d.name)} ${aktiv?'✓':''}</button><button type="button" onclick="planUmbenennen(${d.idx})" title="Plan umbenennen" class="px-2 py-2 text-xs">✏️</button><button type="button" onclick="planInOrdnerVerschieben(${d.idx})" title="In anderen Ordner verschieben" class="px-2 py-2 text-xs">📂</button></div>`;
             });
         }
-
-        window.baustellenPlanLoeschen = async function(idx) {
-            if (!isChefOrPrivileged()) {
-                alert('Nur Chef, Techniker, Sekretariat oder Admin dürfen Baustellenpläne löschen.');
-                return;
-            }
-            const titel = aktuellesProjekt;
-            const p = titel ? globalDaten.projekte[titel] : null;
-            const ids = window.baustellenPlanDokumentIds?.[titel] || [];
-            if (!p || !Array.isArray(p.plaene) || !p.plaene[idx]) {
-                alert('Der ausgewählte Plan wurde nicht gefunden. Bitte die Baustelle erneut öffnen.');
-                return;
-            }
-            const planId = ids[idx];
-            if (!planId) {
-                alert('Die Plan-ID ist noch nicht geladen. Bitte die Baustelle erneut öffnen und erneut versuchen.');
-                return;
-            }
-            if (!confirm(`Plan ${idx + 1} der Baustelle „${titel}“ wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) return;
-
+        window.planOrdnerUmbenennen = async function(alt) {
+            const p=globalDaten.projekte[aktuellesProjekt]; if(!p)return;
+            const neu=prompt('Neuer Ordnername:',alt);
+            if(!neu||!neu.trim()||neu.trim()===alt)return;
+            const name=neu.trim().slice(0,80);
+            if(!Array.isArray(p.planOrdner))p.planOrdner=[];
+            p.planOrdner=p.planOrdner.map(x=>x===alt?name:x);
+            if(!p.planOrdner.includes(name))p.planOrdner.push(name);
+            (p.planDetails||[]).forEach(d=>{if(d.folder===alt)d.folder=name;});
             try {
-                await deleteDoc(doc(db, 'projekte', titel, 'plaene', planId));
-                p.plaene.splice(idx, 1);
-                ids.splice(idx, 1);
-                window.baustellenPlanDokumentIds[titel] = ids;
-                if (!p.plaene.length) p.aktiverPlanIndex = 0;
-                else if (idx < p.aktiverPlanIndex) p.aktiverPlanIndex--;
-                else if (idx === p.aktiverPlanIndex) p.aktiverPlanIndex = Math.min(idx, p.plaene.length - 1);
-
-                // Nur den aktiven Planindex im Projekt-Dokument speichern;
-                // sämtliche anderen Baustellendaten bleiben unverändert.
-                const { plaene: _planbilder, ...projektOhnePlanbilder } = p;
-                await setDoc(doc(db, 'projekte', titel), { ...projektOhnePlanbilder, plaene: [] });
-                p.plaene = p.plaene || [];
+                const updates=(p.planDetails||[]).filter(d=>d.id).map(d=>setDoc(doc(db,'projekte',aktuellesProjekt,'plaene',d.id),{ordner:d.folder,planName:d.name},{merge:true}));
+                await Promise.all(updates); await projektSpeichern(aktuellesProjekt);
+                if(window.aktuellerPlanOrdner===alt)window.aktuellerPlanOrdner=name;
                 plaeneLeisteAktualisieren();
-                planVorschauAnzeigen();
-                if (typeof vollbildSchliessen === 'function') vollbildSchliessen();
-                alert('Der Baustellenplan wurde gelöscht. Andere Baustellendaten wurden nicht gelöscht.');
-            } catch (error) {
-                console.error('Baustellenplan konnte nicht gelöscht werden:', error);
-                alert('Der Baustellenplan konnte nicht gelöscht werden. Prüfe die Firestore-Berechtigungen.\n' + (error?.message || error));
-                await ladePlaeneFuerProjekt(titel);
-                plaeneLeisteAktualisieren();
-                planVorschauAnzeigen();
-            }
+            } catch(e){console.error(e);alert('Ordner konnte nicht gespeichert werden.');}
         };
 
         window.aktivenPlanWechseln = function(idx) {
@@ -7302,8 +7328,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // Damit wächst das Baustellen-Dokument nicht mehr mit jedem Bild.
             const index = p.plaene.length;
             const planId = crypto.randomUUID();
-            window.baustellenPlanDokumentIds = window.baustellenPlanDokumentIds || {};
-            if (!Array.isArray(window.baustellenPlanDokumentIds[titel])) window.baustellenPlanDokumentIds[titel] = [];
             await setDoc(doc(db, 'projekte', titel, 'plaene', planId), {
                 index,
                 url: ergebnisUrl,
@@ -7318,7 +7342,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // Lokal für die bestehende Anzeige vorhalten. Diese Werte werden
             // NICHT mehr in das Projekt-Dokument geschrieben.
             p.plaene.push(ergebnisUrl);
-            window.baustellenPlanDokumentIds[titel].push(planId);
             p.aktiverPlanIndex = index;
 
             if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
