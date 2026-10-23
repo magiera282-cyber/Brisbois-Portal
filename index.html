@@ -6031,8 +6031,14 @@ SECURITY MIGRATION MARKER (06.10.2026):
         }
         window.planOrdnerErstellen = planOrdnerErstellen;
 
+        // Kodierte Handler verhindern Fehler bei Ordnernamen mit Anführungszeichen,
+        // Apostrophen oder anderen Sonderzeichen. Der bestehende Speicher bleibt unverändert.
+        window.planOrdnerOeffnenKodiert = encoded => window.planOrdnerOeffnen(decodeURIComponent(encoded));
+        window.planOrdnerUmbenennenKodiert = encoded => window.planOrdnerUmbenennen(decodeURIComponent(encoded));
+        window.planOrdnerLoeschenKodiert = encoded => window.planOrdnerLoeschen(decodeURIComponent(encoded));
+
         window.planOrdnerOeffnen = function(name) {
-            window.aktuellerPlanOrdner = name;
+            window.aktuellerPlanOrdner = String(name);
             window.planAnsichtFreigegeben = false;
             planVorschauAnzeigen();
             plaeneLeisteAktualisieren();
@@ -6118,7 +6124,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 if (!ordnerNamen.length) ordnerNamen.push('Nicht sortiert');
                 leiste.innerHTML = `<div class="w-full"><p class="text-xs text-slate-500 mb-2">📁 Wähle einen Ordner, um die darin gespeicherten Pläne und Pins zu öffnen.</p><div class="flex flex-wrap gap-2">${ordnerNamen.map(n=>{
                     const count=p.planDetails.filter(d=>d.folder===n).length;
-                    return `<div class="flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 p-1"><button type="button" onclick="planOrdnerOeffnen(${JSON.stringify(n).replace(/"/g,'&quot;')})" class="px-3 py-2 text-sm font-bold text-amber-950 hover:bg-amber-100 rounded-lg">📁 ${escapeHtml(n)} <span class="text-xs font-normal">(${count})</span></button><button type="button" title="Ordner umbenennen" onclick="planOrdnerUmbenennen(${JSON.stringify(n).replace(/"/g,'&quot;')})" class="px-2 py-2 text-xs text-slate-600">✏️</button><button type="button" title="Ordner löschen" onclick="planOrdnerLoeschen(${JSON.stringify(n).replace(/"/g,'&quot;')})" class="px-2 py-2 text-xs text-red-600 hover:bg-red-100 rounded-lg">🗑️</button></div>`;
+                    // Ordnernamen URL-kodieren: Anführungszeichen/Sonderzeichen dürfen
+                    // den Inline-Klick nicht beschädigen und keinen erneuten Seitenaufbau auslösen.
+                    const encoded = encodeURIComponent(n);
+                    return `<div class="flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 p-1"><button type="button" onclick="planOrdnerOeffnenKodiert('${encoded}')" class="px-3 py-2 text-sm font-bold text-amber-950 hover:bg-amber-100 rounded-lg">📁 ${escapeHtml(n)} <span class="text-xs font-normal">(${count})</span></button><button type="button" title="Ordner umbenennen" onclick="planOrdnerUmbenennenKodiert('${encoded}')" class="px-2 py-2 text-xs text-slate-600">✏️</button><button type="button" title="Ordner löschen" onclick="planOrdnerLoeschenKodiert('${encoded}')" class="px-2 py-2 text-xs text-red-600 hover:bg-red-100 rounded-lg">🗑️</button></div>`;
                 }).join('')}</div></div>`;
                 return;
             }
