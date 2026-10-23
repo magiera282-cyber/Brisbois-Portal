@@ -6132,13 +6132,23 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 return;
             }
             const current = window.aktuellerPlanOrdner;
-            leiste.innerHTML = `<div class="w-full flex flex-wrap items-center gap-2 mb-2"><button type="button" onclick="planOrdnerZurueck()" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 text-sm font-bold">← Alle Ordner</button><span class="font-bold text-slate-800">📁 ${escapeHtml(current)}</span></div>`;
+            leiste.innerHTML = `<div class="w-full mb-3"><div class="flex flex-wrap items-center gap-2 mb-3"><button type="button" onclick="planOrdnerZurueck()" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 text-sm font-bold">← Alle Ordner</button><span class="text-lg md:text-xl font-extrabold text-slate-900">📁 ${escapeHtml(current)}</span></div><h3 class="text-sm font-bold text-slate-700 mb-3">Pläne in diesem Ordner</h3></div>`;
             const plans = p.planDetails.map((d,idx)=>({...d,idx})).filter(d=>d.folder===current);
             if (!plans.length) leiste.innerHTML += `<p class="text-xs text-slate-500">Dieser Ordner ist leer. Lade einen Plan hoch oder verschiebe einen vorhandenen Plan hierher.</p>`;
-            plans.forEach(d => {
-                const aktiv = d.idx === p.aktiverPlanIndex;
-                leiste.innerHTML += `<div class="flex flex-wrap items-center gap-1 rounded-lg border p-1 ${aktiv?'border-blue-500 bg-blue-50':'border-slate-200 bg-white/80'}"><button type="button" onclick="aktivenPlanWechseln(${d.idx})" class="px-3 py-2 rounded-lg text-xs font-bold ${aktiv?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">📄 ${escapeHtml(d.name)} ${aktiv?'✓':''}</button><button type="button" onclick="planUmbenennen(${d.idx})" title="Plan umbenennen" class="px-2 py-2 text-xs">✏️</button><button type="button" onclick="planInOrdnerVerschieben(${d.idx})" title="In anderen Ordner verschieben" class="px-2 py-2 text-xs">📂</button></div>`;
-            });
+            else {
+                leiste.innerHTML += `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 w-full">`;
+                plans.forEach(d => {
+                    const aktiv = d.idx === p.aktiverPlanIndex;
+                    const src = String((p.plaene || [])[d.idx] || '');
+                    const istPdf = /pdf/i.test(src.slice(0,100)) || /\.pdf(?:$|[?#])/i.test(String(d.name||'')) || /\.pdf(?:$|[?#])/i.test(src);
+                    const vorschau = src ? (istPdf
+                        ? `<div class="h-32 sm:h-40 w-full bg-slate-100 flex flex-col items-center justify-center overflow-hidden relative"><iframe title="PDF-Vorschau ${escapeHtml(d.name)}" src="${escapeHtml(src)}#toolbar=0&navpanes=0&scrollbar=0&view=FitH" class="w-full h-full border-0 pointer-events-none" tabindex="-1"></iframe><div class="absolute inset-x-0 bottom-0 bg-white/85 text-center text-xs font-bold text-red-700 py-1">PDF · Seite 1</div></div>`
+                        : `<div class="h-32 sm:h-40 w-full bg-slate-100 overflow-hidden flex items-center justify-center"><img src="${escapeHtml(src)}" alt="Vorschau: ${escapeHtml(d.name)}" loading="lazy" class="w-full h-full object-contain"></div>`)
+                        : `<div class="h-32 sm:h-40 w-full bg-slate-100 flex flex-col items-center justify-center text-slate-500"><span class="text-4xl">📄</span><span class="text-xs">Keine Vorschau verfügbar</span></div>`;
+                    leiste.innerHTML += `<article class="min-w-0 rounded-xl border ${aktiv?'border-blue-500 ring-2 ring-blue-200 bg-blue-50':'border-slate-200 bg-white/90'} shadow-sm overflow-hidden"><div class="px-2 pt-2 pb-1"><div class="font-bold text-sm text-slate-800 truncate" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}${aktiv?' ✓':''}</div></div><button type="button" onclick="aktivenPlanWechseln(${d.idx})" aria-label="Plan ${escapeHtml(d.name)} öffnen" class="block w-full text-left focus:outline-none focus:ring-2 focus:ring-blue-500">${vorschau}</button><div class="flex items-center justify-between gap-1 p-2 border-t border-slate-200"><button type="button" onclick="aktivenPlanWechseln(${d.idx})" class="flex-1 min-w-0 px-2 py-2 rounded-lg text-xs font-bold ${aktiv?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">${aktiv?'Geöffnet':'Plan öffnen'}</button><button type="button" onclick="planUmbenennen(${d.idx})" title="Plan umbenennen" aria-label="Plan umbenennen" class="px-2 py-2 text-sm rounded-lg hover:bg-slate-100">✏️</button><button type="button" onclick="planInOrdnerVerschieben(${d.idx})" title="In anderen Ordner verschieben" aria-label="Plan verschieben" class="px-2 py-2 text-sm rounded-lg hover:bg-slate-100">📂</button></div></article>`;
+                });
+                leiste.innerHTML += `</div>`;
+            }
         }
         window.planOrdnerUmbenennen = async function(alt) {
             const p=globalDaten.projekte[aktuellesProjekt]; if(!p)return;
