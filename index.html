@@ -5757,112 +5757,58 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (!p) return;
             if (p.aktiverPlanIndex === undefined) p.aktiverPlanIndex = 0;
 
-            // Vorhandene Zuordnungen sichern, bevor die Plan-Unterkollektion neu geladen wird.
-            // Ältere Versionen haben die Ordner teilweise nur in planDetails gespeichert.
-            const altePlaene = Array.isArray(p.plaene) ? p.plaene.slice() : [];
-            const alteDetails = Array.isArray(p.planDetails) ? p.planDetails.map(d => ({...d})) : [];
-            const alterOrdnerNachUrl = new Map();
-            const alterOrdnerNachId = new Map();
-            alteDetails.forEach((d, i) => {
-                const url = String(altePlaene[i] || d.url || '');
-                const folder = String(d.folder || d.ordner || '');
-                if (d.id && folder) alterOrdnerNachId.set(String(d.id), folder);
-                if (url && folder && (!alterOrdnerNachUrl.has(url) ||
-                    (alterOrdnerNachUrl.get(url) === 'Nicht sortiert' && folder !== 'Nicht sortiert'))) {
-                    alterOrdnerNachUrl.set(url, folder);
-                }
-            });
-
+            // Neue Struktur: die eigentlichen Planbilder liegen einzeln in
+            // der Unterkollektion der Baustelle. Das verhindert, dass das
+            // 1-MB-Limit des Projekt-Dokuments erreicht wird.
             try {
                 const snap = await getDocs(collection(db, 'projekte', titel, 'plaene'));
-                let geladenePlaene = [];
+                const geladenePlaene = [];
                 snap.forEach(planSnap => {
                     const d = planSnap.data() || {};
-                    if (!d.url) return;
-                    const url = String(d.url);
-                    const gespeicherterOrdner = String(d.ordner || d.folder || '');
-                    const alterOrdner = alterOrdnerNachId.get(planSnap.id) || alterOrdnerNachUrl.get(url) || '';
-                    // Eine alte, sinnvolle Zuordnung hat Vorrang vor einem fehlenden/default Ordnerfeld.
-                    const folder = (!gespeicherterOrdner || gespeicherterOrdner === 'Nicht sortiert') &&
-                        alterOrdner && alterOrdner !== 'Nicht sortiert'
-                        ? alterOrdner
-                        : (gespeicherterOrdner || alterOrdner || 'Nicht sortiert');
-                    geladenePlaene.push({
-                        index: Number(d.index ?? 0), url, id: planSnap.id,
-                        name: String(d.planName || d.dateiname || ''),
-                        folder, ordnerWarFehlendOderDefault: !gespeicherterOrdner || gespeicherterOrdner === 'Nicht sortiert'
-                    });
+                    if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id, name: String(d.planName || d.dateiname || ''), dateiname: String(d.dateiname || ''), dateityp: String(d.dateityp || ''), groesse: Number(d.groesse || 0), folder: String(d.ordner || 'Nicht sortiert') });
                 });
+                geladenePlaene.sort((a,b) => a.index - b.index);
 
-                // Alte Pläne nur migrieren, wenn die Unterkollektion wirklich leer ist.
+                // Alte Pläne, die noch direkt im Projekt-Dokument liegen,
+                // einmalig in einzelne Plan-Dokumente übernehmen.
+                const altePlaene = Array.isArray(p.plaene) ? p.plaene.slice() : [];
                 if (geladenePlaene.length === 0 && altePlaene.length > 0) {
                     for (let i = 0; i < altePlaene.length; i++) {
                         const url = String(altePlaene[i] || '');
                         if (!url) continue;
-                        const detail = alteDetails[i] || {};
                         await setDoc(doc(db, 'projekte', titel, 'plaene', crypto.randomUUID()), {
                             index: i,
                             url,
-                            planName: detail.name || `Plan ${i+1}`,
-                            ordner: detail.folder || detail.ordner || 'Nicht sortiert',
                             erstelltAm: new Date().toISOString(),
                             dateityp: url.startsWith('data:application/pdf') ? 'application/pdf' : 'image/jpeg',
                             migriert: true
                         });
                     }
+                    // Nur die großen Planbilder aus dem Projekt-Dokument entfernen.
+                    // Alle anderen Baustellendaten (Pins, Team, Status usw.) bleiben erhalten.
                     p.plaene = [];
                     await setDoc(doc(db, 'projekte', titel), p);
+
                     const neu = await getDocs(collection(db, 'projekte', titel, 'plaene'));
-                    geladenePlaene = [];
+                    geladenePlaene.length = 0;
                     neu.forEach(planSnap => {
                         const d = planSnap.data() || {};
-                        if (d.url) geladenePlaene.push({
-                            index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id,
-                            name: String(d.planName || d.dateiname || ''),
-                            folder: String(d.ordner || 'Nicht sortiert')
-                        });
+                        if (d.url) geladenePlaene.push({ index: Number(d.index ?? 0), url: String(d.url), id: planSnap.id, name: String(d.planName || d.dateiname || ''), dateiname: String(d.dateiname || ''), dateityp: String(d.dateityp || ''), groesse: Number(d.groesse || 0), folder: String(d.ordner || 'Nicht sortiert') });
                     });
+                    geladenePlaene.sort((a,b) => a.index - b.index);
                 }
 
-                // Gleiche Dateiadresse darf nicht mit einer fehlenden Ordnerangabe
-                // die richtige Zuordnung verdrängen. Keine Dokumente/Pläne werden gelöscht.
-                const ordnerJeUrl = new Map();
-                geladenePlaene.forEach(x => {
-                    const current = ordnerJeUrl.get(x.url);
-                    if (!current || (current === 'Nicht sortiert' && x.folder !== 'Nicht sortiert')) {
-                        ordnerJeUrl.set(x.url, x.folder || 'Nicht sortiert');
-                    }
-                });
-                for (const x of geladenePlaene) {
-                    const bevorzugterOrdner = ordnerJeUrl.get(x.url) || x.folder || 'Nicht sortiert';
-                    if (bevorzugterOrdner !== 'Nicht sortiert' && x.folder !== bevorzugterOrdner &&
-                        x.ordnerWarFehlendOderDefault && x.id) {
-                        try {
-                            await setDoc(doc(db, 'projekte', titel, 'plaene', x.id), {ordner: bevorzugterOrdner}, {merge:true});
-                        } catch (e) {
-                            console.warn('Alte Ordnerzuordnung konnte nicht in Firebase abgeglichen werden:', e);
-                        }
-                    }
-                    if (x.folder === 'Nicht sortiert' && bevorzugterOrdner !== 'Nicht sortiert') {
-                        x.folder = bevorzugterOrdner;
-                    }
-                }
-
-                geladenePlaene.sort((a,b) => a.index - b.index);
                 p.plaene = geladenePlaene.map(x => x.url);
-                p.planDetails = geladenePlaene.map((x,i) => ({
-                    id:x.id, name:x.name || `Plan ${i+1}`, folder:x.folder || 'Nicht sortiert', url:x.url
-                }));
+                p.planDetails = geladenePlaene.map((x,i) => ({ id:x.id, name:x.name || `Plan ${i+1}`, dateiname:x.dateiname || '', dateityp:x.dateityp || '', groesse:Number(x.groesse || 0), folder:x.folder || 'Nicht sortiert' }));
                 if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
-                p.planDetails.forEach(x => {
-                    if (x.folder && !p.planOrdner.includes(x.folder)) p.planOrdner.push(x.folder);
-                });
+                p.planDetails.forEach(x => { if (!p.planOrdner.includes(x.folder)) p.planOrdner.push(x.folder); });
                 if (p.aktiverPlanIndex >= p.plaene.length) p.aktiverPlanIndex = Math.max(0, p.plaene.length - 1);
             } catch (e) {
                 console.warn('Plan-Unterkollektion konnte nicht geladen werden; vorhandene lokale Pläne bleiben erhalten:', e);
                 if (!Array.isArray(p.plaene)) p.plaene = [];
             }
         }
+
         window.projektInfoReiterWechseln = function(reiter) {
             const anweisung = reiter === 'anweisung';
             const beschreibung = reiter === 'beschreibung';
@@ -6156,24 +6102,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
         window.planUmbenennen = idx => planMetadatenAendern(idx,'name');
         window.planInOrdnerVerschieben = idx => planMetadatenAendern(idx,'folder');
 
-        // Für die Anzeige gleiche Dateiadressen nur einmal aufführen.
-        // Die ursprünglichen Arrays/Indizes bleiben unangetastet, damit Pins gültig bleiben.
-        function plaeneEinmaligFuerAnzeige(p) {
-            const details = Array.isArray(p?.planDetails) ? p.planDetails : [];
-            const plaene = Array.isArray(p?.plaene) ? p.plaene : [];
-            const byUrl = new Map();
-            details.forEach((d, idx) => {
-                const url = String(d.url || plaene[idx] || '');
-                const key = url || `__plan_index_${idx}`;
-                const item = {...d, idx, url, folder: d.folder || d.ordner || 'Nicht sortiert'};
-                const prev = byUrl.get(key);
-                if (!prev || (prev.folder === 'Nicht sortiert' && item.folder !== 'Nicht sortiert')) {
-                    byUrl.set(key, item);
-                }
-            });
-            return [...byUrl.values()].sort((a,b) => a.idx - b.idx);
-        }
-
         function plaeneLeisteAktualisieren() {
             const leiste = document.getElementById('plaene-auswahl-leiste');
             if(!leiste) return;
@@ -6195,7 +6123,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 const ordnerNamen = [...new Set([...p.planOrdner, ...p.planDetails.map(d=>d.folder)])];
                 if (!ordnerNamen.length) ordnerNamen.push('Nicht sortiert');
                 leiste.innerHTML = `<div class="w-full"><p class="text-xs text-slate-500 mb-2">📁 Wähle einen Ordner, um die darin gespeicherten Pläne und Pins zu öffnen.</p><div class="flex flex-wrap gap-2">${ordnerNamen.map(n=>{
-                    const count=plaeneEinmaligFuerAnzeige(p).filter(d=>d.folder===n).length;
+                    const count=p.planDetails.filter(d=>d.folder===n).length;
                     // Ordnernamen URL-kodieren: Anführungszeichen/Sonderzeichen dürfen
                     // den Inline-Klick nicht beschädigen und keinen erneuten Seitenaufbau auslösen.
                     const encoded = encodeURIComponent(n);
@@ -6205,7 +6133,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
             const current = window.aktuellerPlanOrdner;
             leiste.innerHTML = `<div class="w-full mb-3"><div class="flex flex-wrap items-center gap-2 mb-3"><button type="button" onclick="planOrdnerZurueck()" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 text-sm font-bold">← Alle Ordner</button><span class="text-lg md:text-xl font-extrabold text-slate-900">📁 ${escapeHtml(current)}</span></div><h3 class="text-sm font-bold text-slate-700 mb-3">Pläne in diesem Ordner</h3></div>`;
-            const plans = plaeneEinmaligFuerAnzeige(p).filter(d=>d.folder===current);
+            const plans = p.planDetails.map((d,idx)=>({...d,idx})).filter(d=>d.folder===current);
             if (!plans.length) leiste.innerHTML += `<p class="text-xs text-slate-500">Dieser Ordner ist leer. Lade einen Plan hoch oder verschiebe einen vorhandenen Plan hierher.</p>`;
             else {
                 leiste.innerHTML += `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 w-full">`;
@@ -6217,7 +6145,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                         ? `<div class="h-32 sm:h-40 w-full bg-slate-100 flex flex-col items-center justify-center overflow-hidden relative"><iframe title="PDF-Vorschau ${escapeHtml(d.name)}" src="${escapeHtml(src)}#toolbar=0&navpanes=0&scrollbar=0&view=FitH" class="w-full h-full border-0 pointer-events-none" tabindex="-1"></iframe><div class="absolute inset-x-0 bottom-0 bg-white/85 text-center text-xs font-bold text-red-700 py-1">PDF · Seite 1</div></div>`
                         : `<div class="h-32 sm:h-40 w-full bg-slate-100 overflow-hidden flex items-center justify-center"><img src="${escapeHtml(src)}" alt="Vorschau: ${escapeHtml(d.name)}" loading="lazy" class="w-full h-full object-contain"></div>`)
                         : `<div class="h-32 sm:h-40 w-full bg-slate-100 flex flex-col items-center justify-center text-slate-500"><span class="text-4xl">📄</span><span class="text-xs">Keine Vorschau verfügbar</span></div>`;
-                    leiste.innerHTML += `<article class="min-w-0 rounded-xl border ${aktiv?'border-blue-500 ring-2 ring-blue-200 bg-blue-50':'border-slate-200 bg-white/90'} shadow-sm overflow-hidden"><div class="px-2 pt-2 pb-1"><div class="font-bold text-sm text-slate-800 truncate" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}${aktiv?' ✓':''}</div></div><button type="button" onclick="aktivenPlanWechseln(${d.idx})" aria-label="Plan ${escapeHtml(d.name)} öffnen" class="block w-full text-left focus:outline-none focus:ring-2 focus:ring-blue-500">${vorschau}</button><div class="flex items-center justify-between gap-1 p-2 border-t border-slate-200"><button type="button" onclick="aktivenPlanWechseln(${d.idx})" class="flex-1 min-w-0 px-2 py-2 rounded-lg text-xs font-bold ${aktiv?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">${aktiv?'Geöffnet':'Plan öffnen'}</button><button type="button" onclick="planUmbenennen(${d.idx})" title="Plan umbenennen" aria-label="Plan umbenennen" class="px-2 py-2 text-sm rounded-lg hover:bg-slate-100">✏️</button><button type="button" onclick="planInOrdnerVerschieben(${d.idx})" title="In anderen Ordner verschieben" aria-label="Plan verschieben" class="px-2 py-2 text-sm rounded-lg hover:bg-slate-100">📂</button></div></article>`;
+                    leiste.innerHTML += `<article class="min-w-0 rounded-xl border ${aktiv?'border-blue-500 ring-2 ring-blue-200 bg-blue-50':'border-slate-200 bg-white/90'} shadow-sm overflow-hidden"><div class="px-2 pt-2 pb-1"><div class="font-bold text-sm text-slate-800 truncate" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}${aktiv?' ✓':''}</div></div><button type="button" onclick="aktivenPlanWechseln(${d.idx})" aria-label="Plan ${escapeHtml(d.name)} öffnen" class="block w-full text-left focus:outline-none focus:ring-2 focus:ring-blue-500">${vorschau}</button><div class="flex items-center justify-between gap-1 p-2 border-t border-slate-200"><button type="button" onclick="aktivenPlanWechseln(${d.idx})" class="flex-1 min-w-0 px-2 py-2 rounded-lg text-xs font-bold ${aktiv?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">${aktiv?'Geöffnet':'Plan öffnen'}</button><button type="button" onclick="planUmbenennen(${d.idx})" title="Plan umbenennen" aria-label="Plan umbenennen" class="px-2 py-2 text-sm rounded-lg hover:bg-slate-100">✏️</button><button type="button" onclick="planInOrdnerVerschieben(${d.idx})" title="In anderen Ordner verschieben" aria-label="Plan verschieben" class="px-2 py-2 text-sm rounded-lg hover:bg-slate-100">📂</button><button type="button" onclick="planEinzelnLoeschen(${d.idx})" title="Diesen Plan löschen" aria-label="Diesen Plan löschen" class="px-2 py-2 text-sm rounded-lg text-red-700 hover:bg-red-100">🗑️</button></div></article>`;
                 });
                 leiste.innerHTML += `</div>`;
             }
@@ -6243,39 +6171,23 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const titel = aktuellesProjekt;
             const p = globalDaten.projekte[titel];
             if (!p || !name) return;
-
-            const sichtbarePlaene = plaeneEinmaligFuerAnzeige(p);
-            const enthaltene = sichtbarePlaene.filter(d => d.folder === name);
-            // „Nicht sortiert“ darf nicht seine eigenen Pläne wieder in sich selbst verschieben.
-            if (name === 'Nicht sortiert' && enthaltene.length > 0) {
-                alert(`Der Ordner „Nicht sortiert“ enthält noch ${enthaltene.length} unterschiedliche Plan(e). Bitte prüfe die Zuordnungen zuerst. Es wurde nichts geändert.`);
-                return;
-            }
-
+            const enthaltene = (p.planDetails || []).filter(d => d.folder === name);
             const hinweis = enthaltene.length
                 ? `Der Ordner enthält ${enthaltene.length} Plan(e). Diese werden in „Nicht sortiert“ verschoben. Die Pläne und ihre Pins werden nicht gelöscht.`
                 : 'Der leere Ordner wird gelöscht.';
             if (!confirm(`Ordner „${name}“ wirklich löschen?\n\n${hinweis}`)) return;
             try {
+                // Nur den Ordner entfernen; Planbilder und Pins bleiben unangetastet.
                 if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
                 p.planOrdner = p.planOrdner.filter(x => x !== name);
-
-                // Beim Löschen eines leeren „Nicht sortiert“-Ordners keine Plan-Metadaten ändern.
-                if (name !== 'Nicht sortiert') {
-                    enthaltene.forEach(d => {
-                        const detail = p.planDetails?.[d.idx];
-                        if (detail) detail.folder = 'Nicht sortiert';
-                    });
-                    if (enthaltene.length && !p.planOrdner.includes('Nicht sortiert')) p.planOrdner.push('Nicht sortiert');
-                    const updates = enthaltene
-                        .map(d => p.planDetails?.[d.idx])
-                        .filter(d => d?.id)
-                        .map(d => setDoc(doc(db, 'projekte', titel, 'plaene', d.id), {
-                            ordner: 'Nicht sortiert', planName: d.name || 'Plan'
-                        }, { merge: true }));
-                    await Promise.all(updates);
-                }
-
+                enthaltene.forEach(d => { d.folder = 'Nicht sortiert'; });
+                if (enthaltene.length && !p.planOrdner.includes('Nicht sortiert')) p.planOrdner.push('Nicht sortiert');
+                const updates = enthaltene.filter(d => d.id).map(d =>
+                    setDoc(doc(db, 'projekte', titel, 'plaene', d.id), {
+                        ordner: 'Nicht sortiert', planName: d.name || 'Plan'
+                    }, { merge: true })
+                );
+                await Promise.all(updates);
                 const gespeichert = await projektSpeichern(titel);
                 if (gespeichert === false) throw new Error('Ordneränderung konnte nicht gespeichert werden.');
                 if (window.aktuellerPlanOrdner === name) window.aktuellerPlanOrdner = null;
@@ -6288,6 +6200,69 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 plaeneLeisteAktualisieren();
             }
         };
+
+        // Einzelnen Plan sicher löschen. Pläne mit zugeordneten Mangel-Pins
+        // werden nicht gelöscht, damit keine Pin-Daten verloren gehen.
+        window.planEinzelnLoeschen = async function(idx) {
+            const titel = aktuellesProjekt;
+            const p = globalDaten.projekte[titel];
+            if (!p || !Array.isArray(p.plaene) || !p.plaene[idx]) return;
+            const d = Array.isArray(p.planDetails) ? p.planDetails[idx] : null;
+            if (!d || !d.id) {
+                alert('Dieser Plan hat keine eindeutige Firebase-ID und kann deshalb nicht sicher gelöscht werden. Bitte erst die Planliste neu laden.');
+                return;
+            }
+            const pins = Array.isArray(p.pins) ? p.pins : [];
+            const pinCount = pins.filter(pin => Number(pin?.planIndex ?? 0) === idx).length;
+            if (pinCount > 0) {
+                alert(`Dieser Plan hat ${pinCount} zugeordnete Mangel-Pin(s). Aus Sicherheitsgründen wird er nicht gelöscht, damit keine Pins verloren gehen. Bitte die Pins zuerst einem anderen Plan zuordnen oder separat prüfen.`);
+                return;
+            }
+            const name = d.name || `Plan ${idx + 1}`;
+            if (!confirm(`Plan „${name}“ wirklich löschen?
+
+Dieser Plan wird dauerhaft aus Firebase entfernt. Andere Pläne und Mangel-Pins bleiben erhalten.`)) return;
+            try {
+                // Zuerst das konkrete Plan-Dokument entfernen.
+                await deleteDoc(doc(db, 'projekte', titel, 'plaene', d.id));
+
+                // Lokale Listen an derselben Stelle verkürzen; dadurch bleiben
+                // die verbleibenden Pläne und ihre IDs zusammen ausgerichtet.
+                p.plaene.splice(idx, 1);
+                p.planDetails.splice(idx, 1);
+
+                // Pins zu späteren Plan-Indizes nachziehen; Pins auf dem
+                // gelöschten Plan wurden oben bewusst ausgeschlossen.
+                if (Array.isArray(p.pins)) {
+                    p.pins.forEach(pin => {
+                        const pi = Number(pin?.planIndex ?? 0);
+                        if (pi > idx) pin.planIndex = pi - 1;
+                    });
+                }
+
+                // Die gespeicherten Sortierindizes der verbleibenden Dokumente
+                // normalisieren, ohne ihre IDs, URLs oder Ordner zu verändern.
+                const updates = p.planDetails.map((detail, newIndex) => {
+                    if (!detail?.id) return Promise.resolve();
+                    return setDoc(doc(db, 'projekte', titel, 'plaene', detail.id), { index: newIndex }, { merge: true });
+                });
+                await Promise.all(updates);
+                p.aktiverPlanIndex = p.plaene.length ? Math.min(idx, p.plaene.length - 1) : 0;
+                const gespeichert = await projektSpeichern(titel);
+                if (gespeichert === false) throw new Error('Projektänderungen konnten nicht gespeichert werden.');
+                window.planAnsichtFreigegeben = false;
+                plaeneLeisteAktualisieren();
+                planVorschauAnzeigen();
+                projektPinListeAnzeigen();
+                alert(`Plan „${name}“ wurde gelöscht.`);
+            } catch (e) {
+                console.error('Plan konnte nicht gelöscht werden:', e);
+                alert('Der Plan konnte nicht vollständig gelöscht werden. Bitte Verbindung prüfen und die Planliste neu laden, bevor du weitere Änderungen machst.');
+                await ladePlaeneFuerProjekt(titel);
+                plaeneLeisteAktualisieren();
+            }
+        };
+
         window.aktivenPlanWechseln = function(idx) {
             const p = globalDaten.projekte[aktuellesProjekt];
             if (!p || !Array.isArray(p.plaene) || !p.plaene[idx]) return;
@@ -7619,9 +7594,37 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         async function speichereGrundrissPlan(ergebnisUrl, meta = {}) {
             const titel = aktuellesProjekt;
-            const p = globalDaten.projekte[titel];
+            let p = globalDaten.projekte[titel];
             if (!p) return;
+            // Vor dem Upload den aktuellen Firebase-Stand laden, damit auch
+            // bereits gespeicherte Pläne zuverlässig auf Duplikate geprüft werden.
+            await ladePlaeneFuerProjekt(titel);
+            p = globalDaten.projekte[titel];
             if (!Array.isArray(p.plaene)) p.plaene = [];
+
+            // Upload-Duplikate verhindern: gleiche URL oder gleiche Quelldatei
+            // (Dateiname + Dateigröße + Typ) wird nicht ein zweites Mal angelegt.
+            // Der Ordner wird absichtlich nicht verglichen, damit ein bestehender
+            // Plan nicht durch erneutes Hochladen in einen anderen Ordner dupliziert wird.
+            const incomingName = String(meta.dateiname || '').trim().toLowerCase();
+            const incomingSize = Number(meta.groesse || 0);
+            const incomingType = String(meta.dateityp || '').trim().toLowerCase();
+            const existingDetails = Array.isArray(p.planDetails) ? p.planDetails : [];
+            const duplicateIndex = existingDetails.findIndex((detail, i) => {
+                const existingUrl = String(p.plaene[i] || '');
+                if (existingUrl && existingUrl === String(ergebnisUrl || '')) return true;
+                const existingName = String(detail?.dateiname || detail?.name || '').trim().toLowerCase();
+                const firestoreMeta = detail || {};
+                const sameName = incomingName && existingName === incomingName;
+                // Ältere Detailobjekte haben nicht immer Größe/Typ; dann URL ist
+                // der sichere Schlüssel und wir vermeiden einen riskanten Namensvergleich.
+                return Boolean(sameName && incomingSize > 0 && Number(firestoreMeta.groesse || 0) === incomingSize && incomingType && String(firestoreMeta.dateityp || '').toLowerCase() === incomingType);
+            });
+            if (duplicateIndex >= 0) {
+                const existing = existingDetails[duplicateIndex];
+                alert(`Dieser Plan scheint bereits vorhanden zu sein: „${existing?.name || `Plan ${duplicateIndex + 1}`}“ im Ordner „${existing?.folder || 'Nicht sortiert'}“. Es wurde kein neuer Eintrag angelegt.`);
+                return;
+            }
 
             // Der eigentliche Plan wird als eigenes Dokument gespeichert.
             // Damit wächst das Baustellen-Dokument nicht mehr mit jedem Bild.
@@ -7644,7 +7647,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // NICHT mehr in das Projekt-Dokument geschrieben.
             p.plaene.push(ergebnisUrl);
             if (!Array.isArray(p.planDetails)) p.planDetails = [];
-            p.planDetails[index] = { id: planId, name: String(meta.planName || meta.dateiname || `Plan ${index + 1}`), folder: String(meta.ordner || 'Nicht sortiert') };
+            p.planDetails[index] = { id: planId, name: String(meta.planName || meta.dateiname || `Plan ${index + 1}`), folder: String(meta.ordner || 'Nicht sortiert'), dateiname: String(meta.dateiname || ''), dateityp: String(meta.dateityp || ''), groesse: Number(meta.groesse || 0) };
             if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
             if (!p.planOrdner.includes(String(meta.ordner || 'Nicht sortiert'))) p.planOrdner.push(String(meta.ordner || 'Nicht sortiert'));
             p.aktiverPlanIndex = index;
