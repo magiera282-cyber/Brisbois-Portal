@@ -6039,6 +6039,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         window.planOrdnerOeffnen = function(name) {
             window.planLoeschAuswahl = new Set();
+        window.planLoeschModusAktiv = false;
             window.aktuellerPlanOrdner = String(name);
             window.planAnsichtFreigegeben = false;
             planVorschauAnzeigen();
@@ -6046,6 +6047,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         };
         window.planOrdnerZurueck = function() {
             window.planLoeschAuswahl = new Set();
+            window.planLoeschModusAktiv = false;
             window.aktuellerPlanOrdner = null;
             window.planAnsichtFreigegeben = false;
             planVorschauAnzeigen();
@@ -6106,7 +6108,19 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         // Mehrfachauswahl für das sichere Löschen mehrerer Pläne im geöffneten Ordner.
         window.planLoeschAuswahl = window.planLoeschAuswahl instanceof Set ? window.planLoeschAuswahl : new Set();
+        window.planLoeschModusStarten = function(idx = null) {
+            window.planLoeschModusAktiv = true;
+            window.planLoeschAuswahl = new Set();
+            if (idx !== null && idx !== undefined) window.planLoeschAuswahl.add(Number(idx));
+            plaeneLeisteAktualisieren();
+        };
+        window.planLoeschModusBeenden = function() {
+            window.planLoeschModusAktiv = false;
+            window.planLoeschAuswahl = new Set();
+            plaeneLeisteAktualisieren();
+        };
         window.planLoeschAuswahlToggle = function(idx, checked) {
+            if (!window.planLoeschModusAktiv) return;
             if (checked) window.planLoeschAuswahl.add(Number(idx));
             else window.planLoeschAuswahl.delete(Number(idx));
             plaeneLeisteAktualisieren();
@@ -6114,7 +6128,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         window.planLoeschAuswahlAlle = function(checked) {
             const p = globalDaten.projekte[aktuellesProjekt];
             const folder = window.aktuellerPlanOrdner;
-            if (!p || folder === null) return;
+            if (!p || folder === null || !window.planLoeschModusAktiv) return;
             (p.planDetails || []).forEach((d, idx) => {
                 if (d.folder === folder) {
                     if (checked) window.planLoeschAuswahl.add(idx);
@@ -6154,22 +6168,24 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 return;
             }
             const current = window.aktuellerPlanOrdner;
-            leiste.innerHTML = `<div class="w-full mb-3"><div class="flex flex-wrap items-center gap-2 mb-3"><button type="button" onclick="planOrdnerZurueck()" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 text-sm font-bold">← Alle Ordner</button><span class="text-lg md:text-xl font-extrabold text-slate-900">📁 ${escapeHtml(current)}</span></div><h3 class="text-sm font-bold text-slate-700 mb-3">Pläne in diesem Ordner</h3><div class="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/90 p-3"><label class="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" onchange="planLoeschAuswahlAlle(this.checked)" class="h-5 w-5" ${p.planDetails.some(d=>d.folder===current) && p.planDetails.map((d,idx)=>({d,idx})).filter(x=>x.d.folder===current).every(x=>window.planLoeschAuswahl.has(x.idx)) ? 'checked' : ''}>Alle Pläne in diesem Ordner auswählen</label><button type="button" onclick="planMehrereLoeschen()" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700">🗑️ Auswahl löschen (<span id="plan-loesch-auswahl-anzahl">${window.planLoeschAuswahl.size}</span>)</button><button type="button" onclick="planLoeschAuswahlAlle(false)" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-semibold">Auswahl aufheben</button></div></div>`;
+            leiste.innerHTML = `<div class="w-full mb-3"><div class="flex flex-wrap items-center gap-2 mb-3"><button type="button" onclick="planOrdnerZurueck()" class="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 text-sm font-bold">← Alle Ordner</button><span class="text-lg md:text-xl font-extrabold text-slate-900">📁 ${escapeHtml(current)}</span></div><h3 class="text-sm font-bold text-slate-700 mb-3">Pläne in diesem Ordner</h3><div class="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/90 p-3"><button type="button" onclick="planLoeschModusStarten()" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700">🗑️ Pläne löschen / auswählen</button>${window.planLoeschModusAktiv ? `<label class="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" onchange="planLoeschAuswahlAlle(this.checked)" class="h-5 w-5" ${p.planDetails.some(d=>d.folder===current) && p.planDetails.map((d,idx)=>({d,idx})).filter(x=>x.d.folder===current).every(x=>window.planLoeschAuswahl.has(x.idx)) ? 'checked' : ''}>Alle Pläne in diesem Ordner auswählen</label><button type="button" onclick="planMehrereLoeschen()" class="px-3 py-2 rounded-lg bg-red-700 text-white text-sm font-bold hover:bg-red-800">🗑️ Auswahl löschen (${window.planLoeschAuswahl.size})</button><button type="button" onclick="planLoeschModusBeenden()" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-semibold">Abbrechen</button>` : ''}</div></div>`;
             const plans = p.planDetails.map((d,idx)=>({...d,idx})).filter(d=>d.folder===current);
             if (!plans.length) leiste.innerHTML += `<p class="text-xs text-slate-500">Dieser Ordner ist leer. Lade einen Plan hoch oder verschiebe einen vorhandenen Plan hierher.</p>`;
             else {
-                leiste.innerHTML += `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 w-full">`;
+                // Alle Karten in einem Schritt einsetzen statt innerHTML bei jeder Karte
+                // erneut komplett zu parsen. Das reduziert die Arbeit bei vielen Plänen deutlich.
+                const planKartenHtml = [];
                 plans.forEach(d => {
                     const aktiv = d.idx === p.aktiverPlanIndex;
                     const src = String((p.plaene || [])[d.idx] || '');
                     const istPdf = /pdf/i.test(src.slice(0,100)) || /\.pdf(?:$|[?#])/i.test(String(d.name||'')) || /\.pdf(?:$|[?#])/i.test(src);
                     const vorschau = src ? (istPdf
-                        ? `<div class="h-32 sm:h-40 w-full bg-slate-100 flex flex-col items-center justify-center overflow-hidden relative"><iframe title="PDF-Vorschau ${escapeHtml(d.name)}" src="${escapeHtml(src)}#toolbar=0&navpanes=0&scrollbar=0&view=FitH" class="w-full h-full border-0 pointer-events-none" tabindex="-1"></iframe><div class="absolute inset-x-0 bottom-0 bg-white/85 text-center text-xs font-bold text-red-700 py-1">PDF · Seite 1</div></div>`
-                        : `<div class="h-32 sm:h-40 w-full bg-slate-100 overflow-hidden flex items-center justify-center"><img src="${escapeHtml(src)}" alt="Vorschau: ${escapeHtml(d.name)}" loading="lazy" class="w-full h-full object-contain"></div>`)
+                        ? `<div class="h-32 sm:h-40 w-full bg-slate-100 flex flex-col items-center justify-center overflow-hidden relative"><iframe loading="lazy" title="PDF-Vorschau ${escapeHtml(d.name)}" src="${escapeHtml(src)}#toolbar=0&navpanes=0&scrollbar=0&view=FitH" class="w-full h-full border-0 pointer-events-none" tabindex="-1"></iframe><div class="absolute inset-x-0 bottom-0 bg-white/85 text-center text-xs font-bold text-red-700 py-1">PDF · Seite 1</div></div>`
+                        : `<div class="h-32 sm:h-40 w-full bg-slate-100 overflow-hidden flex items-center justify-center"><img src="${escapeHtml(src)}" alt="Vorschau: ${escapeHtml(d.name)}" loading="lazy" decoding="async" class="w-full h-full object-contain"></div>`)
                         : `<div class="h-32 sm:h-40 w-full bg-slate-100 flex flex-col items-center justify-center text-slate-500"><span class="text-4xl">📄</span><span class="text-xs">Keine Vorschau verfügbar</span></div>`;
-                    leiste.innerHTML += `<article class="min-w-0 rounded-xl border ${window.planLoeschAuswahl.has(d.idx)?'border-red-400 ring-2 ring-red-100':(aktiv?'border-blue-500 ring-2 ring-blue-200 bg-blue-50':'border-slate-200 bg-white/90')} shadow-sm overflow-hidden"><div class="px-2 pt-2 pb-1 flex items-start gap-2"><input type="checkbox" aria-label="Plan ${escapeHtml(d.name)} zum Löschen auswählen" title="Zum Löschen auswählen" class="mt-1 h-5 w-5 shrink-0" ${window.planLoeschAuswahl.has(d.idx)?'checked':''} onchange="planLoeschAuswahlToggle(${d.idx},this.checked)"><div class="font-bold text-sm text-slate-800 truncate" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}${aktiv?' ✓':''}</div></div><button type="button" onclick="aktivenPlanWechseln(${d.idx})" aria-label="Plan ${escapeHtml(d.name)} öffnen" class="block w-full text-left focus:outline-none focus:ring-2 focus:ring-blue-500">${vorschau}</button><div class="flex items-center justify-between gap-1 p-2 border-t border-slate-200"><button type="button" onclick="aktivenPlanWechseln(${d.idx})" class="flex-1 min-w-0 px-2 py-2 rounded-lg text-xs font-bold ${aktiv?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">${aktiv?'Geöffnet':'Plan öffnen'}</button><button type="button" onclick="planUmbenennen(${d.idx})" title="Plan umbenennen" aria-label="Plan umbenennen" class="px-2 py-2 text-sm rounded-lg hover:bg-slate-100">✏️</button><button type="button" onclick="planInOrdnerVerschieben(${d.idx})" title="In anderen Ordner verschieben" aria-label="Plan verschieben" class="px-2 py-2 text-sm rounded-lg hover:bg-slate-100">📂</button><button type="button" onclick="planEinzelnLoeschen(${d.idx})" title="Diesen Plan löschen" aria-label="Diesen Plan löschen" class="px-2 py-2 text-sm rounded-lg text-red-700 hover:bg-red-100">🗑️</button></div></article>`;
+                    planKartenHtml.push(`<article class="min-w-0 rounded-xl border ${window.planLoeschAuswahl.has(d.idx)?'border-red-400 ring-2 ring-red-100':(aktiv?'border-blue-500 ring-2 ring-blue-200 bg-blue-50':'border-slate-200 bg-white/90')} shadow-sm overflow-hidden"><div class="px-2 pt-2 pb-1 flex items-start gap-2">${window.planLoeschModusAktiv ? `<input type="checkbox" aria-label="Plan ${escapeHtml(d.name)} zum Löschen auswählen" title="Zum Löschen auswählen" class="mt-1 h-5 w-5 shrink-0" ${window.planLoeschAuswahl.has(d.idx)?\'checked\':\'\'} onchange="planLoeschAuswahlToggle(${d.idx},this.checked)">` : \'\'}<div class="font-bold text-sm text-slate-800 truncate" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}${aktiv?' ✓':''}</div></div><button type="button" onclick="aktivenPlanWechseln(${d.idx})" aria-label="Plan ${escapeHtml(d.name)} öffnen" class="block w-full text-left focus:outline-none focus:ring-2 focus:ring-blue-500">${vorschau}</button><div class="flex items-center justify-between gap-1 p-2 border-t border-slate-200"><button type="button" onclick="aktivenPlanWechseln(${d.idx})" class="flex-1 min-w-0 px-2 py-2 rounded-lg text-xs font-bold ${aktiv?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'}">${aktiv?'Geöffnet':'Plan öffnen'}</button><button type="button" onclick="planUmbenennen(${d.idx})" title="Plan umbenennen" aria-label="Plan umbenennen" class="px-2 py-2 text-sm rounded-lg hover:bg-slate-100">✏️</button><button type="button" onclick="planInOrdnerVerschieben(${d.idx})" title="In anderen Ordner verschieben" aria-label="Plan verschieben" class="px-2 py-2 text-sm rounded-lg hover:bg-slate-100">📂</button><button type="button" onclick="planLoeschModusStarten(${d.idx})" title="Plan zum Löschen auswählen" aria-label="Plan zum Löschen auswählen" class="px-2 py-2 text-sm rounded-lg text-red-700 hover:bg-red-100">🗑️</button></div></article>`);
                 });
-                leiste.innerHTML += `</div>`;
+                leiste.innerHTML += `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 w-full">${planKartenHtml.join('')}</div>`;
             }
         }
         window.planOrdnerUmbenennen = async function(alt) {
@@ -6226,66 +6242,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         // Einzelnen Plan sicher löschen. Pläne mit zugeordneten Mangel-Pins
         // werden nicht gelöscht, damit keine Pin-Daten verloren gehen.
         window.planEinzelnLoeschen = async function(idx) {
-            const titel = aktuellesProjekt;
-            const ordnerVorher = window.aktuellerPlanOrdner;
-            const p = globalDaten.projekte[titel];
-            if (!p || !Array.isArray(p.plaene) || !p.plaene[idx]) return;
-            const d = Array.isArray(p.planDetails) ? p.planDetails[idx] : null;
-            if (!d || !d.id) {
-                alert('Dieser Plan hat keine eindeutige Firebase-ID und kann deshalb nicht sicher gelöscht werden. Bitte erst die Planliste neu laden.');
-                return;
-            }
-            const pins = Array.isArray(p.pins) ? p.pins : [];
-            const pinCount = pins.filter(pin => Number(pin?.planIndex ?? 0) === idx).length;
-            if (pinCount > 0) {
-                alert(`Dieser Plan hat ${pinCount} zugeordnete Mangel-Pin(s). Aus Sicherheitsgründen wird er nicht gelöscht, damit keine Pins verloren gehen. Bitte die Pins zuerst einem anderen Plan zuordnen oder separat prüfen.`);
-                return;
-            }
-            const name = d.name || `Plan ${idx + 1}`;
-            if (!confirm(`Plan „${name}“ wirklich löschen?
-
-Dieser Plan wird dauerhaft aus Firebase entfernt. Andere Pläne und Mangel-Pins bleiben erhalten.`)) return;
-            try {
-                // Zuerst das konkrete Plan-Dokument entfernen.
-                await deleteDoc(doc(db, 'projekte', titel, 'plaene', d.id));
-
-                // Lokale Listen an derselben Stelle verkürzen; dadurch bleiben
-                // die verbleibenden Pläne und ihre IDs zusammen ausgerichtet.
-                p.plaene.splice(idx, 1);
-                p.planDetails.splice(idx, 1);
-
-                // Pins zu späteren Plan-Indizes nachziehen; Pins auf dem
-                // gelöschten Plan wurden oben bewusst ausgeschlossen.
-                if (Array.isArray(p.pins)) {
-                    p.pins.forEach(pin => {
-                        const pi = Number(pin?.planIndex ?? 0);
-                        if (pi > idx) pin.planIndex = pi - 1;
-                    });
-                }
-
-                // Die gespeicherten Sortierindizes der verbleibenden Dokumente
-                // normalisieren, ohne ihre IDs, URLs oder Ordner zu verändern.
-                const updates = p.planDetails.map((detail, newIndex) => {
-                    if (!detail?.id) return Promise.resolve();
-                    return setDoc(doc(db, 'projekte', titel, 'plaene', detail.id), { index: newIndex }, { merge: true });
-                });
-                await Promise.all(updates);
-                p.aktiverPlanIndex = p.plaene.length ? Math.min(idx, p.plaene.length - 1) : 0;
-                const gespeichert = await projektSpeichern(titel);
-                if (gespeichert === false) throw new Error('Projektänderungen konnten nicht gespeichert werden.');
-                window.planAnsichtFreigegeben = false;
-                window.aktuellerPlanOrdner = ordnerVorher;
-                window.planLoeschAuswahl = new Set([...window.planLoeschAuswahl].filter(i => i !== idx).map(i => i > idx ? i - 1 : i));
-                plaeneLeisteAktualisieren();
-                planVorschauAnzeigen();
-                projektPinListeAnzeigen();
-                alert(`Plan „${name}“ wurde gelöscht.`);
-            } catch (e) {
-                console.error('Plan konnte nicht gelöscht werden:', e);
-                alert('Der Plan konnte nicht vollständig gelöscht werden. Bitte Verbindung prüfen und die Planliste neu laden, bevor du weitere Änderungen machst.');
-                await ladePlaeneFuerProjekt(titel);
-                plaeneLeisteAktualisieren();
-            }
+            window.planLoeschModusStarten(idx);
         };
 
         // Mehrere Pläne löschen, ohne den Benutzer aus dem aktuellen Ordner zu werfen.
@@ -6294,28 +6251,65 @@ Dieser Plan wird dauerhaft aus Firebase entfernt. Andere Pläne und Mangel-Pins 
             const ordnerVorher = window.aktuellerPlanOrdner;
             const p = globalDaten.projekte[titel];
             if (!p || ordnerVorher === null) return;
-            const ausgewaehlt = [...window.planLoeschAuswahl].filter(idx => p.planDetails?.[idx]?.folder === ordnerVorher).sort((a,b)=>b-a);
+            const ausgewaehlt = [...window.planLoeschAuswahl]
+                .filter(idx => p.planDetails?.[idx]?.folder === ordnerVorher && p.plaene?.[idx])
+                .sort((a,b)=>b-a);
             if (!ausgewaehlt.length) { alert('Bitte zuerst mindestens einen Plan auswählen.'); return; }
-            const mitPins = ausgewaehlt.filter(idx => (p.pins || []).some(pin => Number(pin?.planIndex ?? 0) === idx));
-            const ohnePins = ausgewaehlt.filter(idx => !mitPins.includes(idx) && p.planDetails?.[idx]?.id && p.plaene?.[idx]);
-            if (!ohnePins.length) { alert('Die ausgewählten Pläne haben Mangel-Pins oder keine eindeutige Firebase-ID und können nicht sicher gelöscht werden.'); return; }
-            const warnung = mitPins.length ? `
 
-${mitPins.length} Plan(e) mit Mangel-Pins werden aus Sicherheitsgründen übersprungen.` : '';
-            if (!confirm(`${ohnePins.length} ausgewählte Plan(e) aus „${ordnerVorher}“ dauerhaft löschen?${warnung}
-
-Andere Ordner bleiben unverändert.`)) return;
+            let snap;
             try {
-                // Absteigend löschen, damit Indizes der noch vorhandenen Pläne nicht verrutschen.
-                for (const idx of ohnePins) {
-                    const detail = p.planDetails[idx];
-                    await deleteDoc(doc(db, 'projekte', titel, 'plaene', detail.id));
+                snap = await getDocs(collection(db, 'projekte', titel, 'plaene'));
+            } catch (e) {
+                console.error('Planliste konnte vor dem Löschen nicht geprüft werden:', e);
+                alert('Die Planliste konnte nicht sicher geprüft werden. Bitte Verbindung prüfen und erneut versuchen.');
+                return;
+            }
+            const docsByUrl = new Map();
+            snap.forEach(ds => {
+                const data = ds.data() || {};
+                if (data.url) {
+                    const key = String(data.url);
+                    if (!docsByUrl.has(key)) docsByUrl.set(key, []);
+                    docsByUrl.get(key).push({id: ds.id, data});
+                }
+            });
+            const kandidaten = [];
+            const nichtEindeutig = [];
+            for (const idx of ausgewaehlt) {
+                const detail = p.planDetails[idx] || {};
+                let id = detail.id || null;
+                if (!id) {
+                    const matches = docsByUrl.get(String(p.plaene[idx])) || [];
+                    if (matches.length === 1) id = matches[0].id;
+                }
+                if (!id) { nichtEindeutig.push(idx); continue; }
+                const pinCount = (p.pins || []).filter(pin => Number(pin?.planIndex ?? 0) === idx).length;
+                kandidaten.push({idx, id, name: detail.name || `Plan ${idx+1}`, pinCount});
+            }
+            if (!kandidaten.length) {
+                alert(`Keine ausgewählten Pläne konnten eindeutig einer Firebase-Datei zugeordnet werden.${nichtEindeutig.length ? ` ${nichtEindeutig.length} Plan(e) haben keine eindeutige ID.` : ''} Bitte lade die Planliste neu und prüfe diese Einträge.`);
+                return;
+            }
+            const mitPins = kandidaten.reduce((n,x)=>n+x.pinCount,0);
+            const nichtEindeutigText = nichtEindeutig.length ? `\n${nichtEindeutig.length} Plan(e) ohne eindeutige Firebase-ID werden übersprungen.` : '';
+            const pinText = mitPins ? `\nAchtung: ${mitPins} zugeordnete Mangel-Pin(s) auf den gelöschten Plänen werden ebenfalls entfernt.` : '';
+            if (!confirm(`${kandidaten.length} ausgewählte Plan(e) aus „${ordnerVorher}“ dauerhaft löschen?${pinText}${nichtEindeutigText}\n\nAndere Ordner bleiben unverändert.`)) return;
+            try {
+                for (const item of kandidaten) {
+                    await deleteDoc(doc(db, 'projekte', titel, 'plaene', item.id));
+                }
+                const loeschIndizes = new Set(kandidaten.map(x=>x.idx));
+                if (Array.isArray(p.pins)) {
+                    p.pins = p.pins.filter(pin => !loeschIndizes.has(Number(pin?.planIndex ?? 0)));
+                    p.pins.forEach(pin => {
+                        const oldIndex = Number(pin?.planIndex ?? 0);
+                        const vorherigeLoeschungen = [...loeschIndizes].filter(i => i < oldIndex).length;
+                        pin.planIndex = oldIndex - vorherigeLoeschungen;
+                    });
+                }
+                for (const idx of [...loeschIndizes].sort((a,b)=>b-a)) {
                     p.plaene.splice(idx, 1);
                     p.planDetails.splice(idx, 1);
-                    if (Array.isArray(p.pins)) p.pins.forEach(pin => {
-                        const pi = Number(pin?.planIndex ?? 0);
-                        if (pi > idx) pin.planIndex = pi - 1;
-                    });
                 }
                 const updates = p.planDetails.map((detail, newIndex) => detail?.id
                     ? setDoc(doc(db, 'projekte', titel, 'plaene', detail.id), {index:newIndex}, {merge:true})
@@ -6327,15 +6321,18 @@ Andere Ordner bleiben unverändert.`)) return;
                 window.aktuellerPlanOrdner = ordnerVorher;
                 window.planAnsichtFreigegeben = false;
                 window.planLoeschAuswahl = new Set();
+                window.planLoeschModusAktiv = false;
                 plaeneLeisteAktualisieren();
                 planVorschauAnzeigen();
                 projektPinListeAnzeigen();
-                alert(`${ohnePins.length} Plan(e) wurden gelöscht.${mitPins.length ? ` ${mitPins.length} Plan(e) mit Mangel-Pins wurden nicht gelöscht.` : ''}`);
+                alert(`${kandidaten.length} Plan(e) wurden gelöscht.${nichtEindeutig.length ? ` ${nichtEindeutig.length} Plan(e) ohne eindeutige ID wurden übersprungen.` : ''}`);
             } catch (e) {
                 console.error('Mehrfaches Löschen von Plänen fehlgeschlagen:', e);
                 alert('Die Löschung konnte nicht vollständig bestätigt werden. Bitte die Planliste neu laden und den Bestand prüfen, bevor du erneut löschst.');
                 await ladePlaeneFuerProjekt(titel);
                 window.aktuellerPlanOrdner = ordnerVorher;
+                window.planLoeschModusAktiv = false;
+                window.planLoeschAuswahl = new Set();
                 plaeneLeisteAktualisieren();
             }
         };
