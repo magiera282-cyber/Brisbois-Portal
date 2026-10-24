@@ -6342,16 +6342,28 @@ SECURITY MIGRATION MARKER (06.10.2026):
         };
 
         window.aktivenPlanWechseln = function(idx) {
-            const p = globalDaten.projekte[aktuellesProjekt];
+            const titel = aktuellesProjekt;
+            const p = globalDaten.projekte[titel];
             if (!p || !Array.isArray(p.plaene) || !p.plaene[idx]) return;
-            // Plan nur nach expliziter Auswahl innerhalb des Ordners anzeigen.
+
+            // Die Ordneransicht bleibt geöffnet, wenn ein anderer Plan gewählt wird.
+            const geoeffneterOrdner = window.aktuellerPlanOrdner;
             window.planAnsichtFreigegeben = true;
-            p.aktiverPlanIndex = idx;
-            // Nur den kleinen Index im Projekt-Dokument speichern.
-            projektSpeichern(aktuellesProjekt);
+            p.aktiverPlanIndex = Number(idx);
+
+            // WICHTIG: Hier nicht projektSpeichern() aufrufen.
+            // Das Projekt-Dokument speichert Planbilder absichtlich als plaene: [].
+            // Das Speichern des bloßen aktiven Index löst den Projekte-onSnapshot aus,
+            // der die lokale Planliste überschreibt und den Benutzer aus der Ordneransicht wirft.
             planVorschauAnzeigen();
             plaeneLeisteAktualisieren();
             projektPinListeAnzeigen();
+
+            // Schutz gegen andere synchrone UI-Aktualisierungen: im selben Ordner bleiben.
+            if (geoeffneterOrdner !== null && window.aktuellerPlanOrdner !== geoeffneterOrdner) {
+                window.aktuellerPlanOrdner = geoeffneterOrdner;
+                plaeneLeisteAktualisieren();
+            }
         }
 
         function planVorschauAnzeigen() {
