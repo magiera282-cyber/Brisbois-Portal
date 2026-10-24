@@ -5803,11 +5803,38 @@ SECURITY MIGRATION MARKER (06.10.2026):
                         url,
                         id: planSnap.id,
                         name: String(d.planName || d.dateiname || alt.name || ''),
-                        // Nur einen tatsächlich gespeicherten Ordner bevorzugen.
-                        folder: String(d.ordner || d.folder || d.ordnerName || alt.folder || 'Nicht sortiert')
+                        // Wenn Firebase noch „Nicht sortiert“ meldet, eine bereits bekannte
+                        // konkrete Zuordnung desselben Plans bevorzugen.
+                        folder: (() => {
+                            const gespeichert = String(d.ordner || d.folder || d.ordnerName || '');
+                            if ((!gespeichert || gespeichert === 'Nicht sortiert') && alt.folder && alt.folder !== 'Nicht sortiert') return alt.folder;
+                            return gespeichert || alt.folder || 'Nicht sortiert';
+                        })()
                     });
                 });
                 geladenePlaene.sort((a,b) => a.index - b.index);
+
+                // Sicherer Metadatenabgleich: Wenn exakt dieselbe Datei mehrfach als
+                // Plan-Dokument existiert und mindestens ein Datensatz einen konkreten
+                // Ordner (z. B. „Erdgeschoss“) hat, korrigiere nur die „Nicht sortiert“-
+                // Zuordnung der anderen Datensätze. Keine Plan-Dokumente, URLs, Indizes
+                // oder Pins werden gelöscht oder neu nummeriert.
+                const besterOrdnerProDatei = new Map();
+                geladenePlaene.forEach(x => {
+                    const key = planUrlVergleichsschluessel(x.url);
+                    if (!key) return;
+                    if (x.folder && x.folder !== 'Nicht sortiert' && !besterOrdnerProDatei.has(key)) {
+                        besterOrdnerProDatei.set(key, x.folder);
+                    }
+                });
+                const reparaturen = geladenePlaene.filter(x => x.id && x.folder === 'Nicht sortiert' && besterOrdnerProDatei.has(planUrlVergleichsschluessel(x.url)));
+                if (reparaturen.length) {
+                    await Promise.allSettled(reparaturen.map(x => {
+                        const folder = besterOrdnerProDatei.get(planUrlVergleichsschluessel(x.url));
+                        x.folder = folder;
+                        return setDoc(doc(db, 'projekte', titel, 'plaene', x.id), { ordner: folder }, { merge: true });
+                    }));
+                }
 
                 // Alte Pläne, die noch direkt im Projekt-Dokument liegen, nur dann
                 // migrieren, wenn die Unterkollektion wirklich leer ist.
@@ -5847,6 +5874,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 p.planDetails = geladenePlaene.map((x,i) => ({ id:x.id, name:x.name || `Plan ${i+1}`, folder:x.folder || 'Nicht sortiert' }));
                 if (!Array.isArray(p.planOrdner)) p.planOrdner = [];
                 p.planDetails.forEach(x => { if (!p.planOrdner.includes(x.folder)) p.planOrdner.push(x.folder); });
+                // „Nicht sortiert“ nicht als leeren/stalen Ordner weiter anzeigen,
+                // wenn nach dem sicheren Abgleich keine Pläne mehr dort liegen.
+                if (!p.planDetails.some(x => x.folder === 'Nicht sortiert')) {
+                    p.planOrdner = p.planOrdner.filter(x => x !== 'Nicht sortiert');
+                }
                 if (p.aktiverPlanIndex >= p.plaene.length) p.aktiverPlanIndex = Math.max(0, p.plaene.length - 1);
             } catch (e) {
                 console.warn('Plan-Unterkollektion konnte nicht geladen werden; vorhandene lokale Pläne bleiben erhalten:', e);
