@@ -3303,7 +3303,13 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const darfWochenplanung = istVerwaltungsRolle;
             const darfMaterialliste = istVerwaltungsRolle;
-            const darfLager = istVerwaltungsRolle || rolleNormalisiert === 'lagerist';
+            // Lagerzugriff: Nur Chef/Techniker verwalten den Bestand.
+            // Lageristen dürfen die Liste sehen und Ausgaben buchen; Verleger,
+            // Sekretariat und andere Rollen sehen weder Tab noch Lagerdaten.
+            const darfLager = rolleNormalisiert.includes('chef') ||
+                rolleNormalisiert.includes('techniker') ||
+                rolleNormalisiert === 'lagerist' ||
+                ['Jeff Brisbois', 'Didier Michel'].includes(String(eingeloggterMitarbeiter || '').trim());
             const darfUrlaubBuero = urlaubIstBuero();
             document.querySelectorAll('.wochenplanung-only').forEach(el => el.classList.toggle('hidden', !darfWochenplanung));
             document.querySelectorAll('.dashboard-only').forEach(el => el.classList.toggle('hidden', !dashboardIstBerechtigt()));
@@ -7944,20 +7950,22 @@ SECURITY MIGRATION MARKER (06.10.2026):
         // SCHRITT 3 – Lagerist: nur Ausgaben buchen.
         // Alle Stamm-/Bestandsänderungen laufen zentral über diese Prüfung.
         function lagerVerwaltenBerechtigt(){
-            const r=String(eingeloggteRolle||'').toLowerCase();
-            if (istLagerist()) return false;
-            return istDauerhafterAdmin() || r.includes('chef') || r.includes('techniker') || r.includes('sekretariat') || r.includes('admin');
+            const r=String(eingeloggteRolle||'').trim().toLowerCase();
+            const name=String(eingeloggterMitarbeiter||'').trim();
+            // Bestandsänderungen ausschließlich für Chef und Techniker.
+            return r.includes('chef') || r.includes('techniker') ||
+                ['Jeff Brisbois', 'Didier Michel'].includes(name);
         }
         function lagerAusgabeBerechtigt(){
-            const r=String(eingeloggteRolle||'').toLowerCase();
-            return istLagerist() || istDauerhafterAdmin() || r.includes('chef') || r.includes('techniker') || r.includes('sekretariat') || r.includes('admin');
+            // Lageristen dürfen nur Lagerbestand ansehen und Ausgaben buchen.
+            return istLagerist() || lagerVerwaltenBerechtigt();
         }
         function lagerBerechtigt(){
             return lagerAusgabeBerechtigt();
         }
         function lagerUIRolleAnwenden(){
-            const lagerist = String(eingeloggteRolle||'').trim().toLowerCase() === 'lagerist';
-            document.querySelectorAll('[data-lager-admin=\"1\"]').forEach(el=>el.classList.toggle('hidden', lagerist));
+            const darfVerwalten = lagerVerwaltenBerechtigt();
+            document.querySelectorAll('[data-lager-admin=\"1\"]').forEach(el=>el.classList.toggle('hidden', !darfVerwalten));
         }
 
         function lagerAdminMutationSicher(){
@@ -8411,6 +8419,12 @@ SECURITY MIGRATION MARKER (06.10.2026):
         window.kiMaterialBerechnungAusListe = kiMaterialBerechnungAusListe;
 
         window.wechselnTab = function(tabName) {
+            // Zusätzliche Zugriffssperre: Verleger dürfen den Lager-Tab auch
+            // nicht über einen direkten Funktionsaufruf öffnen.
+            if (tabName === 'lager' && !lagerBerechtigt()) {
+                alert('Keine Berechtigung für Lager & Werkzeug.');
+                return;
+            }
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.getElementById('tab-' + tabName).classList.remove('hidden');
             document.querySelectorAll('.tab-btn').forEach(btn => {
