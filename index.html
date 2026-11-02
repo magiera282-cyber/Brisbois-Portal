@@ -11,6 +11,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- PDF.js für echte PDF-Texterkennung / Seiten-Rendering -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- HEIC/HEIF-Unterstützung: iPhone-Fotos vor der Verarbeitung in JPEG umwandeln -->
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
 
 <script>
@@ -912,7 +914,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">📷 Foto zum Mangel hinzufügen (Funktioniert mit jedem iPhone)</label>
-                    <input type="file" id="pin-foto-input" accept="image/*" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <input type="file" id="pin-foto-input" accept="image/*,.heic,.heif,image/heic,image/heif" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
                 </div>
             </div>
             <div class="flex gap-2 pt-2">
@@ -1124,7 +1126,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bild zur privaten Anweisung (optional)</label>
-                    <input id="edit-projekt-anweisung-bild" type="file" accept="image/*" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                    <input id="edit-projekt-anweisung-bild" type="file" accept="image/*,.heic,.heif,image/heic,image/heif" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
                     <div id="edit-projekt-anweisung-bild-status" class="text-xs text-slate-500 mt-1">Ein neues Bild ersetzt das bisherige Anweisungsbild nicht automatisch, solange kein neues Bild ausgewählt wird.</div>
                 </div>
                 <div class="flex gap-2 pt-2">
@@ -1506,7 +1508,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                                 <label for="private-anweisung-eingabe" class="block text-xs font-bold mb-1">Private Anweisung schreiben / aktualisieren</label>
                                 <textarea id="private-anweisung-eingabe" rows="3" class="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" placeholder="Anweisung für das Baustellen-Team eingeben …"></textarea>
                                 <label for="private-anweisung-bild-datei" class="block text-xs font-bold mt-2 mb-1">Foto oder PDF zur Anweisung (optional)</label>
-                                <input id="private-anweisung-bild-datei" type="file" accept="image/*,application/pdf,.pdf" class="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs text-slate-800">
+                                <input id="private-anweisung-bild-datei" type="file" accept="image/*,.heic,.heif,image/heic,image/heif,application/pdf,.pdf" class="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs text-slate-800">
                                 <label for="private-anweisung-dokument-kategorie" class="block text-xs font-bold mt-3 mb-1">Dokumentkategorie</label>
                                 <select id="private-anweisung-dokument-kategorie" class="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800">
                                     <option value="Anweisung">Baustellenanweisung</option>
@@ -1529,7 +1531,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         </div>
                         <div id="beschreibung-bild-editor" class="mt-4 pt-3 border-t border-slate-200 hidden">
                             <label for="beschreibung-bild-datei" class="block text-xs font-bold mb-1">Bild oder PDF zur Baustellenbeschreibung hinzufügen (optional)</label>
-                            <input id="beschreibung-bild-datei" type="file" accept="image/*,application/pdf,.pdf" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800">
+                            <input id="beschreibung-bild-datei" type="file" accept="image/*,.heic,.heif,image/heic,image/heif,application/pdf,.pdf" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800">
                             <div class="flex justify-end mt-2"><button type="button" onclick="baustellenbeschreibungBildSpeichern()" class="rounded-lg bg-slate-700 hover:bg-slate-800 px-4 py-2 text-sm font-bold text-white">💾 Datei speichern</button></div>
                             <div class="mt-1 text-xs text-slate-500">Ein vorhandenes Bild oder PDF bleibt erhalten, wenn keine neue Datei ausgewählt wird.</div>
                         </div>
@@ -1539,7 +1541,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         <p class="text-xs text-slate-600 mb-3">Fotos vom Arbeitsfortschritt, Untergrund, Material oder besonderen Stellen mit kurzer Beschreibung dokumentieren.</p>
                         <div id="verleger-fotos-editor" class="hidden rounded-lg border border-slate-200 bg-white p-3 mb-4">
                             <label for="verleger-foto-datei" class="block text-xs font-bold text-slate-700 mb-1">Foto auswählen</label>
-                            <input id="verleger-foto-datei" type="file" accept="image/*" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800">
+                            <input id="verleger-foto-datei" type="file" accept="image/*,.heic,.heif,image/heic,image/heif" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800">
                             <label for="verleger-foto-beschreibung" class="block text-xs font-bold text-slate-700 mt-3 mb-1">Beschreibung zum Foto</label>
                             <textarea id="verleger-foto-beschreibung" rows="2" maxlength="1200" placeholder="Was ist auf dem Foto zu sehen? z. B. Untergrund vor der Verlegung …" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"></textarea>
                             <div class="flex justify-end mt-2"><button type="button" onclick="verlegerFotoSpeichern()" class="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-bold text-white">📤 Foto dokumentieren</button></div>
@@ -1580,7 +1582,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                             </button>
                             <label class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold cursor-pointer transition shadow-sm">
                                 ➕ Plan hinzufügen
-                                <input type="file" accept="image/*,.pdf,application/pdf" onchange="weitererPlanHinzufuegen(event)" class="hidden">
+                                <input type="file" accept="image/*,.heic,.heif,image/heic,image/heif,.pdf,application/pdf" onchange="weitererPlanHinzufuegen(event)" class="hidden">
                             </label>
                         </div>
                     </div>
@@ -1905,7 +1907,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                         <div><label class="block text-xs font-bold text-slate-600 mb-1">Datum</label><input type="date" id="beleg-datum" required class="w-full px-3 py-2 border rounded-lg bg-white"></div>
                         <div><label class="block text-xs font-bold text-slate-600 mb-1">Zweck</label><input type="text" id="beleg-zweck" placeholder="z. B. Tankstelle" required class="w-full px-3 py-2 border rounded-lg bg-white"></div>
                         <div><label class="block text-xs font-bold text-slate-600 mb-1">Betrag (€)</label><input type="number" id="beleg-betrag" min="0" step="0.01" placeholder="85,40" required class="w-full px-3 py-2 border rounded-lg bg-white"></div>
-                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Belegdatei</label><input type="file" id="beleg-datei" accept="image/jpeg,image/png,application/pdf" required class="w-full px-2 py-1.5 border rounded-lg bg-white text-xs"></div>
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Belegdatei</label><input type="file" id="beleg-datei" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif,application/pdf" required class="w-full px-2 py-1.5 border rounded-lg bg-white text-xs"></div>
                     </div>
                     <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow transition">📤 Beleg speichern</button>
                 </form>
@@ -1931,7 +1933,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div><label class="block text-xs font-bold text-slate-600 mb-1">Verleger</label><select id="abrechnung-mitarbeiter" required class="w-full px-3 py-2 border rounded-lg bg-white"></select></div>
                         <div><label class="block text-xs font-bold text-slate-600 mb-1">Bezeichnung</label><input type="text" id="abrechnung-bezeichnung" placeholder="z. B. Abrechnung September 2026" required class="w-full px-3 py-2 border rounded-lg bg-white"></div>
-                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Datei</label><input type="file" id="abrechnung-datei" accept="image/jpeg,image/png,application/pdf" required class="w-full px-2 py-1.5 border rounded-lg bg-white text-xs"></div>
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Datei</label><input type="file" id="abrechnung-datei" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif,application/pdf" required class="w-full px-2 py-1.5 border rounded-lg bg-white text-xs"></div>
                     </div>
                     <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow transition">📤 Abrechnung speichern</button>
                 </form>
@@ -3507,7 +3509,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 // Fotos werden bewusst direkt als komprimierte Data-URL gespeichert.
                 // Dadurch hängt das Speichern einer Krankmeldung nicht an Firebase Storage.
                 // PDFs werden weiterhin über Firebase Storage gespeichert.
-                const istBild=String(datei.type||'').startsWith('image/');
+                const istBild=istBildDatei(datei);
                 if(istBild){
                     const uploadDatei=await planBildKomprimieren(datei,1200,0.72);
                     const reader=new FileReader();
@@ -7536,7 +7538,31 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (datei) verarbeiteGrundriss(datei);
         }
 
-        function planBildKomprimieren(datei, maxSeite = 1400, qualitaet = 0.72) {
+        function istHeicDatei(datei) {
+            const typ = String(datei?.type || '').toLowerCase();
+            const name = String(datei?.name || '').toLowerCase();
+            return typ.includes('heic') || typ.includes('heif') || /\\.(heic|heif)$/.test(name);
+        }
+
+        function istBildDatei(datei) {
+            return !!datei && (String(datei.type || '').toLowerCase().startsWith('image/') || istHeicDatei(datei));
+        }
+
+        async function bildDateiBrowserKompatibel(datei) {
+            if (!datei || !istHeicDatei(datei)) return datei;
+            if (typeof window.heic2any !== 'function') {
+                throw new Error('HEIC-Fotos können gerade nicht umgewandelt werden. Bitte Internetverbindung prüfen und die Seite neu laden.');
+            }
+            const umgewandelt = await window.heic2any({ blob: datei, toType: 'image/jpeg', quality: 0.92 });
+            const blob = Array.isArray(umgewandelt) ? umgewandelt[0] : umgewandelt;
+            if (!blob || !blob.size) throw new Error('Das HEIC-Foto konnte nicht in JPG umgewandelt werden.');
+            const name = String(datei.name || 'iPhone-Foto').replace(/\\.(heic|heif)$/i, '') + '.jpg';
+            return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
+        }
+
+        async function planBildKomprimieren(datei, maxSeite = 1400, qualitaet = 0.72) {
+            datei = await bildDateiBrowserKompatibel(datei);
+
             return new Promise((resolve, reject) => {
                 if (!datei || !String(datei.type || '').startsWith('image/')) return resolve(datei);
                 const reader = new FileReader();
@@ -7569,6 +7595,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         async function uploadBaustellenDatei(datei, ordner, projektname) {
             if (!datei) throw new Error("Keine Datei ausgewählt.");
+            datei = await bildDateiBrowserKompatibel(datei);
             const maxMB = ordner === "plaene" ? 50 : 15;
             if (datei.size > maxMB * 1024 * 1024) {
                 throw new Error(`Die Datei darf maximal ${maxMB} MB groß sein.`);
@@ -7816,11 +7843,12 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const zweck = document.getElementById("beleg-zweck").value.trim();
             const betrag = parseFloat(document.getElementById("beleg-betrag").value);
             if (!datei || !datum || !zweck || isNaN(betrag)) return alert("Bitte alle Belegfelder ausfüllen.");
-            if (!["image/jpeg","image/png","application/pdf"].includes(datei.type)) return alert("Bitte JPG, PNG oder PDF auswählen.");
-            if (datei.size > 750 * 1024) return alert("Die Belegdatei darf maximal 750 KB groß sein.");
             try {
-                const dataUrl = await new Promise((resolve,reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(datei); });
-                await setDoc(doc(db, "belege", crypto.randomUUID()), {datum, mitarbeiter: eingeloggterMitarbeiter, mitarbeiterEmail: String(auth.currentUser?.email || "").toLowerCase(), rolle: eingeloggteRolle, zweck, betrag, dateiname:datei.name, dateityp:datei.type, dateiUrl:dataUrl, erstelltAm:new Date().toISOString()});
+                const uploadDatei = await bildDateiBrowserKompatibel(datei);
+                if (!["image/jpeg","image/png","application/pdf"].includes(uploadDatei.type)) return alert("Bitte JPG, PNG, HEIC/HEIF oder PDF auswählen.");
+                if (uploadDatei.size > 750 * 1024) return alert("Die Belegdatei darf maximal 750 KB groß sein.");
+                const dataUrl = await new Promise((resolve,reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(uploadDatei); });
+                await setDoc(doc(db, "belege", crypto.randomUUID()), {datum, mitarbeiter: eingeloggterMitarbeiter, mitarbeiterEmail: String(auth.currentUser?.email || "").toLowerCase(), rolle: eingeloggteRolle, zweck, betrag, dateiname:uploadDatei.name, dateityp:uploadDatei.type, dateiUrl:dataUrl, erstelltAm:new Date().toISOString()});
                 document.getElementById("beleg-formular").reset();
                 document.getElementById("beleg-datum").value = new Date().toISOString().split("T")[0];
                 alert("Beleg wurde gespeichert.");
@@ -7880,11 +7908,12 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const bezeichnung = document.getElementById('abrechnung-bezeichnung')?.value.trim();
             const datei = document.getElementById('abrechnung-datei')?.files?.[0];
             if (!verleger || !bezeichnung || !datei) return alert('Bitte Verleger, Bezeichnung und Datei auswählen.');
-            if (!['image/jpeg','image/png','application/pdf'].includes(datei.type)) return alert('Bitte PDF, JPG oder PNG auswählen.');
-            if (datei.size > 2 * 1024 * 1024) return alert('Die Abrechnung darf maximal 2 MB groß sein.');
             try {
-                const dataUrl = await new Promise((resolve,reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(datei); });
-                await setDoc(doc(db, 'abrechnungen', crypto.randomUUID()), { verleger, verlegerEmail: String(brisboisAuthKennung(verleger) || '').toLowerCase(), bezeichnung, dateiname: datei.name, dateityp: datei.type, dateiUrl: dataUrl, hochgeladenVon: eingeloggterMitarbeiter, hochgeladenRolle: eingeloggteRolle, erstelltAm: new Date().toISOString() });
+                const uploadDatei = await bildDateiBrowserKompatibel(datei);
+                if (!['image/jpeg','image/png','application/pdf'].includes(uploadDatei.type)) return alert('Bitte PDF, JPG, PNG oder HEIC/HEIF auswählen.');
+                if (uploadDatei.size > 2 * 1024 * 1024) return alert('Die Abrechnung darf maximal 2 MB groß sein.');
+                const dataUrl = await new Promise((resolve,reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(uploadDatei); });
+                await setDoc(doc(db, 'abrechnungen', crypto.randomUUID()), { verleger, verlegerEmail: String(brisboisAuthKennung(verleger) || '').toLowerCase(), bezeichnung, dateiname: uploadDatei.name, dateityp: uploadDatei.type, dateiUrl: dataUrl, hochgeladenVon: eingeloggterMitarbeiter, hochgeladenRolle: eingeloggteRolle, erstelltAm: new Date().toISOString() });
                 document.getElementById('abrechnung-formular').reset();
                 abrechnungenVerlegerBefuellen();
                 alert('Abrechnung wurde gespeichert.');
