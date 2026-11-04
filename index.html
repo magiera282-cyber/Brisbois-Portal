@@ -6844,55 +6844,50 @@ SECURITY MIGRATION MARKER (06.10.2026):
         }
 
         window.pinSpeichernBestätigen = async function() {
-            const text = document.getElementById('pin-text-input').value.trim();
+            const text = document.getElementById('pin-text-input')?.value.trim() || '';
             const fotoInput = document.getElementById('pin-foto-input');
             const eigenerName = (document.getElementById('pin-eigener-name')?.value || '').trim();
-
-            if (ausgewaehlterPinTyp === 'eigen' && !eigenerName) {
-                alert("Bitte gib einen Namen für den eigenen Pin ein!");
-                return;
-            }
-
-            if (!text) {
-                alert("Bitte gib eine Beschreibung oder einen Mangel für den Pin ein!");
-                return;
-            }
+            if (ausgewaehlterPinTyp === 'eigen' && !eigenerName) { alert("Bitte gib einen Namen für den eigenen Pin ein!"); return; }
+            if (!text) { alert("Bitte gib eine Beschreibung oder einen Mangel für den Pin ein!"); return; }
 
             const btn = document.querySelector('#pin-modal button[onclick*="pinSpeichern"]');
-            if (btn) { btn.disabled = true; btn.innerText = "⏳ Wird gespeichert..."; }
+            const status = (meldung) => { if (btn) btn.innerText = `⏳ ${meldung}`; };
+            const mitZeitlimit = (promise, ms, schritt) => Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error(`${schritt}: Zeitüberschreitung nach ${Math.round(ms/1000)} Sekunden. Bitte Internetverbindung und Firebase-Regeln prüfen.`)), ms))
+            ]);
+            if (btn) { btn.disabled = true; status('Pin wird vorbereitet…'); }
 
             try {
-                // Pin-Fotos gehören nicht in das Firestore-Projektdokument:
-                // Dort gilt eine harte Grenze von 1 MiB. Die Bilddateien werden
-                // deshalb einzeln in Firebase Storage abgelegt; im Pin bleiben
-                // ausschließlich Download-URLs (auch mehrere Fotos pro Pin).
-                const fotos = Array.from(fotoInput.files || []);
+                const fotos = Array.from(fotoInput?.files || []);
                 if (fotos.length > 8) throw new Error('Pro Pin können maximal 8 Fotos angehängt werden.');
-                if (!storage && fotos.length) throw new Error('Firebase Storage ist nicht verfügbar. Bitte Firebase Storage aktivieren.');
+                if (fotos.length && !storage) throw new Error('Firebase Storage ist nicht verfügbar. Bitte Storage im Firebase-Projekt aktivieren.');
                 const projektPfad = String(aktuellesProjekt || 'baustelle').replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '_').slice(0, 80);
                 const pinFotoHochladen = async (datei) => {
-                    const pinDateiname = `${Date.now()}_${crypto.randomUUID()}.jpg`;
+                    const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                    const pinDateiname = `${Date.now()}_${uuid}.jpg`;
                     const fotoRef = storageRef(storage, `baustellen/${projektPfad}/pin-fotos/${pinDateiname}`);
-                    await uploadBytes(fotoRef, datei, { contentType: datei.type || 'image/jpeg' });
-                    return await getDownloadURL(fotoRef);
+                    status('Foto wird zu Firebase hochgeladen…');
+                    await mitZeitlimit(uploadBytes(fotoRef, datei, { contentType: datei.type || 'image/jpeg' }), 60000, 'Foto-Upload');
+                    status('Foto-Adresse wird abgerufen…');
+                    return await mitZeitlimit(getDownloadURL(fotoRef), 20000, 'Abruf der Foto-Adresse');
                 };
                 const pinFotoUrlSichern = async (wert) => {
-                    if (!wert || typeof wert !== 'string') return wert || '';
-                    if (!wert.startsWith('data:image/')) return wert;
-                    if (!storage) throw new Error('Firebase Storage wird benötigt, um ältere eingebettete Pin-Fotos auszulagern.');
-                    const blob = await (await fetch(wert)).blob();
-                    const datei = await planBildKomprimieren(new File([blob], 'altes-pin-foto.jpg', { type: blob.type || 'image/jpeg' }), 1400, 0.72);
+                    if (!wert || typeof wert !== 'string' || !wert.startsWith('data:image/')) return wert || '';
+                    if (!storage) throw new Error('Firebase Storage wird benötigt, um ein älteres eingebettetes Pin-Foto auszulagern.');
+                    status('Älteres Pin-Foto wird ausgelagert…');
+                    const blob = await mitZeitlimit(fetch(wert).then(r => { if (!r.ok) throw new Error('Altes Pin-Foto konnte nicht gelesen werden.'); return r.blob(); }), 20000, 'Lesen eines alten Pin-Fotos');
+                    const datei = await mitZeitlimit(planBildKomprimieren(new File([blob], 'altes-pin-foto.jpg', { type: blob.type || 'image/jpeg' }), 1400, 0.72), 30000, 'Bildkomprimierung');
                     return await pinFotoHochladen(datei);
                 };
+
                 const fotoUrls = [];
-                for (const foto of fotos) {
-                    if (!String(foto.type || '').startsWith('image/')) {
-                        throw new Error(`„${foto.name || 'Datei'}“ ist kein unterstütztes Bild.`);
-                    }
-                    if (foto.size > 12 * 1024 * 1024) {
-                        throw new Error(`Das Foto „${foto.name || ''}“ darf maximal 12 MB groß sein.`);
-                    }
-                    const fotoDatei = await planBildKomprimieren(foto, 1400, 0.72);
+                for (let i = 0; i < fotos.length; i++) {
+                    const foto = fotos[i];
+                    if (!String(foto.type || '').startsWith('image/')) throw new Error(`„${foto.name || 'Datei'}“ ist kein unterstütztes Bild.`);
+                    if (foto.size > 12 * 1024 * 1024) throw new Error(`Das Foto „${foto.name || ''}“ darf maximal 12 MB groß sein.`);
+                    status(`Foto ${i + 1}/${fotos.length} wird komprimiert…`);
+                    const fotoDatei = await mitZeitlimit(planBildKomprimieren(foto, 1400, 0.72), 30000, 'Bildkomprimierung');
                     fotoUrls.push(await pinFotoHochladen(fotoDatei));
                 }
 
@@ -6900,15 +6895,13 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 const p = globalDaten.projekte[aktuellesProjekt];
                 if (!p) throw new Error('Die Baustelle ist nicht mehr geladen. Bitte Seite neu laden.');
                 const planIdx = p.aktiverPlanIndex !== undefined ? p.aktiverPlanIndex : 0;
-                if (!p.pins) p.pins = [];
+                if (!Array.isArray(p.pins)) p.pins = [];
 
-                // Einmalige, verlustfreie Migration alter Base64-Pinbilder:
-                // URLs bleiben unverändert, eingebettete Bilder wandern nach Storage.
+                // Bestehende Pins bleiben erhalten. Nur alte Base64-Bilder werden ausgelagert.
+                status('Vorhandene Pin-Fotos werden geprüft…');
                 for (const alterPin of p.pins) {
                     if (!alterPin || typeof alterPin !== 'object') continue;
-                    const alteFotos = Array.isArray(alterPin.fotos) && alterPin.fotos.length
-                        ? alterPin.fotos
-                        : (alterPin.foto ? [alterPin.foto] : []);
+                    const alteFotos = Array.isArray(alterPin.fotos) && alterPin.fotos.length ? alterPin.fotos : (alterPin.foto ? [alterPin.foto] : []);
                     if (!alteFotos.length) continue;
                     const gesicherteFotos = [];
                     for (const alteFoto of alteFotos) {
@@ -6920,64 +6913,46 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 }
 
                 p.pins.push({
-                    x: temporärePinX,
-                    y: temporärePinY,
-                    planIndex: planIdx,
-                    text: text,
-                    // foto bleibt als Kompatibilitätsfeld für die erste URL erhalten;
-                    // fotos enthält die vollständige Galerie. Alte Base64-Fotos bleiben lesbar.
-                    foto: fotoUrls[0] || "",
-                    fotos: fotoUrls,
-                    von: eingeloggterMitarbeiter,
-                    zeit: datum,
-                    gelesenVon: [],
+                    x: temporärePinX, y: temporärePinY, planIndex: planIdx, text,
+                    foto: fotoUrls[0] || '', fotos: fotoUrls,
+                    von: eingeloggterMitarbeiter, zeit: datum, gelesenVon: [],
                     typ: ausgewaehlterPinTyp,
                     name: ausgewaehlterPinTyp === 'eigen' ? eigenerName : (ausgewaehlterPinTyp === 'frage' ? 'Frage' : 'Mangel')
                 });
 
-                if (!globalDaten.benachrichtigungen) globalDaten.benachrichtigungen = [];
+                if (!Array.isArray(globalDaten.benachrichtigungen)) globalDaten.benachrichtigungen = [];
                 const neuerPinIndex = p.pins.length - 1;
                 globalDaten.benachrichtigungen.unshift({
                     von: `🚨 ${eingeloggterMitarbeiter} (Baustellen-Pin)`,
-                    empfaenger: "Chef/Techniker/Zugewiesen",
+                    empfaenger: 'Chef/Techniker/Zugewiesen',
                     text: `Neuer Mangel-Pin auf Baustelle "${aktuellesProjekt}" – Plan ${planIdx + 1}: "${text}"`,
-                    datum: datum,
-                    gelesenVon: [eingeloggterMitarbeiter],
-                    geloeschtVon: [],
-                    projekt: aktuellesProjekt,
-                    pinIndex: neuerPinIndex,
-                    planIndex: planIdx
+                    datum, gelesenVon: [eingeloggterMitarbeiter], geloeschtVon: [],
+                    projekt: aktuellesProjekt, pinIndex: neuerPinIndex, planIndex: planIdx
                 });
 
-                // Der Pin wird zuerst sicher im Baustellen-Dokument gespeichert.
-                // Die globale Benachrichtigung darf den Speichervorgang nicht mehr
-                // blockieren (sonst bleibt auf dem iPhone dauerhaft „Wird gespeichert...“).
-                const pinGespeichert = await projektSpeichern(aktuellesProjekt);
-                if (!pinGespeichert) throw new Error('Der Pin konnte nicht in Firestore gespeichert werden. Bitte erneut versuchen.');
+                status('Pin wird in der Baustelle gespeichert…');
+                const pinGespeichert = await mitZeitlimit(projektSpeichern(aktuellesProjekt), 30000, 'Speichern in Firestore');
+                if (!pinGespeichert) throw new Error('Firestore hat den Pin nicht bestätigt. Bitte Fehlermeldung beachten und nicht mehrfach auf Speichern drücken.');
+
+                status('Benachrichtigung wird synchronisiert…');
                 try {
-                    await Promise.race([
-                        window.globalGlobalSpeichern(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Portal-Synchronisation dauert zu lange')), 8000))
-                    ]);
+                    await mitZeitlimit(window.globalGlobalSpeichern(), 8000, 'Portal-Synchronisation');
                 } catch (syncError) {
-                    console.warn('Pin gespeichert, globale Benachrichtigung wird später synchronisiert:', syncError);
+                    console.warn('Pin gespeichert; globale Benachrichtigung wird später synchronisiert:', syncError);
                 }
-                document.getElementById('pin-modal').classList.add('hidden');
+                document.getElementById('pin-modal')?.classList.add('hidden');
                 vollbildPinsAnzeigen();
                 benachrichtigungenAnzeigen();
-
-                // Pin-Modus bleibt nach dem Speichern aktiv, damit direkt der
-                // nächste Pin gesetzt werden kann, ohne die Großansicht zu schließen.
                 const vollPinBtn = document.getElementById('vollbild-pin-btn');
                 if (vollPinBtn && pinModusAktiv) {
-                    vollPinBtn.className = "bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse";
-                    vollPinBtn.innerText = "📌✓";
+                    vollPinBtn.className = 'bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition shadow animate-pulse';
+                    vollPinBtn.innerText = '📌✓';
                 }
             } catch (error) {
-                console.error("Fehler beim Speichern des Mangel-Pins:", error);
-                alert(`Der Mangel-Pin konnte nicht gespeichert werden. ${error.message || "Bitte prüfe deine Firebase-Storage-Regeln."}`);
+                console.error('Fehler beim Speichern des Mangel-Pins:', error);
+                alert(`Der Mangel-Pin konnte nicht vollständig gespeichert werden.\n\n${error.message || 'Bitte Firebase-Verbindung und Storage-Regeln prüfen.'}`);
             } finally {
-                if (btn) { btn.disabled = false; btn.innerText = "💾 Pin speichern"; }
+                if (btn) { btn.disabled = false; btn.innerText = '💾 Pin speichern'; }
             }
         };
 
