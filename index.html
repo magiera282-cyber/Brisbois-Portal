@@ -6911,31 +6911,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 if (fotos.length > 8) throw new Error('Pro Pin können maximal 8 Fotos angehängt werden.');
                 if (fotos.length && !storage) throw new Error('Firebase Storage ist nicht verfügbar. Bitte Storage im Firebase-Projekt aktivieren.');
                 const projektPfad = String(aktuellesProjekt || 'baustelle').replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '_').slice(0, 80);
-                let fotoUploadZaehler = 0;
                 const pinFotoHochladen = async (datei) => {
-                    fotoUploadZaehler++;
-                    const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-                    const pinDateiname = `${Date.now()}_${uuid}.jpg`;
-                    const fotoRef = storageRef(storage, `baustellen/${projektPfad}/plaene/pin_${pinDateiname}`);
-                    // Pin-Fotos werden im bereits verwendeten Baustellen-Planordner
-                    // abgelegt. So nutzen sie denselben Storage-Pfadbereich wie
-                    // erfolgreich hochgeladene Pläne und benötigen keinen neuen Ordner.
-                    status(`Foto ${fotoUploadZaehler} wird zu Firebase hochgeladen…`);
-                    let uploadErgebnis;
-                    try {
-                        uploadErgebnis = await uploadBytes(fotoRef, datei, {
-                            contentType: datei.type || 'image/jpeg',
-                            cacheControl: 'public,max-age=3600'
-                        });
-                    } catch (error) {
-                        console.error('Firebase Storage Pin-Foto Upload:', error);
-                        const code = error?.code ? `[${error.code}] ` : '';
-                        throw new Error(`${code}${error?.message || 'Firebase konnte das Pin-Foto nicht hochladen.'}`);
-                    }
-                    status('Foto-Adresse wird abgerufen…');
-                    const downloadUrl = await getDownloadURL(uploadErgebnis.ref);
-                    if (!downloadUrl) throw new Error('Firebase hat keine Foto-Adresse zurückgegeben.');
-                    return downloadUrl;
+                    // Ursprünglicher, bereits im Portal verwendeter Uploadweg:
+                    // Pin-Fotos werden wie vor der Änderung über die zentrale
+                    // Baustellen-Datei-Uploadfunktion im Ordner mangel-fotos gespeichert.
+                    return await uploadBaustellenDatei(datei, "mangel-fotos", aktuellesProjekt);
                 };
                 const pinFotoUrlSichern = async (wert) => {
                     if (!wert || typeof wert !== 'string' || !wert.startsWith('data:image/')) return wert || '';
