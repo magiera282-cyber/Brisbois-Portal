@@ -6916,15 +6916,10 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     fotoUploadZaehler++;
                     const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
                     const pinDateiname = `${Date.now()}_${uuid}.jpg`;
-                    const fotoRef = storageRef(storage, `baustellen/${projektPfad}/pin-fotos/${pinDateiname}`);
-                    status('Foto wird zu Firebase hochgeladen… 0 %');
-                    // Resumable Upload statt uploadBytes + künstlichem 60-Sekunden-Limit.
-                    // Firebase meldet Fortschritt und echte Fehler (z. B. permission-denied)
-                    // direkt; langsame mobile Verbindungen werden nicht vorzeitig abgebrochen.
-                    // Für Baustellenpläne und andere Portal-Dateien wird bereits
-                    // uploadBytes() verwendet. Pin-Fotos nutzen bewusst denselben,
-                    // im Portal etablierten Uploadpfad statt des auf manchen mobilen
-                    // Browsern bei 0 % stehenbleibenden Resumable-Listeners.
+                    const fotoRef = storageRef(storage, `baustellen/${projektPfad}/plaene/pin_${pinDateiname}`);
+                    // Pin-Fotos werden im bereits verwendeten Baustellen-Planordner
+                    // abgelegt. So nutzen sie denselben Storage-Pfadbereich wie
+                    // erfolgreich hochgeladene Pläne und benötigen keinen neuen Ordner.
                     status(`Foto ${fotoUploadZaehler} wird zu Firebase hochgeladen…`);
                     let uploadErgebnis;
                     try {
