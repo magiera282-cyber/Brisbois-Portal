@@ -2149,7 +2149,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+        import { getStorage, ref as storageRef, uploadBytes, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
         import { serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -2730,7 +2730,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                       String(item.datum || '') === "Heute, 08:30 Uhr")
                 );
                 if (JSON.stringify(globalDaten.benachrichtigungen || []) !== benachrichtigungenVorher) {
-                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Alter Demo-Hinweis konnte nicht bereinigt werden:", e); }
+                    try { await mitZeitlimit(window.globalGlobalSpeichern(), 8000, 'Portal-Synchronisation'); } catch(e) { console.warn("Alter Demo-Hinweis konnte nicht bereinigt werden:", e); }
                 }
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
                 globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
@@ -6852,9 +6852,11 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const btn = document.querySelector('#pin-modal button[onclick*="pinSpeichern"]');
             const status = (meldung) => { if (btn) btn.innerText = `⏳ ${meldung}`; };
+            // Zeitlimit nur für die nachgelagerte Firestore-/Portal-Synchronisation.
+            // Der eigentliche Foto-Upload hat ausdrücklich KEIN 60-Sekunden-Limit.
             const mitZeitlimit = (promise, ms, schritt) => Promise.race([
                 promise,
-                new Promise((_, reject) => setTimeout(() => reject(new Error(`${schritt}: Zeitüberschreitung nach ${Math.round(ms/1000)} Sekunden. Bitte Internetverbindung und Firebase-Regeln prüfen.`)), ms))
+                new Promise((_, reject) => setTimeout(() => reject(new Error(`${schritt}: Zeitüberschreitung nach ${Math.round(ms / 1000)} Sekunden.`)), ms))
             ]);
             if (btn) { btn.disabled = true; status('Pin wird vorbereitet…'); }
 
@@ -6867,17 +6869,39 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
                     const pinDateiname = `${Date.now()}_${uuid}.jpg`;
                     const fotoRef = storageRef(storage, `baustellen/${projektPfad}/pin-fotos/${pinDateiname}`);
-                    status('Foto wird zu Firebase hochgeladen…');
-                    await mitZeitlimit(uploadBytes(fotoRef, datei, { contentType: datei.type || 'image/jpeg' }), 60000, 'Foto-Upload');
+                    status('Foto wird zu Firebase hochgeladen… 0 %');
+                    // Resumable Upload statt uploadBytes + künstlichem 60-Sekunden-Limit.
+                    // Firebase meldet Fortschritt und echte Fehler (z. B. permission-denied)
+                    // direkt; langsame mobile Verbindungen werden nicht vorzeitig abgebrochen.
+                    const uploadTask = uploadBytesResumable(fotoRef, datei, {
+                        contentType: datei.type || 'image/jpeg',
+                        cacheControl: 'public,max-age=3600'
+                    });
+                    await new Promise((resolve, reject) => {
+                        uploadTask.on('state_changed', snapshot => {
+                            const prozent = snapshot.totalBytes
+                                ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
+                                : 0;
+                            status(`Foto wird zu Firebase hochgeladen… ${prozent} %`);
+                        }, error => {
+                            console.error('Firebase Storage Pin-Foto Upload:', error);
+                            const code = error?.code ? `[${error.code}] ` : '';
+                            reject(new Error(`${code}${error?.message || 'Firebase konnte das Pin-Foto nicht hochladen.'}`));
+                        }, resolve);
+                    });
                     status('Foto-Adresse wird abgerufen…');
-                    return await mitZeitlimit(getDownloadURL(fotoRef), 20000, 'Abruf der Foto-Adresse');
+                    const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                    if (!downloadUrl) throw new Error('Firebase hat keine Foto-Adresse zurückgegeben.');
+                    return downloadUrl;
                 };
                 const pinFotoUrlSichern = async (wert) => {
                     if (!wert || typeof wert !== 'string' || !wert.startsWith('data:image/')) return wert || '';
                     if (!storage) throw new Error('Firebase Storage wird benötigt, um ein älteres eingebettetes Pin-Foto auszulagern.');
                     status('Älteres Pin-Foto wird ausgelagert…');
-                    const blob = await mitZeitlimit(fetch(wert).then(r => { if (!r.ok) throw new Error('Altes Pin-Foto konnte nicht gelesen werden.'); return r.blob(); }), 20000, 'Lesen eines alten Pin-Fotos');
-                    const datei = await mitZeitlimit(planBildKomprimieren(new File([blob], 'altes-pin-foto.jpg', { type: blob.type || 'image/jpeg' }), 1400, 0.72), 30000, 'Bildkomprimierung');
+                    const antwort = await fetch(wert);
+                    if (!antwort.ok) throw new Error(`Altes Pin-Foto konnte nicht gelesen werden (HTTP ${antwort.status}).`);
+                    const blob = await antwort.blob();
+                    const datei = await planBildKomprimieren(new File([blob], 'altes-pin-foto.jpg', { type: blob.type || 'image/jpeg' }), 1400, 0.72);
                     return await pinFotoHochladen(datei);
                 };
 
@@ -6887,7 +6911,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     if (!String(foto.type || '').startsWith('image/')) throw new Error(`„${foto.name || 'Datei'}“ ist kein unterstütztes Bild.`);
                     if (foto.size > 12 * 1024 * 1024) throw new Error(`Das Foto „${foto.name || ''}“ darf maximal 12 MB groß sein.`);
                     status(`Foto ${i + 1}/${fotos.length} wird komprimiert…`);
-                    const fotoDatei = await mitZeitlimit(planBildKomprimieren(foto, 1400, 0.72), 30000, 'Bildkomprimierung');
+                    const fotoDatei = await planBildKomprimieren(foto, 1400, 0.72);
                     fotoUrls.push(await pinFotoHochladen(fotoDatei));
                 }
 
@@ -6936,7 +6960,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
                 status('Benachrichtigung wird synchronisiert…');
                 try {
-                    await mitZeitlimit(window.globalGlobalSpeichern(), 8000, 'Portal-Synchronisation');
+                    await window.globalGlobalSpeichern();
                 } catch (syncError) {
                     console.warn('Pin gespeichert; globale Benachrichtigung wird später synchronisiert:', syncError);
                 }
