@@ -1625,7 +1625,7 @@ in alle Räume die selben Fußleisten Eiche lackiert Standardmaß"></textarea>
                 <div class="border-t pt-4 space-y-4">
                     <div class="flex justify-between items-center">
                         <div><h3 class="font-semibold text-lg text-slate-700">📦 Projekt-Packliste & Materialverbrauch</h3><p class="text-[11px] text-slate-400 mt-1">Soll → verbraucht → Rest. Verbrauch direkt auf der Baustelle dokumentieren.</p></div>
-                        <button onclick="uzinAuswahlOeffnen()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition shadow-sm">
+                        <button onclick="uzinAuswahlOeffnen()" class="materialliste-only hidden text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition shadow-sm">
                             ➕ Materialliste öffnen
                         </button>
                     </div>
@@ -2493,6 +2493,18 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
         window.globalDaten = globalDaten;
 
+        // Die Projekt-Collection und Zuweisungen werden getrennt in Echtzeit geladen.
+        // Namen werden beim Lesen tolerant normalisiert, damit unsichtbare Leerzeichen
+        // oder abweichende Groß-/Kleinschreibung keine gültige Zuweisung verstecken.
+        let projektSammlungGeladen = false;
+        let zuweisungenSeparatGeladen = false;
+        function zuweisungenFuerMitarbeiter(name) {
+            const map = globalDaten.zuweisungen || {};
+            const key = Object.keys(map).find(k => String(k).trim().toLocaleLowerCase('de-DE') === String(name || '').trim().toLocaleLowerCase('de-DE'));
+            const wert = key ? map[key] : [];
+            return Array.isArray(wert) ? wert.map(v => String(v).trim()).filter(Boolean) : [];
+        }
+
         let eingeloggterMitarbeiter = "";
         let eingeloggteRolle = "";
         // Für Funktionen außerhalb des ES-Moduls lesbar, aber nicht von außen beschreibbar.
@@ -2730,24 +2742,23 @@ SECURITY MIGRATION MARKER (06.10.2026):
                       String(item.datum || '') === "Heute, 08:30 Uhr")
                 );
                 if (JSON.stringify(globalDaten.benachrichtigungen || []) !== benachrichtigungenVorher) {
-                    try { await mitZeitlimit(window.globalGlobalSpeichern(), 8000, 'Portal-Synchronisation'); } catch(e) { console.warn("Alter Demo-Hinweis konnte nicht bereinigt werden:", e); }
+                    try { await window.globalGlobalSpeichern(); } catch(e) { console.warn("Alter Demo-Hinweis konnte nicht bereinigt werden:", e); }
                 }
                 globalDaten.uzinKatalog = cloudDaten.uzinKatalog || globalDaten.uzinKatalog;
                 globalDaten.materialliste = Array.isArray(cloudDaten.materialliste) ? cloudDaten.materialliste : (globalDaten.materialliste || []);
-                if (Array.isArray(cloudDaten.lagerbestand)) {
+                if (!lagerDatenSeparatGeladen && Array.isArray(cloudDaten.lagerbestand)) {
                     if (cloudDaten.lagerbestand.length > 0 || !Array.isArray(globalDaten.lagerbestand) || globalDaten.lagerbestand.length === 0) {
                         globalDaten.lagerbestand = cloudDaten.lagerbestand;
                     } else {
                         console.warn("Leere Lagerliste aus portal/global ignoriert, weil bereits Lagerartikel im Speicher vorhanden sind.");
                     }
-                    if (cloudDaten.lagerbestand.length > 0) lagerDatenSeparatGeladen = true;
-                } else {
-                    globalDaten.lagerbestand = globalDaten.lagerbestand || [];
+                } else if (!Array.isArray(globalDaten.lagerbestand)) {
+                    globalDaten.lagerbestand = [];
                 }
                 // Projekt-/Mitarbeiter-Zuweisungen nicht durch fehlende oder leere
                 // Altdaten aus portal/global löschen. Die separate Firebase-Quelle
                 // portal_data/assignments ist maßgeblich.
-                if (cloudDaten.zuweisungen && typeof cloudDaten.zuweisungen === "object" && Object.keys(cloudDaten.zuweisungen).length > 0) {
+                if (!zuweisungenSeparatGeladen && cloudDaten.zuweisungen && typeof cloudDaten.zuweisungen === "object" && Object.keys(cloudDaten.zuweisungen).length > 0) {
                     globalDaten.zuweisungen = cloudDaten.zuweisungen;
                 } else {
                     globalDaten.zuweisungen = globalDaten.zuweisungen || {};
@@ -2836,6 +2847,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         }
 
         onSnapshot(collection(db, "projekte"), (snapshot) => {
+            projektSammlungGeladen = true;
             if (!snapshot.empty) {
                 const neueProjekte = {};
                 snapshot.forEach((docSnap) => {
@@ -2846,21 +2858,25 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 // aus Zuweisungen, Wochenplanung und automatischer Zeiterfassung entfernt.
                 verwaistePlanungenNachProjektenBereinigen().catch(e => console.warn("Projekt-Bereinigung:", e));
                 if (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt]) {
-                    const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
+                    const r = String(eingeloggteRolle || '').toLocaleLowerCase('de-DE');
+                    const isChefOrTechOrSekr = istDauerhafterAdmin() || ['chef','2. chef','2.chef','techniker','admin','sekretariat'].some(x => r.includes(x)) || eingeloggterMitarbeiter === 'Christian Leppin';
                     if (isChefOrTechOrSekr) {
                         aktuellesProjekt = Object.keys(globalDaten.projekte)[0] || "";
                     } else {
                         try { window.zeigeVerlegerPlanungAufStartseite(); } catch(e) {}
-            const zugewieseneProjekte = (globalDaten.zuweisungen[eingeloggterMitarbeiter] || []).filter(p => Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, p));
+                        const zugewieseneProjekte = zuweisungenFuerMitarbeiter(eingeloggterMitarbeiter).filter(p => Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, p));
                         aktuellesProjekt = zugewieseneProjekte.length > 0 ? zugewieseneProjekte[0] : "";
                     }
                 }
                 allesAktualisieren();
             } else {
-                // Eine leere Projekte-Collection bleibt wirklich leer.
-                // Gelöschte Baustellen dürfen nicht automatisch aus basisProjekte wieder auftauchen.
-                globalDaten.projekte = {};
-                aktuellesProjekt = "";
+                // Projekte kommen ausschließlich aus der separaten Collection "projekte".
+                // Der ältere portal/global-Snapshot darf diese bereits geladene Collection
+                // nicht nachträglich leeren (Race-Condition beim Login/Start).
+                if (!projektSammlungGeladen) {
+                    globalDaten.projekte = {};
+                    aktuellesProjekt = "";
+                }
                 allesAktualisieren();
             }
         });
@@ -2984,6 +3000,9 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     if (sammlung === "portal_data" && dokument === "warehouse") {
                         lagerDatenSeparatGeladen = true;
                     }
+                    if (sammlung === "portal_data" && dokument === "assignments") {
+                        zuweisungenSeparatGeladen = true;
+                    }
                     Object.entries(feldMap).forEach(([quelle, ziel]) => {
                         if (!Object.prototype.hasOwnProperty.call(d, quelle)) return;
                         // Leere Zuweisungsdaten dürfen bestehende Projektzuweisungen
@@ -2999,6 +3018,26 @@ SECURITY MIGRATION MARKER (06.10.2026):
                         globalDaten[ziel] = d[quelle];
                     });
                     try { allesAktualisieren(); } catch(e) {}
+                    try {
+                        const rn = String(eingeloggteRolle || '').trim().toLocaleLowerCase('de-DE');
+                        const darfMaterial = materiallisteBerechtigt();
+                        const darfLagerAktuell = lagerBerechtigt();
+                        document.querySelectorAll('.materialliste-only').forEach(el => el.classList.toggle('hidden', !darfMaterial));
+                        document.querySelectorAll('.lager-only').forEach(el => el.classList.toggle('hidden', !darfLagerAktuell));
+                    } catch(e) {}
+                    if (quelle === "zuweisungen" && eingeloggterMitarbeiter && projektSammlungGeladen) {
+                        const r = String(eingeloggteRolle || '').toLocaleLowerCase('de-DE');
+                        const istMitarbeiter = r.includes('verleger') || r.includes('lagerist');
+                        if (istMitarbeiter) {
+                            const eigene = zuweisungenFuerMitarbeiter(eingeloggterMitarbeiter).filter(p => Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, p));
+                            if (eigene.length && (!aktuellesProjekt || !globalDaten.projekte[aktuellesProjekt] || !eigene.includes(aktuellesProjekt))) {
+                                aktuellesProjekt = eigene[0];
+                                projektLaden(aktuellesProjekt);
+                            }
+                            projektListeAktualisieren();
+                            startseiteAktualisieren();
+                        }
+                    }
                     // Lagerdaten kommen separat und können nach dem Login eintreffen.
                     // Deshalb die Lageransicht nach genau diesem Daten-Update neu zeichnen.
                     if (Object.prototype.hasOwnProperty.call(feldMap, "lagerbestand")) {
@@ -3336,6 +3375,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 document.getElementById('btn-abrechnungen-top')?.classList.add('hidden');
             };
             lagerUIRolleAnwenden();
+            // Nach dem Login sofort den zuletzt empfangenen Lager-Snapshot anzeigen.
+            try { if (lagerBerechtigt()) lagerAnzeigen(); } catch(e) { console.warn('Lagerliste nach Login:', e); }
             try { abrechnungenAnzeigen(); } catch(e) { console.warn('Abrechnungen beim Login übersprungen:', e); }
             materiallisteAnzeigen();
             urlaubsantraegeAnzeigen();
@@ -3371,7 +3412,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 if(mitarbeiterZeiterfassungBereich) mitarbeiterZeiterfassungBereich.classList.remove('hidden');
 
                 projektListeAktualisieren();
-                const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+                const zugewieseneProjekte = zuweisungenFuerMitarbeiter(eingeloggterMitarbeiter);
                 const ersteBaustelle = zugewieseneProjekte.length > 0 ? zugewieseneProjekte[0] : "";
                 if (ersteBaustelle) {
                     projektLaden(ersteBaustelle);
@@ -4076,7 +4117,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const restUrlaubEl = document.getElementById('start-resturlaub');
             if(restUrlaubEl) restUrlaubEl.innerText = `${aktuellerResturlaub} Tage`;
 
-            const zugewieseneProjekte = (globalDaten.zuweisungen[eingeloggterMitarbeiter] || [])
+            const zugewieseneProjekte = (zuweisungenFuerMitarbeiter(eingeloggterMitarbeiter))
                 .filter(p => Object.prototype.hasOwnProperty.call(globalDaten.projekte || {}, p));
             if(zugewieseneProjekte.length > 0) {
                 const erstesProj = zugewieseneProjekte[0];
@@ -4390,6 +4431,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         }
 
         window.uzinAuswahlOeffnen = function() {
+            if (!materiallisteBerechtigt()) { alert('Keine Berechtigung für die Materialliste.'); return; }
             const grid = document.getElementById('uzin-produkte-grid');
             const form = document.getElementById('uzin-katalog-neu-form');
             if (form) form.classList.add('hidden');
@@ -4743,7 +4785,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             const item = globalDaten.benachrichtigungen[ausgewaehlteNachrichtIndex];
             if (item && item.projekt && globalDaten.projekte[item.projekt]) {
                 const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
-                const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+                const zugewieseneProjekte = zuweisungenFuerMitarbeiter(eingeloggterMitarbeiter);
                 if (isChefOrTechOrSekr || zugewieseneProjekte.includes(item.projekt)) {
                     document.getElementById('benachrichtigung-detail-modal').classList.add('hidden');
                     wechselnTab('auftraege');
@@ -5711,7 +5753,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             Object.keys(globalDaten.projekte || {}).forEach(titel => {
                 if (!isChefOrTechOrSekr) {
-                    const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+                    const zugewieseneProjekte = zuweisungenFuerMitarbeiter(eingeloggterMitarbeiter);
                     if (!zugewieseneProjekte.includes(titel)) return;
                 }
 
@@ -5951,7 +5993,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
         async function projektLaden(titel) {
             const isChefOrTechOrSekr = istDauerhafterAdmin() || eingeloggteRolle.includes('Chef') || eingeloggteRolle.includes('Techniker') || eingeloggteRolle.includes('Admin') || eingeloggteRolle.includes('Sekretariat') || eingeloggterMitarbeiter === 'Christian Leppin';
             if (!isChefOrTechOrSekr) {
-                const zugewieseneProjekte = globalDaten.zuweisungen[eingeloggterMitarbeiter] || [];
+                const zugewieseneProjekte = zuweisungenFuerMitarbeiter(eingeloggterMitarbeiter);
                 if (!zugewieseneProjekte.includes(titel)) {
                     return;
                 }
@@ -6852,12 +6894,6 @@ SECURITY MIGRATION MARKER (06.10.2026):
 
             const btn = document.querySelector('#pin-modal button[onclick*="pinSpeichern"]');
             const status = (meldung) => { if (btn) btn.innerText = `⏳ ${meldung}`; };
-            // Zeitlimit nur für die nachgelagerte Firestore-/Portal-Synchronisation.
-            // Der eigentliche Foto-Upload hat ausdrücklich KEIN 60-Sekunden-Limit.
-            const mitZeitlimit = (promise, ms, schritt) => Promise.race([
-                promise,
-                new Promise((_, reject) => setTimeout(() => reject(new Error(`${schritt}: Zeitüberschreitung nach ${Math.round(ms / 1000)} Sekunden.`)), ms))
-            ]);
             if (btn) { btn.disabled = true; status('Pin wird vorbereitet…'); }
 
             try {
@@ -6955,7 +6991,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 });
 
                 status('Pin wird in der Baustelle gespeichert…');
-                const pinGespeichert = await mitZeitlimit(projektSpeichern(aktuellesProjekt), 30000, 'Speichern in Firestore');
+                const pinGespeichert = await projektSpeichern(aktuellesProjekt);
                 if (!pinGespeichert) throw new Error('Firestore hat den Pin nicht bestätigt. Bitte Fehlermeldung beachten und nicht mehrfach auf Speichern drücken.');
 
                 status('Benachrichtigung wird synchronisiert…');
@@ -8492,7 +8528,13 @@ SECURITY MIGRATION MARKER (06.10.2026):
             // Zusätzliche Zugriffssperre: Verleger dürfen den Lager-Tab auch
             // nicht über einen direkten Funktionsaufruf öffnen.
             if (tabName === 'lager' && !lagerBerechtigt()) {
+                document.getElementById('btn-lager')?.classList.add('hidden');
                 alert('Keine Berechtigung für Lager & Werkzeug.');
+                return;
+            }
+            if (tabName === 'materialliste' && !materiallisteBerechtigt()) {
+                document.getElementById('btn-materialliste')?.classList.add('hidden');
+                alert('Keine Berechtigung für die Materialliste.');
                 return;
             }
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -8523,7 +8565,7 @@ SECURITY MIGRATION MARKER (06.10.2026):
             }
             if (tabName === 'dashboard') { window.dashboardAktualisieren(); }
             if (tabName === 'materialliste') { materiallisteAnzeigen(); }
-            if (tabName === 'lager') { lagerAnzeigen(); lagerAusgabenAnzeigen(); }
+            if (tabName === 'lager') { lagerAnzeigen(); lagerAusgabenAnzeigen(); requestAnimationFrame(() => { try { lagerAnzeigen(); } catch(e) {} }); }
             if (tabName === 'abrechnungen') { abrechnungenAnzeigen(); }
             if (tabName === 'startseite') {
                 wetterLaden();
