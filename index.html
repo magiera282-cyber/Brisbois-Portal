@@ -914,7 +914,7 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase mb-1">📷 Foto zum Mangel hinzufügen (Funktioniert mit jedem iPhone)</label>
-                    <input type="file" id="pin-foto-input" accept="image/*,.heic,.heif,image/heic,image/heif" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <input type="file" id="pin-foto-input" accept="image/*,.heic,.heif,image/heic,image/heif" multiple class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
                 </div>
             </div>
             <div class="flex gap-2 pt-2">
@@ -935,9 +935,9 @@ main.tab-content:not(#tab-dashboard) label.text-slate-700 { color: #fff !importa
                 <p class="text-xs text-slate-500" id="modal-pin-meta"></p>
                 <p class="text-sm font-medium text-slate-800 bg-slate-50 p-3 rounded-lg border" id="modal-pin-text"></p>
                 
-                <div id="modal-pin-foto-container" class="hidden space-y-1">
-                    <h4 class="text-xs font-bold text-slate-700 uppercase">📷 Angehängtes Foto:</h4>
-                    <img id="modal-pin-foto" src="" class="w-full max-h-64 object-cover rounded-xl border shadow-sm" alt="Mangel Foto">
+                <div id="modal-pin-foto-container" class="hidden space-y-2">
+                    <h4 class="text-xs font-bold text-slate-700 uppercase">📷 Angehängte Fotos:</h4>
+                    <div id="modal-pin-foto-galerie" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
                 </div>
 
                 <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl space-y-1">
@@ -6862,38 +6862,72 @@ SECURITY MIGRATION MARKER (06.10.2026):
             if (btn) { btn.disabled = true; btn.innerText = "⏳ Wird gespeichert..."; }
 
             try {
-                let fotoUrl = "";
-                const foto = fotoInput.files && fotoInput.files[0];
-                if (foto) {
-                    // Pin-Fotos werden direkt als komprimiertes Bild im Pin gespeichert.
-                    // Dadurch hängt das Speichern auf iPhone/PC nicht von Firebase Storage ab.
+                // Pin-Fotos gehören nicht in das Firestore-Projektdokument:
+                // Dort gilt eine harte Grenze von 1 MiB. Die Bilddateien werden
+                // deshalb einzeln in Firebase Storage abgelegt; im Pin bleiben
+                // ausschließlich Download-URLs (auch mehrere Fotos pro Pin).
+                const fotos = Array.from(fotoInput.files || []);
+                if (fotos.length > 8) throw new Error('Pro Pin können maximal 8 Fotos angehängt werden.');
+                if (!storage && fotos.length) throw new Error('Firebase Storage ist nicht verfügbar. Bitte Firebase Storage aktivieren.');
+                const projektPfad = String(aktuellesProjekt || 'baustelle').replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, '_').slice(0, 80);
+                const pinFotoHochladen = async (datei) => {
+                    const pinDateiname = `${Date.now()}_${crypto.randomUUID()}.jpg`;
+                    const fotoRef = storageRef(storage, `baustellen/${projektPfad}/pin-fotos/${pinDateiname}`);
+                    await uploadBytes(fotoRef, datei, { contentType: datei.type || 'image/jpeg' });
+                    return await getDownloadURL(fotoRef);
+                };
+                const pinFotoUrlSichern = async (wert) => {
+                    if (!wert || typeof wert !== 'string') return wert || '';
+                    if (!wert.startsWith('data:image/')) return wert;
+                    if (!storage) throw new Error('Firebase Storage wird benötigt, um ältere eingebettete Pin-Fotos auszulagern.');
+                    const blob = await (await fetch(wert)).blob();
+                    const datei = await planBildKomprimieren(new File([blob], 'altes-pin-foto.jpg', { type: blob.type || 'image/jpeg' }), 1400, 0.72);
+                    return await pinFotoHochladen(datei);
+                };
+                const fotoUrls = [];
+                for (const foto of fotos) {
                     if (!String(foto.type || '').startsWith('image/')) {
-                        throw new Error('Bitte ein JPG- oder PNG-Foto auswählen.');
+                        throw new Error(`„${foto.name || 'Datei'}“ ist kein unterstütztes Bild.`);
                     }
-                    const maxFotoMB = 12;
-                    if (foto.size > maxFotoMB * 1024 * 1024) {
-                        throw new Error(`Das Foto darf maximal ${maxFotoMB} MB groß sein.`);
+                    if (foto.size > 12 * 1024 * 1024) {
+                        throw new Error(`Das Foto „${foto.name || ''}“ darf maximal 12 MB groß sein.`);
                     }
                     const fotoDatei = await planBildKomprimieren(foto, 1400, 0.72);
-                    const fotoReader = new FileReader();
-                    fotoUrl = await new Promise((resolve, reject) => {
-                        fotoReader.onerror = () => reject(new Error('Das Mangel-Foto konnte nicht gelesen werden.'));
-                        fotoReader.onload = () => resolve(String(fotoReader.result || ''));
-                        fotoReader.readAsDataURL(fotoDatei);
-                    });
+                    fotoUrls.push(await pinFotoHochladen(fotoDatei));
                 }
 
                 const datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
                 const p = globalDaten.projekte[aktuellesProjekt];
+                if (!p) throw new Error('Die Baustelle ist nicht mehr geladen. Bitte Seite neu laden.');
                 const planIdx = p.aktiverPlanIndex !== undefined ? p.aktiverPlanIndex : 0;
                 if (!p.pins) p.pins = [];
+
+                // Einmalige, verlustfreie Migration alter Base64-Pinbilder:
+                // URLs bleiben unverändert, eingebettete Bilder wandern nach Storage.
+                for (const alterPin of p.pins) {
+                    if (!alterPin || typeof alterPin !== 'object') continue;
+                    const alteFotos = Array.isArray(alterPin.fotos) && alterPin.fotos.length
+                        ? alterPin.fotos
+                        : (alterPin.foto ? [alterPin.foto] : []);
+                    if (!alteFotos.length) continue;
+                    const gesicherteFotos = [];
+                    for (const alteFoto of alteFotos) {
+                        const url = await pinFotoUrlSichern(alteFoto);
+                        if (url) gesicherteFotos.push(url);
+                    }
+                    alterPin.fotos = gesicherteFotos;
+                    alterPin.foto = gesicherteFotos[0] || '';
+                }
 
                 p.pins.push({
                     x: temporärePinX,
                     y: temporärePinY,
                     planIndex: planIdx,
                     text: text,
-                    foto: fotoUrl,
+                    // foto bleibt als Kompatibilitätsfeld für die erste URL erhalten;
+                    // fotos enthält die vollständige Galerie. Alte Base64-Fotos bleiben lesbar.
+                    foto: fotoUrls[0] || "",
+                    fotos: fotoUrls,
                     von: eingeloggterMitarbeiter,
                     zeit: datum,
                     gelesenVon: [],
@@ -6918,7 +6952,8 @@ SECURITY MIGRATION MARKER (06.10.2026):
                 // Der Pin wird zuerst sicher im Baustellen-Dokument gespeichert.
                 // Die globale Benachrichtigung darf den Speichervorgang nicht mehr
                 // blockieren (sonst bleibt auf dem iPhone dauerhaft „Wird gespeichert...“).
-                await projektSpeichern(aktuellesProjekt);
+                const pinGespeichert = await projektSpeichern(aktuellesProjekt);
+                if (!pinGespeichert) throw new Error('Der Pin konnte nicht in Firestore gespeichert werden. Bitte erneut versuchen.');
                 try {
                     await Promise.race([
                         window.globalGlobalSpeichern(),
@@ -7097,14 +7132,21 @@ SECURITY MIGRATION MARKER (06.10.2026):
                     document.getElementById('modal-pin-text').innerText = pin.text;
 
                     const fotoContainer = document.getElementById('modal-pin-foto-container');
-                    const pinFoto = document.getElementById('modal-pin-foto');
-                    if (pin.foto) {
-                        pinFoto.src = pin.foto;
-                        fotoContainer.classList.remove('hidden');
-                    } else {
-                        pinFoto.src = "";
-                        fotoContainer.classList.add('hidden');
-                    }
+                    const fotoGalerie = document.getElementById('modal-pin-foto-galerie');
+                    const pinFotos = Array.isArray(pin.fotos) && pin.fotos.length
+                        ? pin.fotos
+                        : (pin.foto ? [pin.foto] : []); // unterstützt auch alle bisherigen Pins
+                    fotoGalerie.innerHTML = '';
+                    pinFotos.forEach((fotoUrl, fotoIndex) => {
+                        if (!fotoUrl) return;
+                        const bild = document.createElement('img');
+                        bild.src = fotoUrl;
+                        bild.alt = `Mangel Foto ${fotoIndex + 1}`;
+                        bild.loading = 'lazy';
+                        bild.className = 'w-full max-h-64 object-contain rounded-xl border shadow-sm bg-slate-50';
+                        fotoGalerie.appendChild(bild);
+                    });
+                    fotoContainer.classList.toggle('hidden', fotoGalerie.children.length === 0);
 
                     const leseContainer = document.getElementById('modal-lesebestaetigung-liste');
                     leseContainer.innerHTML = '';
